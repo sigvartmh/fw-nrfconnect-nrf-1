@@ -20,6 +20,34 @@
 
 #include <provision.h>
 
+/* These __weak functions are needed by the cc310_bl and some other code, but
+ * not (always) included in the bootloader.
+ */
+void *__weak memset(void *buf, int c, size_t n)
+{
+	for (size_t i = 0; i < n; i++) {
+		((u8_t *)buf)[i] = c;
+	}
+	return buf;
+}
+
+void *__weak memcpy(void *restrict d, const void *restrict s, size_t n)
+{
+	for (size_t i = 0; i < n; i++) {
+		((u8_t *)d)[i] = ((u8_t *)s)[i];
+	}
+	return d;
+}
+
+void *memcpy32(void *restrict d, const void *restrict s, size_t n)
+{
+	size_t len_words = ROUND_DOWN(n, 4) / 4;
+	for (size_t i = 0; i < len_words; i++) {
+		((u32_t *)d)[i] = ((u32_t *)s)[i];
+	}
+	return d;
+}
+
 static bool verify_firmware(u32_t address)
 {
 	int retval = -EFAULT;

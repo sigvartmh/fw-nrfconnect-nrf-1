@@ -10,7 +10,7 @@
 #include <occ_ecdsa_p256.h>
 #include "bl_crypto_internal.h"
 
-bool verify_sig(const u8_t *data, size_t data_len, const u8_t *sig,
+bool verify_sig(const u8_t *data, u32_t data_len, const u8_t *sig,
 		const u8_t *pk)
 {
 	u8_t hash1[CONFIG_SB_HASH_LEN];

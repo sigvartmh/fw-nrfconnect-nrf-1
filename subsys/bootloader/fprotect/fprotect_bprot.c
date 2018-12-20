@@ -38,11 +38,7 @@ int fprotect_area(u32_t start, size_t length)
 		return -EINVAL;
 	}
 
-	u32_t config_masks[BPROT_CONFIGS_NUM];
-
-	for (u32_t i = 0; i < BPROT_CONFIGS_NUM; i++) {
-		config_masks[i] = 0;
-	}
+	u32_t config_masks[BPROT_CONFIGS_NUM] = {0};
 
 	for (u32_t i = pagenum_start; i <= pagenum_end; i++)	{
 		config_masks[i / BITS_PER_LONG] |= BIT(i % BITS_PER_LONG);
