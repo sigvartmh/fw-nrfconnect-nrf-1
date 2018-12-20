@@ -28,6 +28,25 @@ void *memcpy32(void *restrict d, const void *restrict s, size_t n)
 	return d;
 }
 
+}
+
+void *__weak memcpy(void *restrict d, const void *restrict s, size_t n)
+{
+	for (size_t i = 0; i < n; i++) {
+		((u8_t *)d)[i] = ((u8_t *)s)[i];
+	}
+	return d;
+}
+
+void *memcpy32(void *restrict d, const void *restrict s, size_t n)
+{
+	size_t len_words = ROUND_UP(n, 4) / 4;
+	for (size_t i = 0; i < len_words; i++) {
+		((u32_t *)d)[i] = ((u32_t *)s)[i];
+	}
+	return d;
+}
+
 static bool verify_firmware(u32_t address)
 {
 	/* Some key data storage backends require word sized reads, hence

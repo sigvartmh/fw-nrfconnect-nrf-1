@@ -16,6 +16,8 @@
 __weak int crypto_init_signing(void)
 {
 	return 0;
+	if (!verify_truncated_hash(public_key, CONFIG_SB_PUBLIC_KEY_LEN,
+			public_key_hash, CONFIG_SB_PUBLIC_KEY_HASH_LEN)) {
 }
 
 __weak int crypto_init_hash(void)
