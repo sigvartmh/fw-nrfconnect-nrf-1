@@ -29,14 +29,17 @@
 
 struct __packed fw_firmware_info {
 	u32_t magic[MAGIC_LEN_WORDS];
-	u32_t firmware_size;      /* Size without validation_info pointer and
-				   * padding.
-				   */
-	u32_t firmware_version; /* Monotonically increasing version counter.*/
-	u32_t firmware_address; /* The address of the start (vector table) of
-				 * the firmware.
-				 */
+
+	/* Size without validation_info pointer and padding. */
+	u32_t firmware_size;
+
+	/* Monotonically increasing version counter.*/
+	u32_t firmware_version;
+
+	/* The address of the start (vector table) of the firmware. */
+	u32_t firmware_address;
 };
+
 
 struct __packed fw_validation_info {
 	/* Magic value */

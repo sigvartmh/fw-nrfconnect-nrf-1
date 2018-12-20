@@ -10,6 +10,7 @@
 
 add_library(bootloader bootloader.c)
 
+add_subdirectory(bl_crypto)
 target_link_libraries(bootloader PRIVATE bl_crypto)
 
 add_subdirectory(c_runtime_setup)
@@ -186,7 +187,7 @@ add_custom_command(
   --generated-conf-file ${PROJECT_BINARY_DIR}/include/generated/generated_dts_board.conf
   --public-key-files "${public_key_file},${PUBLIC_KEY_FILES}"
   --output ${PROVISION_HEX}
-  DEPENDS ${PROVISION_DEPENDS}
+  DEPENDS ${PROVISION_DEPENDS} ${public_key_file}
   WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
   COMMENT
   "Creating provision data for Bootloader, storing to ${PROVISION_HEX_NAME}"

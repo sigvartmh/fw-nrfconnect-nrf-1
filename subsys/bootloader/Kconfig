@@ -102,7 +102,3 @@ rsource "fw_metadata/Kconfig"
 rsource "fprotect/Kconfig"
 
 endif # SECURE_BOOT
-
-if ZTEST && !SECURE_BOOT
-rsource "bl_crypto/Kconfig"
-endif # ZTEST
