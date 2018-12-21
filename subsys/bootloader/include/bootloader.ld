@@ -73,7 +73,7 @@ SECTIONS
 	}
 	_image_rom_start = ROM_ADDR;
 
-	SECTION_PROLOGUE(_TEXT_SECTION_NAME,,)
+	SECTION_PROLOGUE(.text,,)
 	{
 	_vector_start = .;
 	KEEP(*(.exc_vector_table))
@@ -88,6 +88,14 @@ SECTIONS
 	*(.text)
 	*(".text.*")
 	*(.gnu.linkonce.t.*)
+
+	/*
+	 * Section containing externally available ABIs.
+	 */
+	. = ALIGN(4);
+	_abis_start = .;
+	KEEP(*(.extabis))
+	_abis_end = .;
 
 	/*
 	 * These are here according to 'arm-zephyr-elf-ld --verbose',

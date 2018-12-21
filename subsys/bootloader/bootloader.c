@@ -171,6 +171,15 @@ static void boot_from(u32_t *address)
 
 	VTOR = (u32_t)address;
 
+	const struct fw_firmware_info *fw_info;
+	extern const struct fw_abi_getter_info m_abi_getter;
+	fw_info = firmware_info_get((u32_t)address);
+
+	if (fw_info != NULL) {
+		memcpy(fw_info->abi_in, &m_abi_getter,
+			sizeof(struct fw_abi_getter_info));
+	}
+
 	/* Set MSP to the new address and clear any information from PSP */
 	__set_MSP(address[0]);
 	__set_PSP(0);
