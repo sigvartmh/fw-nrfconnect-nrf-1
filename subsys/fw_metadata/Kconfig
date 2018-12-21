@@ -119,6 +119,18 @@ config FW_INFO_CRYPTO_ID
 	int
 	default 0
 
+config SB_VALIDATION_INFO_CRYPTO_ID
+	int
+	default SB_CRYPTO_ID
+
+config SB_VALIDATION_INFO_VERSION
+	int "Version number of the fw_validation_info* structs (8 bits)."
+	range 0 255
+	default 1
+	help
+	  Used to ensure binary compatibility.
+	  For more info, see SB_MAGIC_COMMON.
+
 config FW_VALIDATION_INFO_VERSION
 	int "Version number of the fw_validation_info* structs (8 bits)."
 	range 0 255
