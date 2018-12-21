@@ -32,3 +32,4 @@ endif()
 
 zephyr_include_directories(.)
 zephyr_link_libraries(nrfxlib_crypto)
+zephyr_link_libraries(nrfxlib_crypto)
