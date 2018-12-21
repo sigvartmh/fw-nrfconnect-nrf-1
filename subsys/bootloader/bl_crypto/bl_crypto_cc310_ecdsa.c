@@ -17,17 +17,17 @@ int crypto_init_sig(void)
 
 
 bool verify_sig(const u8_t *data, u32_t data_len, const u8_t *sig,
-		const u8_t *pk)
+		const u8_t *pk, bool external)
 {
 	nrf_cc310_bl_ecdsa_verify_context_secp256r1_t context;
 	nrf_cc310_bl_hash_digest_sha256_t hash1;
 	nrf_cc310_bl_hash_digest_sha256_t hash2;
 
-	if (!get_hash((u8_t *)&hash1, data, data_len)) {
+	if (!get_hash((u8_t *)&hash1, data, data_len, external)) {
 		return false;
 	}
 
-	if (!get_hash((u8_t *)&hash2, hash1, CONFIG_SB_HASH_LEN)) {
+	if (!get_hash((u8_t *)&hash2, hash1, CONFIG_SB_HASH_LEN, external)) {
 		return false;
 	}
 

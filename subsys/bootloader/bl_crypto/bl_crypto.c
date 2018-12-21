@@ -34,18 +34,26 @@ int crypto_init(void)
 }
 
 
+static int _crypto_root_of_trust(const u8_t *pk, const u8_t *pk_hash,
+				 const u8_t *sig, const u8_t *fw,
+				 const u32_t fw_len, bool external)
+{
+	__ASSERT(pk && pk_hash && sig && fw, "A parameter was NULL.");
+	if (!verify_truncated_hash(pk, CONFIG_SB_PUBLIC_KEY_LEN, pk_hash,
+				   CONFIG_SB_PUBLIC_KEY_HASH_LEN, external)) {
+		return -EPKHASHINV;
+	}
+
+	if (!verify_sig(fw, fw_len, sig, pk, external)) {
+		return -ESIGINV;
+	}
+	return 0;
+}
+
+
 int crypto_root_of_trust(const u8_t *pk, const u8_t *pk_hash,
 			 const u8_t *sig, const u8_t *fw,
 			 const u32_t fw_len)
 {
-	__ASSERT(pk && pk_hash && sig && fw, "A parameter was NULL.");
-	if (!verify_truncated_hash(pk, CONFIG_SB_PUBLIC_KEY_LEN, pk_hash,
-				   CONFIG_SB_PUBLIC_KEY_HASH_LEN)) {
-		return -EPKHASHINV;
-	}
-
-	if (!verify_sig(fw, fw_len, sig, pk)) {
-		return -ESIGINV;
-	}
-	return 0;
+	return _crypto_root_of_trust(pk, pk_hash, sig, fw, fw_len, false);
 }

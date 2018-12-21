@@ -11,16 +11,16 @@
 #include "bl_crypto_internal.h"
 
 bool verify_sig(const u8_t *data, u32_t data_len, const u8_t *sig,
-		const u8_t *pk)
+		const u8_t *pk, bool external)
 {
 	u8_t hash1[CONFIG_SB_HASH_LEN];
 	u8_t hash2[CONFIG_SB_HASH_LEN];
 
-	if (!get_hash(hash1, data, data_len)) {
+	if (!get_hash(hash1, data, data_len, external)) {
 		return false;
 	}
 
-	if (!get_hash(hash2, hash1, CONFIG_SB_HASH_LEN)) {
+	if (!get_hash(hash2, hash1, CONFIG_SB_HASH_LEN, external)) {
 		return false;
 	}
 
