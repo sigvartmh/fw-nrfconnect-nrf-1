@@ -8,6 +8,7 @@
 #define BOOTLOADER_CRYPTO_H__
 
 #include <zephyr/types.h>
+#include <fw_metadata.h>
 
 /* Placeholder defines. Values should be updated, if no existing errors can be
  * used instead. */
@@ -44,11 +45,18 @@ int crypto_init(void);
  *
  * @remark No parameter can be NULL.
  */
-int crypto_root_of_trust(const u8_t *pk,
-		const u8_t *pk_hash,
-		const u8_t *sig,
-		const u8_t *fw,
-		const u32_t fw_len);
+TYPE_AND_DECL(int, crypto_root_of_trust, const u8_t *pk,
+					 const u8_t *pk_hash,
+					 const u8_t *sig,
+					 const u8_t *fw,
+					 const u32_t fw_len);
+
+struct bl_crypto_abi {
+	struct fw_abi_info header;
+	struct {
+		crypto_root_of_trust_t crypto_root_of_trust;
+	} abi;
+};
 
 #endif
 
