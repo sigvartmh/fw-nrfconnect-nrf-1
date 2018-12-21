@@ -10,6 +10,12 @@
 #include "bl_crypto_internal.h"
 #include "bl_crypto_cc310_common.h"
 
+int crypto_init_sig(void)
+{
+	return cc310_bl_init();
+}
+
+
 bool verify_sig(const u8_t *data, u32_t data_len, const u8_t *sig,
 		const u8_t *pk)
 {
@@ -22,10 +28,6 @@ bool verify_sig(const u8_t *data, u32_t data_len, const u8_t *sig,
 	}
 
 	if (!get_hash((u8_t *)&hash2, hash1, CONFIG_SB_HASH_LEN)) {
-		return false;
-	}
-
-	if (!cc310_bl_init()) {
 		return false;
 	}
 

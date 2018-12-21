@@ -6,8 +6,33 @@
 
 #include "debug.h"
 #include <zephyr/types.h>
+#include <toolchain.h>
 #include <bl_crypto.h>
 #include "bl_crypto_internal.h"
+
+__weak int crypto_init_sig(void)
+{
+	return 0;
+}
+
+__weak int crypto_init_hash(void)
+{
+	return 0;
+}
+
+int crypto_init(void)
+{
+	int err = crypto_init_sig();
+	if (err) {
+		return err;
+	}
+	err = crypto_init_hash();
+	if (err) {
+		return err;
+	}
+	return 0;
+}
+
 
 int crypto_root_of_trust(const u8_t *pk, const u8_t *pk_hash,
 			 const u8_t *sig, const u8_t *fw,
