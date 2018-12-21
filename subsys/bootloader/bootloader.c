@@ -51,6 +51,7 @@ void *memcpy32(void *restrict d, const void *restrict s, size_t n)
 static bool verify_firmware(u32_t address)
 {
 	int retval = -EFAULT;
+	int err;
 	const struct fw_firmware_info *fw_info;
 	const struct fw_validation_info *fw_ver_info;
 	u8_t key_data[CONFIG_SB_PUBLIC_KEY_HASH_LEN];
@@ -71,6 +72,12 @@ static bool verify_firmware(u32_t address)
 		printk("%s\n\r",
 			    "Could not find valid firmware validation "
 			    "info trailing firmware. Aborting boot!\n\r");
+		return false;
+	}
+
+	err = crypto_init();
+	if (err) {
+		printk("crypto_init() returned %d. Aborting boot!\n\r", err);
 		return false;
 	}
 

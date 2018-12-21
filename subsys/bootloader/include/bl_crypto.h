@@ -15,6 +15,16 @@
 #define ESIGINV    102
 
 
+
+/**
+ * @brief Initialize bootloader crypto module.
+ *
+ * @retval 0        On success.
+ * @retval -EFAULT  If crypto module reported an error.
+ */
+int crypto_init(void);
+
+
 /**
  * @brief Verify a signature using configured signature and SHA-256
  *

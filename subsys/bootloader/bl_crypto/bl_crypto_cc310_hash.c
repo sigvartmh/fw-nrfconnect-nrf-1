@@ -18,6 +18,13 @@
 static u32_t __noinit ram_buffer
 	[RAM_BUFFER_LEN_WORDS]; /* Not stack allocated because of its size. */
 
+
+int crypto_init_hash(void)
+{
+	return cc310_bl_init();
+}
+
+
 static bool cc310_bl_hash(u8_t *out_hash, const u8_t *data,
 			  u32_t data_len)
 {
@@ -64,12 +71,9 @@ static bool cc310_bl_hash(u8_t *out_hash, const u8_t *data,
 	return true;
 }
 
+
 bool get_hash(u8_t *hash, const u8_t *data, u32_t data_len)
 {
-	if (!cc310_bl_init()) {
-		return false;
-	}
-
 	cc310_bl_backend_enable();
 
 	if (!cc310_bl_hash(hash, data, data_len)) {
@@ -79,6 +83,7 @@ bool get_hash(u8_t *hash, const u8_t *data, u32_t data_len)
 	cc310_bl_backend_disable();
 	return true;
 }
+
 
 bool verify_truncated_hash(const u8_t *data, u32_t data_len,
 			   const u8_t *expected, u32_t hash_len)
