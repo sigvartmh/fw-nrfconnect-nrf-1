@@ -27,6 +27,69 @@
 
 #define MAGIC_LEN_WORDS (CONFIG_SB_MAGIC_LEN / sizeof(u32_t))
 
+#define TYPE_AND_DECL(retval, name, ...) \
+	typedef retval (* name ## _t) (__VA_ARGS__); \
+	retval name (__VA_ARGS__)
+
+
+/**@brief Function that returns an ABI.
+ *
+ * @param[in]    id      Which ABI to get.
+ * @param[in]    index   If there are multiple ABIs available with the same ID,
+ *                       retrieve the different ones with this.
+ * @param[out]   buf     Where the ABI will be copied.
+ * @param[inout] len     in: Length of buffer, out: length of ABI.
+ *
+ * @retval 0       Success
+ * @retval -ENOMEM buffer is too small, len will contain the required size. The
+ *                 buffer will be filled as far as will fit.
+ */
+typedef int (*fw_abi_getter)(u32_t id, u32_t index, u8_t * buf, u32_t * len);
+
+// typedef int (*fw_abi_getter2)(u32_t id, u32_t index, u8_t ** buf, u32_t * len);
+
+// typedef int (*fw_abi_getter2)(u32_t id, u32_t index, u8_t ** buf, u32_t * len);
+
+
+struct __packed fw_abi_getter_info {
+	u32_t magic[MAGIC_LEN_WORDS];
+
+	/* Function to be used to retrieve ABIs. */
+	fw_abi_getter abi_getter;
+
+	/* Pointer directly to a list of lists of ABIs. */
+	struct fw_abi_info const * const * abis;
+
+	/* Length of outer list pointed to by abis. */
+	u32_t abis_len;
+
+	/* For future use. */
+	u32_t reserved1;
+	u32_t reserved2;
+};
+
+
+/* This struct is meant to serve as a header before a list of function pointers
+ * (or something else) that constitute the actual ABI. How to use the ABI, such
+ * as the signatures of all the functions in the list must be unambiguous for an
+ * ID/version combination. */
+struct __packed fw_abi_info {
+	u32_t magic[MAGIC_LEN_WORDS];
+
+	/* Flags specifying properties of the ABI. */
+	u32_t abi_flags;
+
+	/* The id of the ABI. */
+	u32_t abi_id;
+
+	/* The version of this ABI. */
+	u32_t abi_version;
+
+	/* The length of everything after this header. */
+	u32_t abi_len;
+};
+
+
 struct __packed fw_firmware_info {
 	u32_t magic[MAGIC_LEN_WORDS];
 
@@ -38,6 +101,12 @@ struct __packed fw_firmware_info {
 
 	/* The address of the start (vector table) of the firmware. */
 	u32_t firmware_address;
+
+	/* Where to place the getter for the ABI provided to this firmware. */
+	struct fw_abi_getter_info * abi_in;
+
+	/* This firmware's ABI getter. */
+	const struct fw_abi_getter_info * abi_out;
 };
 
 

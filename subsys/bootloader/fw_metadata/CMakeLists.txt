@@ -11,6 +11,8 @@ target_compile_definitions(zephyr_interface
   FIRMWARE_INFO_MAGIC=${FIRMWARE_INFO_MAGIC}
   POINTER_MAGIC=${POINTER_MAGIC}
   VALIDATION_INFO_MAGIC=${VALIDATION_INFO_MAGIC}
+  ABI_GETTER_INFO_MAGIC=${ABI_GETTER_INFO_MAGIC}
+  ABI_INFO_MAGIC=${ABI_INFO_MAGIC}
   )
 
 add_library(fw_metadata fw_metadata.c)

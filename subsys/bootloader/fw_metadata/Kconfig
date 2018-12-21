@@ -63,6 +63,28 @@ config SB_MAGIC_POINTER
 	  Magic word value specific to validation info pointer structs.
 	  For more info, see SB_MAGIC_COMMON.
 
+config SB_MAGIC_ABI_GETTER_INFO
+	hex "Magic word used for ABI getter structs (32 bits)."
+	default 0x2ed9a4c5
+	help
+	  Magic word value specific to ABI getter structs.
+	  For more info, see SB_MAGIC_COMMON.
+
+config SB_MAGIC_ABI_INFO
+	hex "Magic word used for ABI structs (32 bits)."
+	default 0xb845acea
+	help
+	  Magic word value specific to ABI structs.
+	  For more info, see SB_MAGIC_COMMON.
+
+config SB_ABI_INFO_VERSION
+	hex "Version of ABI and ABI getter structs (8 bits)."
+	range 0 255
+	default 1
+	help
+	  Used to ensure binary compatibility.
+	  For more info, see SB_MAGIC_COMMON.
+
 config SB_HARDWARE_ID
 	int "The SOC a firmware is built to run on (8 bits)."
 	range 0 255
