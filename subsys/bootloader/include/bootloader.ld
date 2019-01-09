@@ -12,17 +12,37 @@
 #include <linker/linker-defs.h>
 #include <linker/linker-tool.h>
 
+#if defined(CONFIG_XIP)
+	#if defined(CONFIG_IS_BOOTLOADER)
+		#define RAM_SIZE (CONFIG_BOOTLOADER_SRAM_SIZE * 1K)
+		#define RAM_ADDR (CONFIG_SRAM_BASE_ADDRESS + \
+			(CONFIG_SRAM_SIZE * 1K - RAM_SIZE))
+	#elif defined(CONFIG_MULTI_IMAGE_SHARED_SRAM)
+		#define RAM_SIZE (CONFIG_SRAM_SIZE * 1K - CONFIG_SHARED_SRAM_SIZE * 1K)
+		#define RAM_ADDR CONFIG_SRAM_BASE_ADDRESS
+		#define SHARED_RAM_ADDR (CONFIG_SRAM_BASE_ADDRESS + RAM_SIZE)
+		#define SHARED_RAM_SIZE (CONFIG_SHARED_SRAM_SIZE * 1K)
+	#else
+		#define RAM_SIZE (CONFIG_SRAM_SIZE * 1K)
+		#define RAM_ADDR CONFIG_SRAM_BASE_ADDRESS
+	#endif
+#else
+	#define RAM_SIZE (CONFIG_SRAM_SIZE * 1K - CONFIG_BOOTLOADER_SRAM_SIZE * 1K)
+	#define RAM_ADDR CONFIG_SRAM_BASE_ADDRESS
+#endif
+
 #define RAM SRAM
-#define RAM_SIZE (CONFIG_SRAM_SIZE * 1K)
-#define RAM_ADDR CONFIG_SRAM_BASE_ADDRESS
 #define ROMABLE_REGION FLASH
 #define RAMABLE_REGION SRAM
 #define ROM_ADDR (CONFIG_FLASH_BASE_ADDRESS + CONFIG_FLASH_LOAD_OFFSET)
 
 MEMORY
 {
-    FLASH                 (rx) : ORIGIN = CONFIG_FLASH_BASE_ADDRESS + FLASH_AREA_SECURE_BOOT_OFFSET_0, LENGTH = FLASH_AREA_SECURE_BOOT_SIZE_0
+    FLASH                 (rx) : ORIGIN = CONFIG_FLASH_BASE_ADDRESS + FLASH_AREA_SECURE_BOOT_OFFSET_0, LENGTH = FLASH_AREA_SECURE_BOOT_SIZE_0 
     SRAM                  (wx) : ORIGIN = RAM_ADDR, LENGTH = RAM_SIZE
+#ifdef CONFIG_MULTI_IMAGE_SHARED_SRAM
+	SHARED_SRAM           (wx) : ORIGIN = SHARED_RAM_ADDR, LENGTH = SHARED_RAM_SIZE 
+#endif
     IDT_LIST  (wx)      : ORIGIN = (RAM_ADDR + RAM_SIZE), LENGTH = 2K
 }
 
@@ -50,7 +70,13 @@ SECTIONS
 	} GROUP_LINK_IN(RAMABLE_REGION)
 #endif
     }
-
+SECTIONS {
+SECTION_PROLOGUE(_LIBOBERON,,)
+{
+	KEEP(*(.data.inv_a))
+	KEEP(*(".data.inv_a.*"))
+} GROUP_LINK_IN(SHARED_SRAM)
+}
 /* Set this first so we are sure relevant sections are placed where the MDK expect it to be */
 #include <nrf_common.ld>
 
@@ -88,13 +114,13 @@ SECTIONS
 	*(.text)
 	*(".text.*")
 	*(.gnu.linkonce.t.*)
-
 	/*
 	 * Section containing externally available ABIs.
 	 */
 	. = ALIGN(4);
 	_abis_start = .;
 	KEEP(*(.extabis))
+	KEEP(*(".extabis.*"))
 	_abis_end = .;
 
 	/*
