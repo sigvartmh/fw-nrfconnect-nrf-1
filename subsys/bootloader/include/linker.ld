@@ -59,22 +59,56 @@
 		#define RAM_SIZE (CONFIG_BOOTLOADER_SRAM_SIZE * 1K)
 		#define RAM_ADDR (CONFIG_SRAM_BASE_ADDRESS + \
 			(CONFIG_SRAM_SIZE * 1K - RAM_SIZE))
+	#elif defined(CONFIG_MULTI_IMAGE_SHARED_SRAM)
+		#define RAM_SIZE (CONFIG_SRAM_SIZE * 1K - CONFIG_SHARED_SRAM_SIZE * 1K)
+		#define RAM_ADDR CONFIG_SRAM_BASE_ADDRESS
+		#define SHARED_RAM_ADDR (CONFIG_SRAM_BASE_ADDRESS + RAM_SIZE)
+		#define SHARED_RAM_SIZE (CONFIG_SHARED_SRAM_SIZE * 1K)
 	#else
 		#define RAM_SIZE (CONFIG_SRAM_SIZE * 1K)
 		#define RAM_ADDR CONFIG_SRAM_BASE_ADDRESS
 	#endif
 #else
-	#define RAM_SIZE (CONFIG_SRAM_SIZE * 1K - CONFIG_BOOTLOADER_SRAM_SIZE * 1K) #define RAM_ADDR CONFIG_SRAM_BASE_ADDRESS
+	#define RAM_SIZE (CONFIG_SRAM_SIZE * 1K - CONFIG_BOOTLOADER_SRAM_SIZE * 1K)
+	#define RAM_ADDR CONFIG_SRAM_BASE_ADDRESS
 #endif
 
+/* Set alignment to CONFIG_ARM_MPU_REGION_MIN_ALIGN_AND_SIZE
+ * to make linker section alignment comply with MPU granularity.
+ */
+#if defined(CONFIG_ARM_MPU_REGION_MIN_ALIGN_AND_SIZE)
+_region_min_align = CONFIG_ARM_MPU_REGION_MIN_ALIGN_AND_SIZE;
+#else
+/* If building without MPU support, use default 4-byte alignment. */
+_region_min_align = 4;
+#endif
+
+#if defined(CONFIG_MPU_REQUIRES_POWER_OF_TWO_ALIGNMENT)
+#define MPU_ALIGN(region_size) \
+    . = ALIGN(_region_min_align); \
+    . = ALIGN( 1 << LOG2CEIL(region_size))
+#else
+#define MPU_ALIGN(region_size) \
+    . = ALIGN(_region_min_align)
+#endif 
+
 MEMORY
-{
+    {
     FLASH                 (rx) : ORIGIN = CONFIG_FLASH_BASE_ADDRESS +
     FLASH_AREA_SECURE_BOOT_OFFSET_0, LENGTH = FLASH_AREA_SECURE_BOOT_SIZE_0+1K
+#ifdef CONFIG_TI_CCFG_PRESENT
+    FLASH_CCFG            (rwx): ORIGIN = CCFG_ADDR, LENGTH = CCFG_SIZE
+#endif
+#ifdef CONFIG_CCM_BASE_ADDRESS
+    CCM                   (rw) : ORIGIN = CONFIG_CCM_BASE_ADDRESS, LENGTH = CONFIG_CCM_SIZE * 1K
+#endif
     SRAM                  (wx) : ORIGIN = RAM_ADDR, LENGTH = RAM_SIZE
-    RTT                  (wx) : ORIGIN = (RAM_ADDR +RAM_SIZE)-16K, LENGTH = 16K
+#ifdef CONFIG_MULTI_IMAGE_SHARED_SRAM
+	SHARED_SRAM           (wx) : ORIGIN = SHARED_RAM_ADDR, LENGTH = SHARED_RAM_SIZE
+#endif
+    /* Used by and documented in include/linker/intlist.ld */
     IDT_LIST  (wx)      : ORIGIN = (RAM_ADDR + RAM_SIZE), LENGTH = 2K
-}
+    }
 
 ENTRY(CONFIG_KERNEL_ENTRY)
 
@@ -100,7 +134,6 @@ SECTIONS
     GROUP_START(ROMABLE_REGION)
 
 	_image_rom_start = ROM_ADDR;
-	_used_rom_start = ROM_ADDR;
 
     SECTION_PROLOGUE(_TEXT_SECTION_NAME,,)
 	{
@@ -130,28 +163,32 @@ SECTIONS
 	KEEP(*(.openocd_dbg))
 	KEEP(*(".openocd_dbg.*"))
 
-	/* Kinetis has to write 16 bytes at 0x400 */ SKIP_TO_KINETIS_FLASH_CONFIG
+	/* Kinetis has to write 16 bytes at 0x400 */
+	SKIP_TO_KINETIS_FLASH_CONFIG
 	KEEP(*(.kinetis_flash_config))
 	KEEP(*(".kinetis_flash_config.*"))
 
 	_vector_end = .;
 
-#if defined(CONFIG_SB_FIRMWARE_INFO_OFFSET) && !defined(CONFIG_SECURE_BOOT)
+#if defined(CONFIG_SB_FIRMWARE_INFO_OFFSET)
 	. = CONFIG_SB_FIRMWARE_INFO_OFFSET;
 	KEEP(*(.firmware_info))
 #endif
 
+	} GROUP_LINK_IN(ROMABLE_REGION)
+
+#ifdef CONFIG_CODE_DATA_RELOCATION
+
+#include <linker_relocate.ld>
+
+#endif /* CONFIG_CODE_DATA_RELOCATION */
+
+    SECTION_PROLOGUE(_TEXT_SECTION_NAME_2,,)
+	{
 	_image_text_start = .;
 	*(.text)
 	*(".text.*")
 	*(.gnu.linkonce.t.*)
-	/*
-	 * Section containing externally available ABIs.
-	 */
-	. = ALIGN(4);
-	_abis_start = .;
-	KEEP(*(.extabis))
-	_abis_end = .;
 
 	/*
 	 * These are here according to 'arm-zephyr-elf-ld --verbose',
@@ -269,6 +306,12 @@ SECTIONS
 
     GROUP_START(RAMABLE_REGION)
 
+	. = RAM_ADDR;
+	/* Align the start of image SRAM with the
+	 * minimum granularity required by MPU.
+	 */
+	. = ALIGN(_region_min_align);
+	_image_ram_start = .;
 
 #if defined(CONFIG_SOC_SERIES_STM32F0X) && !defined(CONFIG_IS_BOOTLOADER)
     /* Must be first in ramable region */
@@ -289,34 +332,11 @@ SECTIONS
 	}
 #endif
 
-#include <app_data_alignment.ld>
-
-#if defined(CONFIG_APP_SHARED_MEM)
-#if defined(CONFIG_MPU_REQUIRES_POWER_OF_TWO_ALIGNMENT)
-#define APP_SHARED_ALIGN . = ALIGN(4);
-		#include <app_smem.ld>
-#else
-	SECTION_PROLOGUE(_APP_SMEM_SECTION_NAME, (OPTIONAL),)
-	{
-		. = ALIGN(4);
-		_image_ram_start = .;
-		_app_smem_start = .;
-		APP_SMEM_SECTION()
-		/* 32-byte align end of app shared area to make MPU friendly */
-		. = ALIGN(_app_data_align);
-		_app_smem_end = .;
-
-	} GROUP_DATA_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
-#endif  /* CONFIG_MPU_REQUIRES_POWER_OF_TWO_ALIGNMENT */
-
-	_app_smem_size = _app_smem_end - _app_smem_start;
-	_app_smem_rom_start = LOADADDR(_APP_SMEM_SECTION_NAME);
-#endif  /* CONFIG_APP_SHARED_MEM */
-
 #ifdef CONFIG_APPLICATION_MEMORY
 	SECTION_DATA_PROLOGUE(_APP_DATA_SECTION_NAME, (OPTIONAL),)
 	{
 
+		MPU_ALIGN(__app_ram_size);
 		__app_ram_start = .;
 		__app_data_ram_start = .;
 		APP_INPUT_SECTION(.data)
@@ -334,24 +354,61 @@ SECTIONS
 		APP_INPUT_SECTION(COMMON)
 		__app_bss_end = .;
 	} GROUP_DATA_LINK_IN(RAMABLE_REGION, RAMABLE_REGION)
-__app_bss_num_words = (__app_bss_end - __app_bss_start) >> 2;
+
+	__app_bss_num_words = (__app_bss_end - __app_bss_start) >> 2;
 
 	SECTION_PROLOGUE(_APP_NOINIT_SECTION_NAME, (NOLOAD OPTIONAL),)
 	{
 		APP_INPUT_SECTION(.noinit)
 		APP_INPUT_SECTION(".noinit.*")
-	} GROUP_DATA_LINK_IN(RAMABLE_REGION, RAMABLE_REGION)
 
-	__app_last_address_used = .;
+		__app_last_address_used = .;
 
-	/* Pad out application ram area to make MPU friendly */
-	SECTION_PROLOGUE(app_pad, (NOLOAD OPTIONAL),)
-	{
-		. = ALIGN(_app_data_align);
+		/* Align the end of the application memory
+		 * with MPU alignment requirement.
+		 */
+		MPU_ALIGN(__app_ram_size);
+		__app_ram_end = .;
 	} GROUP_DATA_LINK_IN(RAMABLE_REGION, RAMABLE_REGION)
-	__app_ram_end = .;
 	__app_ram_size = __app_ram_end - __app_ram_start;
 #endif /* CONFIG_APPLICATION_MEMORY */
+
+#if defined(CONFIG_NOCACHE_MEMORY)
+	/* Non-cached region of RAM */
+	SECTION_PROLOGUE(_NOCACHE_SECTION_NAME,(NOLOAD),)
+	{
+		MPU_ALIGN(_nocache_ram_size);
+		_nocache_ram_start = .;
+		KERNEL_INPUT_SECTION(.nocache)
+		KERNEL_INPUT_SECTION(".nocache.*")
+		MPU_ALIGN(_nocache_ram_size);
+		_nocache_ram_end = .;
+	} GROUP_LINK_IN(RAMABLE_REGION)
+	_nocache_ram_size = _nocache_ram_end - _nocache_ram_start;
+#endif /* CONFIG_NOCACHE_MEMORY */
+
+#if defined(CONFIG_APP_SHARED_MEM)
+#define APP_SHARED_ALIGN . = ALIGN(_region_min_align);
+#if defined(CONFIG_MPU_REQUIRES_POWER_OF_TWO_ALIGNMENT)
+		#include <app_smem.ld>
+#else
+	SECTION_PROLOGUE(_APP_SMEM_SECTION_NAME, (OPTIONAL),)
+	{
+		APP_SHARED_ALIGN;
+		_app_smem_start = .;
+		APP_SMEM_SECTION()
+		/* Align the end of shared app mem section with the
+		 * minimum granularity required by MPU.
+		 */
+		APP_SHARED_ALIGN;
+		_app_smem_end = .;
+
+	} GROUP_DATA_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
+#endif  /* CONFIG_MPU_REQUIRES_POWER_OF_TWO_ALIGNMENT */
+
+	_app_smem_size = _app_smem_end - _app_smem_start;
+	_app_smem_rom_start = LOADADDR(_APP_SMEM_SECTION_NAME);
+#endif  /* CONFIG_APP_SHARED_MEM */
 
     SECTION_DATA_PROLOGUE(_BSS_SECTION_NAME,(NOLOAD),)
 	{
@@ -374,11 +431,11 @@ __app_bss_num_words = (__app_bss_end - __app_bss_start) >> 2;
 		 */
 	__bss_end = ALIGN(4);
 	} GROUP_DATA_LINK_IN(RAMABLE_REGION, RAMABLE_REGION)
-
+	
     SECTION_PROLOGUE(_NOINIT_SECTION_NAME,(NOLOAD),)
         {
         /*
-         * This section is used for non-initialized objects that
+         * this section is used for non-initialized objects that
          * will not be cleared during the boot process.
          */
         KERNEL_INPUT_SECTION(.noinit)
@@ -416,7 +473,8 @@ __app_bss_num_words = (__app_bss_end - __app_bss_start) >> 2;
 #include <linker/kobject.ld>
 
 #include <linker/priv_stacks-noinit.ld>
-__data_ram_end = .;
+
+    __data_ram_end = .;
 
 
     /* Define linker symbols */
@@ -468,27 +526,22 @@ __data_ram_end = .;
 
 #endif /* CONFIG_CCM_BASE_ADDRESS */
 
+#ifdef CONFIG_CUSTOM_SECTIONS_LD
+/* Located in project source directory */
+#include <custom-sections.ld>
+#endif
 
 #ifdef CONFIG_GEN_ISR_TABLES
 #include <linker/intlist.ld>
 #endif
 
-
-    SECTION_PROLOGUE(.dummy,(NOLOAD),)
-        {
-		/* Calculate the size of the image, and store in '_used_rom_size'.
-		 * This can be used when creating metadata about the image. */
-		_used_rom_end  = .;
-		_used_rom_size = _used_rom_end - _used_rom_start;
-        } GROUP_LINK_IN(ROMABLE_REGION)
-
 #include <linker/debug-sections.ld>
-
     SECTION_PROLOGUE(.ARM.attributes, 0,)
 	{
 	KEEP(*(.ARM.attributes))
 	KEEP(*(.gnu.attributes))
 	}
+
 /* Must be last in romable region */
 SECTION_PROLOGUE(.last_section,(NOLOAD),)
 {
@@ -496,8 +549,6 @@ SECTION_PROLOGUE(.last_section,(NOLOAD),)
 
 /* To provide the image size as a const expression,
  * calculate this value here. */
-#ifdef CONFIG_CUSTOM_SECTIONS_LD
-/* Located in project source directory */
-#include <custom-sections.ld>
-#endif
-}
+_flash_used = LOADADDR(.last_section) - _image_rom_start;
+
+    }

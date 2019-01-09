@@ -231,4 +231,8 @@ SECTIONS
 	KEEP(*(.ARM.attributes))
 	KEEP(*(.gnu.attributes))
 	}
+	#ifdef CONFIG_CUSTOM_SECTIONS_LD
+	/* Located in project source directory */
+	#include <custom-sections.ld>
+	#endif
 }
