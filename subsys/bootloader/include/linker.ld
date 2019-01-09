@@ -64,8 +64,7 @@
 		#define RAM_ADDR CONFIG_SRAM_BASE_ADDRESS
 	#endif
 #else
-	#define RAM_SIZE (CONFIG_SRAM_SIZE * 1K - CONFIG_BOOTLOADER_SRAM_SIZE * 1K)
-	#define RAM_ADDR CONFIG_SRAM_BASE_ADDRESS
+	#define RAM_SIZE (CONFIG_SRAM_SIZE * 1K - CONFIG_BOOTLOADER_SRAM_SIZE * 1K) #define RAM_ADDR CONFIG_SRAM_BASE_ADDRESS
 #endif
 
 MEMORY
@@ -137,7 +136,7 @@ SECTIONS
 
 	_vector_end = .;
 
-#if defined(CONFIG_SB_FIRMWARE_INFO_OFFSET)
+#if defined(CONFIG_SB_FIRMWARE_INFO_OFFSET) && !defined(CONFIG_SECURE_BOOT)
 	. = CONFIG_SB_FIRMWARE_INFO_OFFSET;
 	KEEP(*(.firmware_info))
 #endif
@@ -146,6 +145,13 @@ SECTIONS
 	*(.text)
 	*(".text.*")
 	*(.gnu.linkonce.t.*)
+	/*
+	 * Section containing externally available ABIs.
+	 */
+	. = ALIGN(4);
+	_abis_start = .;
+	KEEP(*(.extabis))
+	_abis_end = .;
 
 	/*
 	 * These are here according to 'arm-zephyr-elf-ld --verbose',
@@ -328,8 +334,7 @@ SECTIONS
 		APP_INPUT_SECTION(COMMON)
 		__app_bss_end = .;
 	} GROUP_DATA_LINK_IN(RAMABLE_REGION, RAMABLE_REGION)
-
-	__app_bss_num_words = (__app_bss_end - __app_bss_start) >> 2;
+__app_bss_num_words = (__app_bss_end - __app_bss_start) >> 2;
 
 	SECTION_PROLOGUE(_APP_NOINIT_SECTION_NAME, (NOLOAD OPTIONAL),)
 	{
@@ -411,8 +416,7 @@ SECTIONS
 #include <linker/kobject.ld>
 
 #include <linker/priv_stacks-noinit.ld>
-
-    __data_ram_end = .;
+__data_ram_end = .;
 
 
     /* Define linker symbols */
@@ -464,10 +468,6 @@ SECTIONS
 
 #endif /* CONFIG_CCM_BASE_ADDRESS */
 
-#ifdef CONFIG_CUSTOM_SECTIONS_LD
-/* Located in project source directory */
-#include <custom-sections.ld>
-#endif
 
 #ifdef CONFIG_GEN_ISR_TABLES
 #include <linker/intlist.ld>
@@ -489,5 +489,15 @@ SECTIONS
 	KEEP(*(.ARM.attributes))
 	KEEP(*(.gnu.attributes))
 	}
+/* Must be last in romable region */
+SECTION_PROLOGUE(.last_section,(NOLOAD),)
+{
+} GROUP_LINK_IN(ROMABLE_REGION)
 
-    }
+/* To provide the image size as a const expression,
+ * calculate this value here. */
+#ifdef CONFIG_CUSTOM_SECTIONS_LD
+/* Located in project source directory */
+#include <custom-sections.ld>
+#endif
+}
