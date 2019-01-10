@@ -15,14 +15,14 @@ extern const struct fw_abi_info _abis_start;
 
 static const struct fw_abi_info * const abis = &_abis_start;
 
-const struct fw_abi_getter_info m_abi_getter = {
+const struct fw_abi_getter_info _GENERIC_SECTION(.extabi) m_abi_getter  = {
 	.magic = {ABI_GETTER_INFO_MAGIC},
 	.abi_getter = NULL,
 	.abis = &abis,
 	.abis_len = 1,
 };
 
-__noinit struct fw_abi_getter_info abi_getter_in;
+__noinit struct fw_abi_getter_info __attribute__((used)) abi_getter_in;
 
 const struct fw_firmware_info m_firmware_info
 _GENERIC_SECTION(.firmware_info)

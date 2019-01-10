@@ -69,7 +69,7 @@ int crypto_root_of_trust_external(const u8_t *pk, const u8_t *pk_hash,
 
 
 const struct bl_crypto_abi bl_crypto_abi
-_GENERIC_SECTION(.extabis)
+_GENERIC_SECTION(.extabi)
 __attribute__((used)) = {
 	.header = {
 		.magic = {ABI_INFO_MAGIC},
