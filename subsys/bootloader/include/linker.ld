@@ -526,11 +526,6 @@ SECTIONS
 
 #endif /* CONFIG_CCM_BASE_ADDRESS */
 
-#ifdef CONFIG_CUSTOM_SECTIONS_LD
-/* Located in project source directory */
-#include <custom-sections.ld>
-#endif
-
 #ifdef CONFIG_GEN_ISR_TABLES
 #include <linker/intlist.ld>
 #endif
@@ -550,5 +545,9 @@ SECTION_PROLOGUE(.last_section,(NOLOAD),)
 /* To provide the image size as a const expression,
  * calculate this value here. */
 _flash_used = LOADADDR(.last_section) - _image_rom_start;
+#ifdef CONFIG_CUSTOM_SECTIONS_LD
+/* Located in project source directory */
+#include <custom-sections.ld>
+#endif
 
     }
