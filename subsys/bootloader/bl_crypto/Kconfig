@@ -101,5 +101,4 @@ config SB_PUBLIC_KEY_HASH_LEN
 	help
 	  The length to which public key hashes in the list of Root of Trust
 	  Public Keys are truncated.
-
-endif # SECURE_BOOT_CRYPTO
+endif

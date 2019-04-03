@@ -38,13 +38,13 @@ manifest:
     - name: fw-nrfconnect-zephyr
       path: zephyr
       west-commands: scripts/west-commands.yml
-      revision: 3757f8cfe6ffe2c2b537815bb9ca1ace85882df8
+      revision: pull/122/head
     - name: fw-nrfconnect-mcuboot
       path: mcuboot
       revision: 0341ae4f75e22e18aae9dfa42dd104e3352cf2b4
     - name: nrfxlib
       path: nrfxlib
-      revision: 45475200c1c89f31d0398574e4657db99dc89940
+      revision: pull/42/head
     - name: tinycbor
       path: modules/lib/tinycbor
       remote: zephyrproject
