@@ -12,6 +12,7 @@
 #define CONFIG_NRF_CLOUD_SEC_TAG 16842753
 #define CONFIG_CLIENT_ID "custom-upgradable-client"
 #define CONFIG_AWS_HOSTNAME "a25jld2wxwm7qs-ats.iot.eu-central-1.amazonaws.com"
+#define client_name "test-client-23"
 
 #include "aws_cert/rootca_rsa2048.h"
 #include "aws_cert/private_key.h"
@@ -19,9 +20,16 @@
 
 //static char client_id_buf[NRF_CLOUD_ID_LEN + 1];
 
-static void aws_mqtt_evt_handler(struct mqtt_client *,
+
+static void aws_mqtt_evt_handler(struct mqtt_client * client,
 				 const struct mqtt_evt *evt);
 
+
+static struct aws {
+	struct mqtt_sec_config tls_config;
+	struct mqtt_client client;
+	struct sockaddr_storage broker;
+} aws;
 
 static void publish(struct mqtt_client * client,
 		    const char * topic,
@@ -29,24 +37,22 @@ static void publish(struct mqtt_client * client,
 {
 }
 
-void setup_tls(struct mqtt_client * client)
+static int setup_tls()
 {
-	struct mqtt_sec_config tls_config;
 	static sec_tag_t sec_tag_list[] = {CONFIG_NRF_CLOUD_SEC_TAG};
-	tls_config.peer_verify = 2;
-	tls_config.cipher_count = 0;
-	tls_config.cipher_list = NULL;
-	tls_config.sec_tag_count = ARRAY_SIZE(sec_tag_list);
-	tls_config.seg_tag_list = sec_tag_list;
-	tls_config.hostname = CONFIG_AWS_HOSTNAME;
-	memcpy(&tls_config,
-	       &client->transport.tls.config,
-	       sizeof(struct mqtt_sec_config));
+
+	aws.tls_config.peer_verify = 2;
+	aws.tls_config.cipher_count = 0;
+	aws.tls_config.cipher_list = NULL;
+	aws.tls_config.sec_tag_count = ARRAY_SIZE(sec_tag_list);
+	aws.tls_config.seg_tag_list = sec_tag_list;
+	aws.tls_config.hostname = CONFIG_AWS_HOSTNAME;
+
+	return mqtt_init();
 }
 
-void resolve_broker_addr(struct mqtt_client * client,
-			 const char * hostname,
-			 unsigned int port)
+int resolve_broker_addr(const char * hostname,
+			unsigned int port)
 {
 	int err;
 	struct addrinfo *result;
@@ -57,9 +63,15 @@ void resolve_broker_addr(struct mqtt_client * client,
 	};
 
 	err = getaddrinfo(hostname, NULL, &hints, &result);
-	__ASSERT(err == 0,"getaddrinfo failed %d\n\r could not resolve: %s \n\r",
-	         err,
-	         hostname);
+
+	if (err) {
+		printk("getaddrinfo failed %d\n\r could not resolve: %s \n\r",
+		       err,
+		       hostname);
+
+		return err;
+	}
+
 	addr = result;
 	err = -ENOENT;
 
@@ -67,8 +79,7 @@ void resolve_broker_addr(struct mqtt_client * client,
 	while (addr != NULL) {
 		/* IPv4 Address. */
 		if ((addr->ai_addrlen == sizeof(struct sockaddr_in))) {
-			struct sockaddr_in *broker =
-				((struct sockaddr_in *) &(client->broker));
+			struct sockaddr_in * broker =(struct sockaddr_in *) &aws.broker;
 
 			broker->sin_addr.s_addr =
 				((struct sockaddr_in *)addr->ai_addr)
@@ -81,7 +92,7 @@ void resolve_broker_addr(struct mqtt_client * client,
 		} else if ((addr->ai_addrlen == sizeof(struct sockaddr_in6))) {
 			/* IPv6 Address. */
 			struct sockaddr_in6 *broker =
-				((struct sockaddr_in6 *) &(client->broker));
+				((struct sockaddr_in6 *) &aws.broker);
 
 			memcpy(broker->sin6_addr.s6_addr,
 				((struct sockaddr_in6 *)addr->ai_addr)
@@ -103,37 +114,138 @@ void resolve_broker_addr(struct mqtt_client * client,
 		break;
 	}
 }
-
-int aws_mqtt_client_connect(struct mqtt_client * client,
-			    const char * hostname,
+int aws_mqtt_client_connect(const char * hostname,
 			    unsigned int port)
 {
-	mqtt_client_init(client);
+	mqtt_client_init(&aws.client);
+	aws.client.broker = (struct sockaddr *)&aws.broker;
+	aws.client.evt_cb = aws_mqtt_evt_handler;
+	aws.client.client_id.utf8 = CONFIG_CLIENT_ID;
+	aws.client.client_id.size = strlen(CONFIG_CLIENT_ID);
+	aws.client.protocol_version = MQTT_VERSION_3_1_1;
+	aws.client.password = NULL;
+	aws.client.user_name = NULL;
+	aws.client.transport.type = MQTT_TRANSPORT_SECURE;
 
-	//client->broker = broker_addr;
-	resolve_broker_addr(client, hostname, port);
-	/*
-	struct sockaddr_in broker = &(client->broker);
-	printk("IPv4 Address 0x%08x\n\r", broker.sin_addr.s_addr);
-	*/
-	//printk("Resolved broker with addr 0x%08\n\r", client->broker->sin_addr.s_addr);
-	client->evt_cb = aws_mqtt_evt_handler;
-	client->client_id.utf8 = CONFIG_CLIENT_ID;
-	client->client_id.size = strlen(CONFIG_CLIENT_ID);
-	client->protocol_version = MQTT_VERSION_3_1_1;
-	client->password = NULL;
-	client->user_name = NULL;
-	client->transport.type = MQTT_TRANSPORT_SECURE;
+	struct mqtt_sec_config *tls_config = &aws.client.transport.tls.config;
+	memcpy(tls_config, &aws.tls_config, sizeof(struct mqtt_sec_config));
 
-	setup_tls(client);
-	return mqtt_connect(client);
+	return mqtt_connect(&aws.client);
 }
 
+static int aws_provision(void)
+{
+	static sec_tag_t sec_tag_list[] = {CONFIG_NRF_CLOUD_SEC_TAG};
+
+	aws.tls_config.peer_verify = 2;
+	aws.tls_config.cipher_count = 0;
+	aws.tls_config.cipher_list = NULL;
+	aws.tls_config.sec_tag_count = ARRAY_SIZE(sec_tag_list);
+	aws.tls_config.seg_tag_list = sec_tag_list;
+	aws.tls_config.hostname = CONFIG_AWS_HOSTNAME;
+	return 0;
+}
+
+int aws_mqtt_connect(void)
+{
+	mqtt_client_init(&aws.client);
+	aws.client.broker = (struct sockaddr *)&aws.broker;
+	aws.client.evt_cb = aws_mqtt_evt_handler;
+	aws.client.client_id.utf8 = client_name;
+	aws.client.client_id.size = strlen(client_name);
+	aws.client.protocol_version = MQTT_VERSION_3_1_1;
+	aws.client.password = NULL;
+	aws.client.user_name = NULL;
+	aws.client.transport.type = MQTT_TRANSPORT_SECURE;
+
+	struct mqtt_sec_config *tls_config = &aws.client.transport.tls.config;
+
+	memcpy(tls_config, &aws.tls_config, sizeof(struct mqtt_sec_config));
+
+	return mqtt_connect(&aws.client);
+}
+
+#define AWS_PORT 8883
+#define NRF_CLOUD_AF_FAMILY AF_INET
+int aws_connect(void)
+
+{
+	printk("Connecting to AWS\n\r");
+	int err;
+	struct addrinfo *result;
+	struct addrinfo *addr;
+	struct addrinfo hints = {
+		.ai_family = NRF_CLOUD_AF_FAMILY,
+		.ai_socktype = SOCK_STREAM
+	};
+
+	err = getaddrinfo(CONFIG_AWS_HOSTNAME, NULL, &hints, &result);
+	if (err) {
+		printk("getaddrinfo failed %d\n\r", err);
+
+		return err;
+	}
+
+	addr = result;
+	err = -ENOENT;
+
+	/* Look for address of the broker. */
+	while (addr != NULL) {
+		/* IPv4 Address. */
+		if ((addr->ai_addrlen == sizeof(struct sockaddr_in)) &&
+		    (NRF_CLOUD_AF_FAMILY == AF_INET)) {
+			struct sockaddr_in *broker =
+				((struct sockaddr_in *)&aws.broker);
+
+			broker->sin_addr.s_addr =
+				((struct sockaddr_in *)addr->ai_addr)
+				->sin_addr.s_addr;
+			broker->sin_family = AF_INET;
+			broker->sin_port = htons(AWS_PORT);
+
+			printk("IPv4 Address 0x%08x\n\r", broker->sin_addr.s_addr);
+			err = aws_mqtt_connect();
+			return err;
+			break;
+		} else if ((addr->ai_addrlen == sizeof(struct sockaddr_in6)) &&
+			   (NRF_CLOUD_AF_FAMILY == AF_INET6)) {
+			/* IPv6 Address. */
+			struct sockaddr_in6 *broker =
+				((struct sockaddr_in6 *)&aws.broker);
+
+			memcpy(broker->sin6_addr.s6_addr,
+				((struct sockaddr_in6 *)addr->ai_addr)
+				->sin6_addr.s6_addr,
+				sizeof(struct in6_addr));
+			broker->sin6_family = AF_INET6;
+			broker->sin6_port = htons(AWS_PORT);
+
+			printk("IPv6 Address");
+			err = aws_mqtt_connect();
+			return err;
+			break;
+		} else {
+			printk("ai_addrlen = %u should be %u or %u",
+				(unsigned int)addr->ai_addrlen,
+				(unsigned int)sizeof(struct sockaddr_in),
+				(unsigned int)sizeof(struct sockaddr_in6));
+		}
+
+		addr = addr->ai_next;
+		break;
+	}
+
+	/* Free the address. */
+	freeaddrinfo(result);
+
+	return err;
+}
 /* MQTT event handler */
 
 static void aws_mqtt_evt_handler(struct mqtt_client * const client,
 				 const struct mqtt_evt *evt)
 {
+	int err;
 	switch (evt->type) {
 	case MQTT_EVT_CONNACK: {
 		printk("MQTT_EVT_CONNACK\n");
@@ -181,8 +293,7 @@ static const struct mqtt_topic test_list[] = {
 			.size = 5
 		},
 		.qos = MQTT_QOS_1_AT_LEAST_ONCE
-	},
-	{
+	}, {
 		.topic = {
 			.utf8 = "hello_world",
 			.size = 12
@@ -254,24 +365,77 @@ int setup_tls_keys(void)
 
 	return 0;
 }
+int aws_init(void)
+{
+	int err;
+	err = aws_provision();
+	if (err) {
+		return err;
+	}
+
+	return mqtt_init();
+}
+
+int please_subscribe(void){
+	const struct mqtt_subscription_list subscription_list ={
+		.list = (struct mqtt_topic *) test_list,
+	        .list_count = ARRAY_SIZE(test_list),
+		.message_id = 1234
+	};
+
+	return mqtt_subscribe(&aws.client, &subscription_list);
+}
+
+static u32_t pub_data(const char * data, u8_t data_len, u8_t qos)
+{
+	struct mqtt_publish_param publish = {
+		.message.topic.qos = qos,
+		.message.topic.topic.size = strlen("hello_world/") -1,
+		.message.topic.topic.utf8 = "hello_world/",
+		.message.payload.data = (u8_t *) data,
+		.message.payload.len = data_len,
+		.message_id = 1234
+	};
+	return mqtt_publish(&aws.client, &publish);
+}
 
 void main(void)
 {
 	int err;
-	struct mqtt_client client;
 	err = setup_tls_keys();
 	if(err)
 	{
 		__ASSERT(err == 0, "Unable to setup TLS keys");
 	}
 	modem_configure();
-	err = aws_mqtt_client_connect(&client, CONFIG_AWS_HOSTNAME, 8883);
+	/*
+	err = setup_tls();
+	if(err) {
+		__ASSERT(err == 0, "Unable to setup mqtt");
+	}
+
+	err = aws_mqtt_client_connect(CONFIG_AWS_HOSTNAME, 8883);
 	if(err)
 	{
 		__ASSERT(err == 0, "Unable to connect to %s",
 			 CONFIG_AWS_HOSTNAME);
 	}
-	printk("MQTT AWS example started");
+	*/
+	aws_init();
+	err = aws_connect();
+	mqtt_live();
+	if(err)
+	{
+		__ASSERT(err == 0, "Unable to connect to %s",
+			 CONFIG_AWS_HOSTNAME);
+	}
+	k_sleep(K_MSEC(10));
+	err = please_subscribe();
+	if(err) {
+	printk("Unable to subscribe with err:  %d\n\r",
+			 err);
+	}
+
 
 	while(true) {
 		mqtt_live();
