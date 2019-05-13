@@ -146,6 +146,8 @@ static int aws_provision(void)
 	return 0;
 }
 
+}
+
 int aws_mqtt_connect(void)
 {
 	mqtt_client_init(&aws.client);
@@ -240,14 +242,12 @@ int aws_connect(void)
 
 	return err;
 }
-#define CONFIG_SUB_TOPIC "/test/"
-
 
 int please_subscribe(void){
 	struct mqtt_topic test_list = {
 		.topic = {
 			.utf8 = CONFIG_SUB_TOPIC,
-			.size = strlen(CONFIG_SUB_TOPIC) 
+			.size = strlen(CONFIG_SUB_TOPIC)
 		},
 		.qos = MQTT_QOS_1_AT_LEAST_ONCE
 	};
@@ -263,6 +263,28 @@ int please_subscribe(void){
 }
 /* MQTT event handler */
 
+#define CONFIG_TOPIC_NAME "test-topic/topic"
+
+int please_subscribe(void){
+	struct mqtt_topic test_list[] = {
+	{
+		.topic = {
+			.utf8 = CONFIG_TOPIC_NAME,
+			.size = strlen(CONFIG_TOPIC_NAME)
+		},
+		.qos = MQTT_QOS_1_AT_LEAST_ONCE
+	}
+	};
+	const struct mqtt_subscription_list subscription_list ={
+		.list = (struct mqtt_topic *) test_list,
+	        .list_count = ARRAY_SIZE(test_list),
+		.message_id = 1234
+	};
+
+	return mqtt_subscribe(&aws.client, &subscription_list);
+}
+
+/* MQTT event handler */
 static void aws_mqtt_evt_handler(struct mqtt_client * const client,
 				 const struct mqtt_evt * evt)
 {
@@ -275,7 +297,10 @@ static void aws_mqtt_evt_handler(struct mqtt_client * const client,
 			break;
 		}
 		printk("MQTT client connected!\n\r");
-		please_subscribe();
+		err = please_subscribe();
+		if(err) {
+			printk("Unable to subscribe with err:  %d\n\r",err);
+		}
 		break;
 	}
 	case MQTT_EVT_PUBLISH: {
@@ -387,7 +412,6 @@ int aws_init(void)
 	return mqtt_init();
 }
 
-
 static u32_t pub_data(const char * data, u8_t data_len, u8_t qos)
 {
 	struct mqtt_publish_param publish = {
@@ -430,7 +454,6 @@ void main(void)
 		__ASSERT(err == 0, "Unable to connect to %s",
 			 CONFIG_AWS_HOSTNAME);
 	}
-
 
 	while(true) {
 		mqtt_live();
