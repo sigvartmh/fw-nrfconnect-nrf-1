@@ -5,14 +5,40 @@
 #include <dfu/mcuboot.h>
 #include <pm_config.h>
 
-static struct		device	*flash_dev;
 static bool		is_flash_page_erased[FLASH_PAGE_MAX_CNT];
+static struct		device	*flash_dev;
 static u32_t		flash_address;
 
+/* Forward decleration of download_client_event_handler */
+static int download_client_evt_handler(struct download_client *const dfu,
+			enum download_client_evt event, u32_t status);
 
+int start_dfu(const char * hostname,
+	       const char * resource_path)
+{
+	static struct download_client dfu = {
+		.host = hostname,
+		.resource = resource_path,
+		.callback = download_client_event_handler
+	};
+	int retval = download_client_connect(&dfu);
 
+	if (retval != 0) {
+		printk("download_client_connect() failed, err %d",
+			retval);
+		return 1;
+	}
+
+	retval = download_client_start(&dfu);
+	if (retval != 0) {
+		printk("download_client_start() failed, err %d",
+			retval);
+		return 1;
+	}
+	return 0;
+}
 /**@brief Initialize application. */
-static int app_dfu_init(struct download_client * dfu)
+static int dfu_init(struct download_client * dfu)
 {
 
 	flash_address = PM_MCUBOOT_PARTITIONS_SECONDARY_ADDRESS;
@@ -34,7 +60,7 @@ static int app_dfu_init(struct download_client * dfu)
 	return 0;
 }
 
-static int app_download_client_event_handler(
+static int download_client_event_handler(
 	struct download_client * const dfu,
 	enum download_client_evt event, u32_t error)
 {
