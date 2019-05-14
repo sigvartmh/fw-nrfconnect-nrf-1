@@ -240,15 +240,42 @@ int aws_connect(void)
 
 	return err;
 }
+#define CONFIG_SUB_TOPIC "/test/"
+
+
+int please_subscribe(void){
+	struct mqtt_topic test_list = {
+		.topic = {
+			.utf8 = CONFIG_SUB_TOPIC,
+			.size = strlen(CONFIG_SUB_TOPIC) 
+		},
+		.qos = MQTT_QOS_1_AT_LEAST_ONCE
+	};
+	const struct mqtt_subscription_list subscription_list = {
+		.list = &test_list,
+		.list_count = 1,
+		.message_id = 1234
+	};
+	printk("Subscribing to: %s len %u\n", CONFIG_SUB_TOPIC,
+		(unsigned int)strlen(CONFIG_SUB_TOPIC));
+
+	return mqtt_subscribe(&aws.client, &subscription_list);
+}
 /* MQTT event handler */
 
 static void aws_mqtt_evt_handler(struct mqtt_client * const client,
-				 const struct mqtt_evt *evt)
+				 const struct mqtt_evt * evt)
 {
 	int err;
 	switch (evt->type) {
 	case MQTT_EVT_CONNACK: {
 		printk("MQTT_EVT_CONNACK\n");
+		if (evt->result != 0) {
+			printk("MQTT connection failed %d\n\r", evt->result);
+			break;
+		}
+		printk("MQTT client connected!\n\r");
+		please_subscribe();
 		break;
 	}
 	case MQTT_EVT_PUBLISH: {
@@ -285,22 +312,6 @@ static void aws_mqtt_evt_handler(struct mqtt_client * const client,
 	}
 }
 
-
-static const struct mqtt_topic test_list[] = {
-	{
-		.topic = {
-			.utf8 = "test",
-			.size = 5
-		},
-		.qos = MQTT_QOS_1_AT_LEAST_ONCE
-	}, {
-		.topic = {
-			.utf8 = "hello_world",
-			.size = 12
-		},
-		.qos = MQTT_QOS_1_AT_LEAST_ONCE
-	}
-};
 
 /**@brief Configures modem to provide LTE link. Blocks until link is
  * successfully established.
@@ -376,15 +387,6 @@ int aws_init(void)
 	return mqtt_init();
 }
 
-int please_subscribe(void){
-	const struct mqtt_subscription_list subscription_list ={
-		.list = (struct mqtt_topic *) test_list,
-	        .list_count = ARRAY_SIZE(test_list),
-		.message_id = 1234
-	};
-
-	return mqtt_subscribe(&aws.client, &subscription_list);
-}
 
 static u32_t pub_data(const char * data, u8_t data_len, u8_t qos)
 {
@@ -423,17 +425,10 @@ void main(void)
 	*/
 	aws_init();
 	err = aws_connect();
-	mqtt_live();
 	if(err)
 	{
 		__ASSERT(err == 0, "Unable to connect to %s",
 			 CONFIG_AWS_HOSTNAME);
-	}
-	k_sleep(K_MSEC(10));
-	err = please_subscribe();
-	if(err) {
-	printk("Unable to subscribe with err:  %d\n\r",
-			 err);
 	}
 
 
