@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <uart.h>
 #include <string.h>
+#include <cJSON.h>
 
 #include <net/mqtt.h>
 #include <net/socket.h>
@@ -26,9 +27,6 @@
 static u8_t rx_buffer[CONFIG_MQTT_MESSAGE_BUFFER_SIZE];
 static u8_t tx_buffer[CONFIG_MQTT_MESSAGE_BUFFER_SIZE];
 static u8_t payload_buf[CONFIG_MQTT_PAYLOAD_BUFFER_SIZE];
-
-/* The mqtt client struct */
-static struct mqtt_client client;
 
 /* MQTT Broker details. */
 static struct sockaddr_storage broker;
@@ -94,7 +92,7 @@ static int data_publish(struct mqtt_client *c, enum mqtt_qos qos,
 
 /**@brief Function to subscribe to the configured topic
 */
-static int subscribe(void)
+static int subscribe(struct mqtt_client * c)
 {
 	struct mqtt_topic subscribe_topic = {
 		.topic = {
@@ -113,8 +111,9 @@ static int subscribe(void)
 	printk("Subscribing to: %s len %u\n", CONFIG_MQTT_SUB_TOPIC,
 	       (unsigned int)strlen(CONFIG_MQTT_SUB_TOPIC));
 
-	return mqtt_subscribe(&client, &subscription_list);
+	return mqtt_subscribe(c, &subscription_list);
 }
+
 
 /**@brief Function to read the published payload.
 */
@@ -157,6 +156,9 @@ static int publish_get_payload(struct mqtt_client *c, size_t length)
 	return 0;
 }
 
+
+extern int start_dfu(const char * hostname, const char * resource_path);
+
 /**@brief MQTT client event handler
 */
 void mqtt_evt_handler(struct mqtt_client *const c,
@@ -173,7 +175,7 @@ void mqtt_evt_handler(struct mqtt_client *const c,
 
 		connected = true;
 		printk("[%s:%d] MQTT client connected!\n", __func__, __LINE__);
-		subscribe();
+		subscribe(c);
 		break;
 
 	case MQTT_EVT_DISCONNECT:
@@ -192,9 +194,30 @@ void mqtt_evt_handler(struct mqtt_client *const c,
 		if (err >= 0) {
 			data_print("Received: ", payload_buf,
 				   p->message.payload.len);
+			cJSON * jobs_json = cJSON_Parse(payload_buf);
+			cJSON * hostname = cJSON_GetObjectItem(jobs_json, "hostname");
+			cJSON * resource_path = cJSON_GetObjectItem(jobs_json, "resource_path");
+			if (cJSON_IsString(hostname) &&
+			   hostname->valuestring != NULL)
+			{
+				printk("Hostname: %s\n\r",
+				       hostname->valuestring);
+			}
+			if (cJSON_IsString(resource_path) &&
+			   resource_path->valuestring != NULL)
+			{
+				printk("Resource_path: %s\n\r",
+				       resource_path->valuestring);
+			}
+			char chost[128];
+			char cres[128];
+			memcpy(&chost, hostname->valuestring, strlen(hostname->valuestring));
+			memcpy(&cres, resource_path->valuestring, strlen(resource_path->valuestring));
+			cJSON_Delete(jobs_json);
 			/* Echo back received data */
-			data_publish(&client, MQTT_QOS_1_AT_LEAST_ONCE,
-				     payload_buf, p->message.payload.len);
+			//data_publish(c, MQTT_QOS_1_AT_LEAST_ONCE,
+			//payload_buf, p->message.payload.len);
+			start_dfu(chost, cres);
 		} else {
 			printk("mqtt_read_publish_payload: Failed! %d\n", err);
 			printk("Disconnecting MQTT client...\n");
@@ -414,8 +437,11 @@ static void modem_configure(void)
 void main(void)
 {
 	int err;
+	/* The mqtt client struct */
+	struct mqtt_client client;
 
 	printk("The MQTT simple sample started\n");
+	cJSON_Init();
 
 	modem_configure();
 
