@@ -28,7 +28,7 @@ static struct download_client dfu = {
 static int flash_init(void)
 {
 
-	flash_address = PM_MCUBOOT_PARTITIONS_SECONDARY_ADDRESS;
+	flash_address = PM_MCUBOOT_SECONDARY_ADDRESS;
 	for (int i = 0; i < FLASH_PAGE_MAX_CNT; i++) {
 		is_flash_page_erased[i] = false;
 	}
@@ -81,16 +81,13 @@ int start_dfu(const char * hostname,
 {
 	flash_init();
 
+	dfu.host = hostname;
+	dfu.resource = resource_path;
 	int retval = download_client_init(&dfu);
 	printk("download client initialized\n\r");
 	printk(" hostname: %s, resource: %s\n\r", hostname, resource_path);
-	struct download_client dfu = {
-		.host = hostname,
-		.resource = resource_path,
-		.callback = download_client_evt_handler
-	};
 
-	int retval = download_client_init(&dfu);
+	retval = download_client_init(&dfu);
 
 	if (retval != 0) {
 		printk("download_client_init() failed, err %d", retval);
@@ -126,7 +123,7 @@ static int download_client_evt_handler(
 	switch (event) {
 	case DOWNLOAD_CLIENT_EVT_DOWNLOAD_FRAG: {
 
-		if (dfu->object_size > PM_MCUBOOT_PARTITIONS_SECONDARY_SIZE) {
+		if (dfu->object_size > PM_MCUBOOT_SECONDARY_SIZE) {
 			printk("Requested file too big to fit in flash\n");
 			return 1;
 		}
@@ -158,8 +155,8 @@ static int download_client_evt_handler(
 	}
 
 	case DOWNLOAD_CLIENT_EVT_DOWNLOAD_DONE:
-		flash_address = PM_MCUBOOT_PARTITIONS_SECONDARY_ADDRESS
-				+ PM_MCUBOOT_PARTITIONS_SECONDARY_SIZE
+		flash_address = PM_MCUBOOT_SECONDARY_ADDRESS
+				+ PM_MCUBOOT_SECONDARY_SIZE
 				- 0x4;
 		err = flash_page_erase_if_needed(flash_address);
 		if (err != 0) {
@@ -190,7 +187,7 @@ void dfu_thread_entry_point(void * in_hostname, void * in_resource_path, void * 
 	const char * hostname = (const char *) in_hostname;
 	const char * resource_path = (const char *) in_resource_path;	
 	printk("entry hostname: %s, resource: %s\n\r", hostname, resource_path);
-	start_dfu("s3.amazonaws.com","nordic-firmware-files/0943dfbf-cb10-4eb7-8277-a8b179eaf4ff");
+	start_dfu("s3.amazonaws.com","/nordic-firmware-files/0943dfbf-cb10-4eb7-8277-a8b179eaf4ff");
 	while(1);
 }
 

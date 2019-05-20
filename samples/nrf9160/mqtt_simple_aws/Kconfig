@@ -1,10 +1,17 @@
 #
-# Copyright (c) 2018 Nordic Semiconductor ASA
+# Copyright (c) 2019 Nordic Semiconductor ASA
 #
 # SPDX-License-Identifier: LicenseRef-BSD-5-Clause-Nordic
 #
 
-menu "MQTT simple sample"
+menu "mqtt fota"
+
+config DOWNLOAD_HOST
+	string "Download host name"
+
+config DOWNLOAD_FILE
+	string "The file to download"
+
 config MQTT_PUB_TOPIC
 	string "MQTT publish topic"
 	default "my/publish/topic"
