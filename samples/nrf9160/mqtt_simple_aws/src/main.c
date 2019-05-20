@@ -8,7 +8,10 @@
 #include <stdio.h>
 #include <uart.h>
 #include <string.h>
+<<<<<<< HEAD
+=======
 #include <cJSON.h>
+>>>>>>> 22ffd028793f79792276c2bde2b30e4a1256997b
 
 #include <net/mqtt.h>
 #include <net/socket.h>
@@ -37,6 +40,11 @@ static bool connected;
 /* File descriptor */
 static struct pollfd fds;
 
+<<<<<<< HEAD
+bool dfu_start = false;
+
+=======
+>>>>>>> 22ffd028793f79792276c2bde2b30e4a1256997b
 #if defined(CONFIG_BSD_LIBRARY)
 
 /**@brief Recoverable BSD library error. */
@@ -157,7 +165,11 @@ static int publish_get_payload(struct mqtt_client *c, size_t length)
 }
 
 
+<<<<<<< HEAD
+extern void dfu_start_thread(const char * hostname, const char * resource_path);
+=======
 extern int start_dfu(const char * hostname, const char * resource_path);
+>>>>>>> 22ffd028793f79792276c2bde2b30e4a1256997b
 
 /**@brief MQTT client event handler
 */
@@ -194,6 +206,17 @@ void mqtt_evt_handler(struct mqtt_client *const c,
 		if (err >= 0) {
 			data_print("Received: ", payload_buf,
 				   p->message.payload.len);
+<<<<<<< HEAD
+			//data_publish(c, MQTT_QOS_1_AT_LEAST_ONCE,
+			//payload_buf, p->message.payload.len);
+
+			err = mqtt_disconnect(c);
+			if (err) {
+				printk("Could not disconnect MQTT client. Error: %d\n", err);
+			}
+			printk("disconnect MQTT client. Error: %d\n", err);
+			dfu_start = true;	
+=======
 			cJSON * jobs_json = cJSON_Parse(payload_buf);
 			cJSON * hostname = cJSON_GetObjectItem(jobs_json, "hostname");
 			cJSON * resource_path = cJSON_GetObjectItem(jobs_json, "resource_path");
@@ -218,6 +241,7 @@ void mqtt_evt_handler(struct mqtt_client *const c,
 			//data_publish(c, MQTT_QOS_1_AT_LEAST_ONCE,
 			//payload_buf, p->message.payload.len);
 			start_dfu(chost, cres);
+>>>>>>> 22ffd028793f79792276c2bde2b30e4a1256997b
 		} else {
 			printk("mqtt_read_publish_payload: Failed! %d\n", err);
 			printk("Disconnecting MQTT client...\n");
@@ -441,7 +465,10 @@ void main(void)
 	struct mqtt_client client;
 
 	printk("The MQTT simple sample started\n");
+<<<<<<< HEAD
+=======
 	cJSON_Init();
+>>>>>>> 22ffd028793f79792276c2bde2b30e4a1256997b
 
 	modem_configure();
 
@@ -489,6 +516,14 @@ void main(void)
 			printk("POLLNVAL\n");
 			break;
 		}
+<<<<<<< HEAD
+		
+		if(dfu_start) {
+			dfu_start_thread("s3.amazonaws.com","nordic-firmware-files/0943dfbf-cb10-4eb7-8277-a8b179eaf4ff");
+			dfu_start=false;
+		}
+=======
+>>>>>>> 22ffd028793f79792276c2bde2b30e4a1256997b
 	}
 
 	printk("Disconnecting MQTT client...\n");
