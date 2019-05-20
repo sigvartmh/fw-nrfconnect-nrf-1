@@ -12,6 +12,7 @@
 #include <net/mqtt.h>
 #include <net/socket.h>
 #include <lte_lc.h>
+#include <cJSON.h>
 
 #define CONFIG_NRF_CLOUD_SEC_TAG 16842753
 #define CONFIG_CLIENT_ID "custom-upgradable-client"
@@ -26,6 +27,8 @@
 static u8_t rx_buffer[CONFIG_MQTT_MESSAGE_BUFFER_SIZE];
 static u8_t tx_buffer[CONFIG_MQTT_MESSAGE_BUFFER_SIZE];
 static u8_t payload_buf[CONFIG_MQTT_PAYLOAD_BUFFER_SIZE];
+static u8_t hostname[128];
+static u8_t file_path[255];
 
 /* MQTT Broker details. */
 static struct sockaddr_storage broker;
@@ -36,7 +39,6 @@ static bool connected;
 /* File descriptor */
 static struct pollfd fds;
 
-bool dfu_start = false;
 
 #if defined(CONFIG_BSD_LIBRARY)
 
@@ -159,7 +161,6 @@ static int publish_get_payload(struct mqtt_client *c, size_t length)
 
 
 extern void dfu_start_thread(const char * hostname, const char * resource_path);
-extern int start_dfu(const char * hostname, const char * resource_path);
 
 /**@brief MQTT client event handler
 */
@@ -196,15 +197,28 @@ void mqtt_evt_handler(struct mqtt_client *const c,
 		if (err >= 0) {
 			data_print("Received: ", payload_buf,
 				   p->message.payload.len);
-			//data_publish(c, MQTT_QOS_1_AT_LEAST_ONCE,
-			//payload_buf, p->message.payload.len);
-
-			err = mqtt_disconnect(c);
-			if (err) {
-				printk("Could not disconnect MQTT client. Error: %d\n", err);
+			cJSON * mqtt_msg = cJSON_Parse(payload_buf);
+			cJSON * host = cJSON_GetObjectItemCaseSensitive(mqtt_msg
+									,"hostname");
+			if (cJSON_IsString(host) && (host->valuestring != NULL))
+			{
+				memcpy(hostname,
+				       host->valuestring,
+				       strlen(host->valuestring));
 			}
-			printk("disconnect MQTT client. Error: %d\n", err);
-			dfu_start = true;	
+
+			cJSON * file = cJSON_GetObjectItemCaseSensitive(mqtt_msg
+									,"file_path");
+			if(cJSON_IsString(file) &&
+			   (file->valuestring != NULL))
+			{
+				memcpy(file_path,
+				       file->valuestring,
+				       strlen(file->valuestring));
+			}
+			cJSON_Delete(mqtt_msg);
+
+			dfu_start_thread(hostname, file_path);//, progress_cb);
 		} else {
 			printk("mqtt_read_publish_payload: Failed! %d\n", err);
 			printk("Disconnecting MQTT client...\n");
@@ -304,10 +318,6 @@ static int provision(void)
 				 TLS_CREDENTIAL_CA_CERTIFICATE,
 				 AmazonRootCA3_pem,
 				 AmazonRootCA3_pem_len);
-	/*
-				 NRF_CLOUD_CA_CERTIFICATE,
-				 sizeof(NRF_CLOUD_CA_CERTIFICATE));
-				 */
 	if (err < 0) {
 		printk("Failed to register ca certificate: %d",
 			err);
@@ -317,10 +327,6 @@ static int provision(void)
 				 TLS_CREDENTIAL_PRIVATE_KEY,
 				    private_pem_key,
 				    private_pem_key_len);
-	/*
-				 NRF_CLOUD_CLIENT_PRIVATE_KEY,
-				 sizeof(NRF_CLOUD_CLIENT_PRIVATE_KEY));
-				 */
 	if (err < 0) {
 		printk("Failed to register private key: %d",
 			err);
@@ -330,10 +336,6 @@ static int provision(void)
 				 TLS_CREDENTIAL_SERVER_CERTIFICATE,
 				 public_pem,
 				 public_pem_len);
-	/*
-				 NRF_CLOUD_CLIENT_PUBLIC_CERTIFICATE,
-				 sizeof(NRF_CLOUD_CLIENT_PUBLIC_CERTIFICATE));
-				 */
 	if (err < 0) {
 		printk("Failed to register public certificate: %d",
 			err);
@@ -427,7 +429,7 @@ void main(void)
 	/* The mqtt client struct */
 	struct mqtt_client client;
 
-	printk("The MQTT simple sample started\n");
+	printk("The MQTT fota\n");
 
 	modem_configure();
 
@@ -475,16 +477,7 @@ void main(void)
 			printk("POLLNVAL\n");
 			break;
 		}
-		
-		if(dfu_start) {
-			err = mqtt_disconnect(&client);
-			if(err){
-				printk("mqtt client disconnected with err :%d\n", err);
-			}
-			start_dfu(CONFIG_DOWNLOAD_HOST, CONFIG_DOWNLOAD_FILE);
-			//dfu_start_thread("s3.amazonaws.com","nordic-firmware-files/0943dfbf-cb10-4eb7-8277-a8b179eaf4ff");
-			dfu_start=false;
-		}
+
 	}
 
 	printk("Disconnecting MQTT client...\n");
