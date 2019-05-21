@@ -15,13 +15,29 @@
 #include <cJSON.h>
 
 #define CONFIG_NRF_CLOUD_SEC_TAG 16842753
-#define CONFIG_CLIENT_ID "custom-upgradable-client"
 #define CONFIG_AWS_HOSTNAME "a25jld2wxwm7qs-ats.iot.eu-central-1.amazonaws.com"
 
 //#include "aws_cert/rootca_rsa2048.h"
 #include "aws_cert/rootca_ec.h"
 #include "aws_cert/private_key.h"
 #include "aws_cert/pubcert.h"
+
+#if !defined(CONFIG_CLIENT_ID)
+#define IMEI_LEN 15
+#define CLIENT_ID_LEN (IMEI_LEN + 4)
+#else
+#define CLIENT_ID_LEN (sizeof(CLOUD_CLIENT_ID) - 1)
+#endif
+
+#define AWS "$aws/things/"
+#define AWS_LEN (sizeof(AWS) - 1)
+
+#define JOBS_NOTIFY_TOPIC AWS "%s/jobs/notify"
+#define JOBS_NOTIFY_TOPIC_LEN (AWS_LEN + CLIENT_ID_LEN + 12)
+#define JOBS_GET AWS "%s/jobs/%sget/%s"
+
+/* Buffer for keeping the client_id + \0 */
+static char client_id_buf[CLOUD_CLIENT_ID_LEN + 1];
 
 /* Buffers for MQTT client. */
 static u8_t rx_buffer[CONFIG_MQTT_MESSAGE_BUFFER_SIZE];
@@ -32,9 +48,6 @@ static u8_t file_path[255];
 
 /* MQTT Broker details. */
 static struct sockaddr_storage broker;
-
-/* Connected flag */
-static bool connected;
 
 /* File descriptor */
 static struct pollfd fds;
@@ -97,6 +110,10 @@ static int data_publish(struct mqtt_client *c, enum mqtt_qos qos,
 */
 static int subscribe(struct mqtt_client * c)
 {
+	/* Construct topics */
+	char jobs_notify[JOBS_NOTIFY_TOPIC + 1];
+	char jobs_get_accepted[JOBS_GET + 1 ];
+
 	struct mqtt_topic subscribe_topic = {
 		.topic = {
 			.utf8 = CONFIG_MQTT_SUB_TOPIC,
@@ -138,7 +155,6 @@ static int publish_get_payload(struct mqtt_client *c, size_t length)
 			if (ret != -EAGAIN) {
 				return ret;
 			}
-
 			printk("mqtt_read_publish_payload: EAGAIN\n");
 
 			err = poll(&fds, 1, K_SECONDS(CONFIG_MQTT_KEEPALIVE));
@@ -176,7 +192,6 @@ void mqtt_evt_handler(struct mqtt_client *const c,
 			break;
 		}
 
-		connected = true;
 		printk("[%s:%d] MQTT client connected!\n", __func__, __LINE__);
 		subscribe(c);
 		break;
@@ -344,20 +359,65 @@ static int provision(void)
 
 	return 0;
 }
+
+/* Function to get the client id */
+static int client_id_get(char *id)
+{
+#if !defined(NRF_CLOUD_CLIENT_ID)
+#if defined(CONFIG_BSD_LIBRARY)
+	int at_socket_fd;
+	int bytes_written;
+	int bytes_read;
+	char imei_buf[NRF_IMEI_LEN + 1];
+	int ret;
+
+	at_socket_fd = nrf_socket(NRF_AF_LTE, 0, NRF_PROTO_AT);
+	__ASSERT_NO_MSG(at_socket_fd >= 0);
+
+	bytes_written = nrf_write(at_socket_fd, "AT+CGSN", 7);
+	__ASSERT_NO_MSG(bytes_written == 7);
+
+	bytes_read = nrf_read(at_socket_fd, imei_buf, NRF_IMEI_LEN);
+	__ASSERT_NO_MSG(bytes_read == NRF_IMEI_LEN);
+	imei_buf[NRF_IMEI_LEN] = 0;
+
+	snprintf(id, NRF_CLOUD_CLIENT_ID_LEN + 1, "nrf-%s", imei_buf);
+
+	ret = nrf_close(at_socket_fd);
+	__ASSERT_NO_MSG(ret == 0);
+#else
+	#error Missing NRF_CLOUD_CLIENT_ID
+#endif /* defined(CONFIG_BSD_LIBRARY) */
+#else
+	memcpy(id, CONFIG_CLOUD_CLIENT_ID, CLOUD_CLIENT_ID_LEN + 1);
+#endif /* !defined(NRF_CLOUD_CLIENT_ID) */
+
+	return 0;
+}
+
 /**@brief Initialize the MQTT client structure
 */
-static void client_init(struct mqtt_client *client)
+static int client_init(struct mqtt_client *client)
 {
-	mqtt_client_init(client);
+	int ret = mqtt_client_init(client);
+
+	if (ret != 0) {
+		return ret;
+	}
 
 	provision();
 	broker_init();
 
+	ret = nrf_client_id_get(client_id_buf);
+	if (ret != 0) {
+		return ret;
+	}
+
 	/* MQTT client configuration */
 	client->broker = &broker;
 	client->evt_cb = mqtt_evt_handler;
-	client->client_id.utf8 = (u8_t *)CONFIG_MQTT_CLIENT_ID;
-	client->client_id.size = strlen(CONFIG_MQTT_CLIENT_ID);
+	client->client_id.utf8 = client_id_buf;
+	client->client_id.size = CLIENT_ID_LEN;
 	client->password = NULL;
 	client->user_name = NULL;
 	client->protocol_version = MQTT_VERSION_3_1_1;
@@ -380,6 +440,8 @@ static void client_init(struct mqtt_client *client)
 	tls_config->sec_tag_count = ARRAY_SIZE(sec_tag_list);
 	tls_config->sec_tag_list = sec_tag_list;
 	tls_config->hostname = CONFIG_AWS_HOSTNAME;
+
+	return 0;
 
 }
 
