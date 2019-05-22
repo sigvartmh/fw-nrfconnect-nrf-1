@@ -14,6 +14,10 @@
 #include <lte_lc.h>
 #include <cJSON.h>
 
+#if defined(CONFIG_BSD_LIBRARY)
+#include "nrf_inbuilt_key.h"
+#endif
+
 #define CONFIG_NRF_CLOUD_SEC_TAG 16842753
 #define CONFIG_AWS_HOSTNAME "a25jld2wxwm7qs-ats.iot.eu-central-1.amazonaws.com"
 
@@ -32,12 +36,12 @@
 #define AWS "$aws/things/"
 #define AWS_LEN (sizeof(AWS) - 1)
 
-#define JOBS_NOTIFY_TOPIC AWS "%s/jobs/notify"
-#define JOBS_NOTIFY_TOPIC_LEN (AWS_LEN + CLIENT_ID_LEN + 12)
+#define JOBS_NOTIFY_TOPIC AWS "%s/jobs/notify-next"
+#define JOBS_NOTIFY_TOPIC_LEN (AWS_LEN + CLIENT_ID_LEN + 17)
 #define JOBS_GET AWS "%s/jobs/%sget/%s"
 
 /* Buffer for keeping the client_id + \0 */
-static char client_id_buf[CLOUD_CLIENT_ID_LEN + 1];
+static char client_id_buf[CLIENT_ID_LEN + 1];
 
 /* Buffers for MQTT client. */
 static u8_t rx_buffer[CONFIG_MQTT_MESSAGE_BUFFER_SIZE];
@@ -98,33 +102,121 @@ static int data_publish(struct mqtt_client *c, enum mqtt_qos qos,
 	param.dup_flag = 0;
 	param.retain_flag = 0;
 
-	data_print("Publishing: ", data, len);
+	data_print("publishing: ", data, len);
+	/*
 	printk("to topic: %s len: %u\n",
-	       CONFIG_MQTT_PUB_TOPIC,
-	       (unsigned int)strlen(CONFIG_MQTT_PUB_TOPIC));
+	       config_mqtt_pub_topic,
+	       (unsigned int)strlen(config_mqtt_pub_topic));
+	       */
 
 	return mqtt_publish(c, &param);
 }
 
 /**@brief Function to subscribe to the configured topic
 */
+#define JOB_ID_MAX_LEN (64+2)
+#define JOBS_GET_LEN (AWS_LEN + CLIENT_ID_LEN + JOB_ID_MAX_LEN )
+#define UPDATE_DELTA_TOPIC AWS "%s/shadow/update"
+#define UPDATE_DELTA_TOPIC_LEN (AWS_LEN + CLIENT_ID_LEN + 14)
+#define SHADOW_STATE_UPDATE "{\"state\":{\"reported\":{\"nrfcloud_app_fw_version\":%d}}}"
+static int publish_shadow_state(struct mqtt_client *c)
+{
+	char update_delta_topic[UPDATE_DELTA_TOPIC_LEN + 1];
+	int app_version = 1;
+	u8_t data[CONFIG_MQTT_MESSAGE_BUFFER_SIZE];
+	struct mqtt_publish_param param;
+
+	int ret = snprintf(update_delta_topic, sizeof(update_delta_topic),
+		       UPDATE_DELTA_TOPIC, client_id_buf);
+
+	if (ret != UPDATE_DELTA_TOPIC_LEN) {
+		return -ENOMEM;
+	}
+
+	snprintf(data, ARRAY_SIZE(data), SHADOW_STATE_UPDATE, app_version);
+
+
+	param.message.topic.qos = 1;
+	param.message.topic.topic.utf8 = update_delta_topic;
+	param.message.topic.topic.size = UPDATE_DELTA_TOPIC_LEN;
+	param.message.payload.data = data;
+	param.message.payload.len = strlen(data);
+	param.message_id = sys_rand32_get();
+	param.dup_flag = 0;
+	param.retain_flag = 0;
+
+	data_print("publishing: ", data, strlen(data));
+	printk("to topic: %s len: %u\n",
+	       update_delta_topic,
+	       (unsigned int)strlen(update_delta_topic));
+
+	return mqtt_publish(c, &param);
+}
+//static int jobs_topics_subscribe(struct mqtt_client * c)
 static int subscribe(struct mqtt_client * c)
 {
 	/* Construct topics */
-	char jobs_notify[JOBS_NOTIFY_TOPIC + 1];
-	char jobs_get_accepted[JOBS_GET + 1 ];
+	char jobs_notify_next[JOBS_NOTIFY_TOPIC_LEN + 1];
+	char jobs_get_accepted[JOBS_GET_LEN + 1];
+	char jobs_get_rejected[JOBS_GET_LEN + 1];
+	char jobs_get_jobid_accepted[JOBS_GET_LEN  + 1];
+	char jobs_get_jobid_rejected[JOBS_GET_LEN + 1];
 
-	struct mqtt_topic subscribe_topic = {
-		.topic = {
-			.utf8 = CONFIG_MQTT_SUB_TOPIC,
-			.size = strlen(CONFIG_MQTT_SUB_TOPIC)
+	int ret = snprintf(jobs_notify_next, ARRAY_SIZE(jobs_notify_next),
+		       JOBS_NOTIFY_TOPIC, client_id_buf);
+	if (ret != JOBS_NOTIFY_TOPIC_LEN){
+		return -ENOMEM;
+	}
+
+	printk("notify next: %s\n", jobs_notify_next);
+	ret = snprintf(jobs_get_accepted, ARRAY_SIZE(jobs_get_accepted),
+		       JOBS_GET, client_id_buf, "",  "accepted");
+	printk("accepted topic: %s\n", jobs_get_accepted);
+	ret = snprintf(jobs_get_rejected, ARRAY_SIZE(jobs_get_rejected),
+		       JOBS_GET, client_id_buf, "", "rejected");
+	printk("rejected topic: %s\n", jobs_get_rejected);
+	ret = snprintf(jobs_get_jobid_accepted,
+		       ARRAY_SIZE(jobs_get_jobid_accepted),
+		       JOBS_GET,
+		       client_id_buf,
+		       "jobId/",
+		       "accepted");
+	printk("rejected jobid accepted: %s\n", jobs_get_accepted);
+	ret = snprintf(jobs_get_jobid_rejected,
+		       ARRAY_SIZE(jobs_get_jobid_rejected),
+		       JOBS_GET,
+		       client_id_buf,
+		       "jobId/",
+		       "accepted");
+	printk("rejected jobid topic: %s\n", jobs_get_rejected);
+
+	struct mqtt_topic subscribe_topic []= {
+		{
+			.topic = {
+				.utf8 = CONFIG_MQTT_SUB_TOPIC,
+				.size = strlen(CONFIG_MQTT_SUB_TOPIC)
+			},
+			.qos = MQTT_QOS_1_AT_LEAST_ONCE
 		},
-		.qos = MQTT_QOS_1_AT_LEAST_ONCE
+		{
+			.topic = {
+				.utf8 = "test/topic",
+				.size = strlen("test/topic")
+			},
+			.qos = MQTT_QOS_1_AT_LEAST_ONCE
+		},
+		{
+			.topic = {
+				.utf8 = jobs_notify_next,
+				.size = strlen(jobs_notify_next)
+			},
+			.qos = MQTT_QOS_1_AT_LEAST_ONCE
+		},
 	};
 
 	const struct mqtt_subscription_list subscription_list = {
-		.list = &subscribe_topic,
-		.list_count = 1,
+		.list = (struct mqtt_topic *)&subscribe_topic,
+		.list_count = 3,
 		.message_id = 1234
 	};
 
@@ -176,6 +268,8 @@ static int publish_get_payload(struct mqtt_client *c, size_t length)
 }
 
 
+
+
 extern void dfu_start_thread(const char * hostname, const char * resource_path);
 
 /**@brief MQTT client event handler
@@ -194,13 +288,15 @@ void mqtt_evt_handler(struct mqtt_client *const c,
 
 		printk("[%s:%d] MQTT client connected!\n", __func__, __LINE__);
 		subscribe(c);
+		err = publish_shadow_state(c);
+		if(err){
+			printk("Unable to update shadow state\n");
+		}
 		break;
 
 	case MQTT_EVT_DISCONNECT:
 		printk("[%s:%d] MQTT client disconnected %d\n", __func__,
 		       __LINE__, evt->result);
-
-		connected = false;
 		break;
 
 	case MQTT_EVT_PUBLISH: {
@@ -212,28 +308,6 @@ void mqtt_evt_handler(struct mqtt_client *const c,
 		if (err >= 0) {
 			data_print("Received: ", payload_buf,
 				   p->message.payload.len);
-			cJSON * mqtt_msg = cJSON_Parse(payload_buf);
-			cJSON * host = cJSON_GetObjectItemCaseSensitive(mqtt_msg
-									,"hostname");
-			if (cJSON_IsString(host) && (host->valuestring != NULL))
-			{
-				memcpy(hostname,
-				       host->valuestring,
-				       strlen(host->valuestring));
-			}
-
-			cJSON * file = cJSON_GetObjectItemCaseSensitive(mqtt_msg
-									,"file_path");
-			if(cJSON_IsString(file) &&
-			   (file->valuestring != NULL))
-			{
-				memcpy(file_path,
-				       file->valuestring,
-				       strlen(file->valuestring));
-			}
-			cJSON_Delete(mqtt_msg);
-
-			dfu_start_thread(hostname, file_path);//, progress_cb);
 		} else {
 			printk("mqtt_read_publish_payload: Failed! %d\n", err);
 			printk("Disconnecting MQTT client...\n");
@@ -270,6 +344,27 @@ void mqtt_evt_handler(struct mqtt_client *const c,
 		       evt->type);
 		break;
 	}
+}
+
+static void start_dfu(cJSON * json)
+{
+	cJSON * host = cJSON_GetObjectItemCaseSensitive(json, "hostname");
+	if (cJSON_IsString(host) && (host->valuestring != NULL))
+	{
+		memcpy(hostname, host->valuestring, strlen(host->valuestring));
+	}
+
+	cJSON * file = cJSON_GetObjectItemCaseSensitive(json, "file_path");
+	if(cJSON_IsString(file) && (file->valuestring != NULL))
+	{
+		memcpy(file_path, file->valuestring, strlen(file->valuestring));
+	}
+}
+
+static void jobs_handler(u8_t * json)
+{
+
+	dfu_start_thread(hostname, file_path);//, progress_cb);
 }
 
 /**@brief Resolves the configured hostname and
@@ -331,20 +426,20 @@ static int provision(void)
 
 	err = tls_credential_add(CONFIG_NRF_CLOUD_SEC_TAG,
 				 TLS_CREDENTIAL_CA_CERTIFICATE,
-				 AmazonRootCA3_pem,
-				 AmazonRootCA3_pem_len);
+					AmazonRootCA3_pem,
+					AmazonRootCA3_pem_len);
 	if (err < 0) {
 		printk("Failed to register ca certificate: %d",
-			err);
+		       err);
 		return err;
 	}
 	err = tls_credential_add(CONFIG_NRF_CLOUD_SEC_TAG,
 				 TLS_CREDENTIAL_PRIVATE_KEY,
-				    private_pem_key,
-				    private_pem_key_len);
+				 private_pem_key,
+				 private_pem_key_len);
 	if (err < 0) {
 		printk("Failed to register private key: %d",
-			err);
+		       err);
 		return err;
 	}
 	err = tls_credential_add(CONFIG_NRF_CLOUD_SEC_TAG,
@@ -353,11 +448,66 @@ static int provision(void)
 				 public_pem_len);
 	if (err < 0) {
 		printk("Failed to register public certificate: %d",
-			err);
+		       err);
 		return err;
 	}
 
 	return 0;
+}
+
+static int provision_modem_key(void)
+{
+	static sec_tag_t sec_tag_list[] = {CONFIG_NRF_CLOUD_SEC_TAG};
+
+#if defined(CONFIG_BSD_LIBRARY)
+	{
+		int err;
+
+		/* Delete certificates */
+		nrf_sec_tag_t sec_tag = CONFIG_NRF_CLOUD_SEC_TAG;
+
+		for (nrf_key_mgnt_cred_type_t type = 0; type < 3; type++) {
+			err = nrf_inbuilt_key_delete(sec_tag, type);
+			printk("nrf_inbuilt_key_delete(%lu, %d) => result=%d",
+				sec_tag, type, err);
+		}
+
+		/* Provision CA Certificate. */
+		err = nrf_inbuilt_key_write(CONFIG_NRF_CLOUD_SEC_TAG,
+					NRF_KEY_MGMT_CRED_TYPE_CA_CHAIN,
+					AmazonRootCA3_pem,
+					AmazonRootCA3_pem_len);
+		if (err) {
+			printk("NRF_CLOUD_CA_CERTIFICATE err: %d", err);
+			return err;
+		}
+
+		/* Provision Private Certificate. */
+		err = nrf_inbuilt_key_write(
+			CONFIG_NRF_CLOUD_SEC_TAG,
+			NRF_KEY_MGMT_CRED_TYPE_PRIVATE_CERT,
+			private_pem_key,
+			private_pem_key_len);
+		if (err) {
+			printk("NRF_CLOUD_CLIENT_PRIVATE_KEY err: %d", err);
+			return err;
+		}
+
+		/* Provision Public Certificate. */
+		err = nrf_inbuilt_key_write(
+			CONFIG_NRF_CLOUD_SEC_TAG,
+			NRF_KEY_MGMT_CRED_TYPE_PUBLIC_CERT,
+				 public_pem,
+				 public_pem_len);
+		if (err) {
+			printk("NRF_CLOUD_CLIENT_PUBLIC_CERTIFICATE err: %d",
+				err);
+			return err;
+		}
+	}
+#else
+  #error "Missing CONFIG_BSD_LIB"
+#endif
 }
 
 /* Function to get the client id */
@@ -368,7 +518,7 @@ static int client_id_get(char *id)
 	int at_socket_fd;
 	int bytes_written;
 	int bytes_read;
-	char imei_buf[NRF_IMEI_LEN + 1];
+	char imei_buf[IMEI_LEN + 1];
 	int ret;
 
 	at_socket_fd = nrf_socket(NRF_AF_LTE, 0, NRF_PROTO_AT);
@@ -377,16 +527,16 @@ static int client_id_get(char *id)
 	bytes_written = nrf_write(at_socket_fd, "AT+CGSN", 7);
 	__ASSERT_NO_MSG(bytes_written == 7);
 
-	bytes_read = nrf_read(at_socket_fd, imei_buf, NRF_IMEI_LEN);
-	__ASSERT_NO_MSG(bytes_read == NRF_IMEI_LEN);
-	imei_buf[NRF_IMEI_LEN] = 0;
+	bytes_read = nrf_read(at_socket_fd, imei_buf, IMEI_LEN);
+	__ASSERT_NO_MSG(bytes_read == IMEI_LEN);
+	imei_buf[IMEI_LEN] = 0;
 
-	snprintf(id, NRF_CLOUD_CLIENT_ID_LEN + 1, "nrf-%s", imei_buf);
+	snprintf(id, CLIENT_ID_LEN + 1, "nrf-%s", imei_buf);
 
 	ret = nrf_close(at_socket_fd);
 	__ASSERT_NO_MSG(ret == 0);
 #else
-	#error Missing NRF_CLOUD_CLIENT_ID
+#error Missing NRF_CLOUD_CLIENT_ID
 #endif /* defined(CONFIG_BSD_LIBRARY) */
 #else
 	memcpy(id, CONFIG_CLOUD_CLIENT_ID, CLOUD_CLIENT_ID_LEN + 1);
@@ -399,16 +549,11 @@ static int client_id_get(char *id)
 */
 static int client_init(struct mqtt_client *client)
 {
-	int ret = mqtt_client_init(client);
-
-	if (ret != 0) {
-		return ret;
-	}
-
+	mqtt_client_init(client);
 	provision();
 	broker_init();
 
-	ret = nrf_client_id_get(client_id_buf);
+	int ret = client_id_get(client_id_buf);
 	if (ret != 0) {
 		return ret;
 	}

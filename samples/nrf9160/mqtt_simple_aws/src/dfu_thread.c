@@ -14,8 +14,6 @@ static u32_t		flash_address;
 struct k_thread dfu_thread;
 K_THREAD_STACK_DEFINE(dfu_stack_area, 4096);
 
-
-
 /* Forward decleration of download_client_event_handler */
 static int download_client_evt_handler(const struct download_client_evt * event);
 static struct download_client dfu;
@@ -179,7 +177,9 @@ static int download_client_evt_handler(const struct download_client_evt * event)
 	return 0;
 }
 
-void dfu_thread_entry_point(void * in_hostname, void * in_resource_path, void * unused)
+void dfu_thread_entry_point(void * in_hostname,
+			    void * in_resource_path,
+			    void * unused)
 {
 	char * hostname = (char *) in_hostname;
 	char * resource_path = (char *) in_resource_path;
@@ -205,7 +205,10 @@ void dfu_thread_entry_point(void * in_hostname, void * in_resource_path, void * 
 
 void dfu_start_thread(char * hostname, char * resource_path)
 {
-	printk("dfu_start hostname: %s, resource: %s\n\r", hostname, resource_path); k_tid_t dfu_tid = k_thread_create(&dfu_thread,
+	printk("dfu_start hostname: %s, resource: %s\n\r",
+	       hostname,
+	       resource_path);
+	k_tid_t dfu_tid = k_thread_create(&dfu_thread,
 					  dfu_stack_area,
 					  K_THREAD_STACK_SIZEOF(dfu_stack_area),
 					  dfu_thread_entry_point,
