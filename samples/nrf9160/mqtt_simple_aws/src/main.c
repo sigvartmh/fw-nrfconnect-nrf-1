@@ -41,14 +41,15 @@
 #define JOBS_GET AWS "%s/jobs/%sget/%s"
 
 /* Buffer for keeping the client_id + \0 */
-static char client_id_buf[CLIENT_ID_LEN + 1];
+static u8_t client_id_buf[CLIENT_ID_LEN + 1];
+static u8_t jobs_notify_next[JOBS_NOTIFY_TOPIC_LEN + 1];
 
 /* Buffers for MQTT client. */
 static u8_t rx_buffer[CONFIG_MQTT_MESSAGE_BUFFER_SIZE];
 static u8_t tx_buffer[CONFIG_MQTT_MESSAGE_BUFFER_SIZE];
 static u8_t payload_buf[CONFIG_MQTT_PAYLOAD_BUFFER_SIZE];
-static u8_t hostname[128];
-static u8_t file_path[255];
+static u8_t hostname[CONFIG_MQTT_MESSAGE_BUFFER_SIZE];
+static u8_t file_path[CONFIG_MQTT_MESSAGE_BUFFER_SIZE];
 
 /* MQTT Broker details. */
 static struct sockaddr_storage broker;
@@ -118,7 +119,7 @@ static int data_publish(struct mqtt_client *c, enum mqtt_qos qos,
 #define JOBS_GET_LEN (AWS_LEN + CLIENT_ID_LEN + JOB_ID_MAX_LEN )
 #define UPDATE_DELTA_TOPIC AWS "%s/shadow/update"
 #define UPDATE_DELTA_TOPIC_LEN (AWS_LEN + CLIENT_ID_LEN + 14)
-#define SHADOW_STATE_UPDATE "{\"state\":{\"reported\":{\"nrfcloud_app_fw_version\":%d}}}"
+#define SHADOW_STATE_UPDATE "{\"state\":{\"reported\":{\"nrfcloud__fota_v1__app_v\":%d}}}"
 static int publish_shadow_state(struct mqtt_client *c)
 {
 	char update_delta_topic[UPDATE_DELTA_TOPIC_LEN + 1];
@@ -152,11 +153,11 @@ static int publish_shadow_state(struct mqtt_client *c)
 
 	return mqtt_publish(c, &param);
 }
+
 //static int jobs_topics_subscribe(struct mqtt_client * c)
 static int subscribe(struct mqtt_client * c)
 {
 	/* Construct topics */
-	char jobs_notify_next[JOBS_NOTIFY_TOPIC_LEN + 1];
 	char jobs_get_accepted[JOBS_GET_LEN + 1];
 	char jobs_get_rejected[JOBS_GET_LEN + 1];
 	char jobs_get_jobid_accepted[JOBS_GET_LEN  + 1];
@@ -268,7 +269,106 @@ static int publish_get_payload(struct mqtt_client *c, size_t length)
 }
 
 
+static u8_t g_job_id[JOB_ID_MAX_LEN];
 
+#define JOBS_UPDATE_TOPIC AWS "%s/jobs/%s/update"
+#define JOBS_UPDATE_TOPIC_LEN (AWS_LEN + CLIENT_ID_LEN + JOB_ID_MAX_LEN + 14)
+#define JOBS_UPDATE_PAYLOAD "{\"status\":\"%s\",\"statusDetails\":{%s},\"expectedVersion\": \"%d\", \"includeJobExecutionState\": true, \"clientToken\": \"%s\"}"
+static void update_job(struct mqtt_client * c,
+		       const char * status,
+		       const char * job_id,
+		       int expected_version)
+{
+
+	char jobs_update_topic[JOBS_UPDATE_TOPIC_LEN + 1];
+	u8_t update_job_document[CONFIG_MQTT_MESSAGE_BUFFER_SIZE];
+	int ret = snprintf(jobs_update_topic,
+			   ARRAY_SIZE(jobs_update_topic),
+		           JOBS_UPDATE_TOPIC,
+			   client_id_buf,
+			   job_id);
+	printk("job update topic: %s\n expectedVersion: %d\n",
+	       jobs_update_topic,
+	       expected_version);
+	/* Increment version number by 1 as expected by AWS */
+	expected_version = expected_version;
+
+	ret = snprintf(update_job_document,
+		       ARRAY_SIZE(update_job_document),
+		       JOBS_UPDATE_PAYLOAD,
+		       status,
+		       "\"state\":\"progress?\"",
+		       expected_version,
+		       "SomeClientToken");
+
+	struct mqtt_publish_param param;
+	param.message.topic.qos = 1;
+	param.message.topic.topic.utf8 = jobs_update_topic;
+	param.message.topic.topic.size = strlen(jobs_update_topic);
+	param.message.payload.data = update_job_document;
+	param.message.payload.len = strlen(update_job_document);
+	param.message_id = sys_rand32_get();
+	param.dup_flag = 0;
+	param.retain_flag = 0;
+
+	mqtt_publish(c, &param);
+
+}
+
+
+static void jobs_handler(struct mqtt_client * c, u8_t * json_string)
+{
+	int job_document_version_number = 0;
+	cJSON * json = cJSON_Parse(json_string);
+	cJSON * document = cJSON_GetObjectItemCaseSensitive(json, "execution");
+	if(!document){
+		cJSON_free(json);
+		return;
+	}
+	cJSON * job_id = cJSON_GetObjectItemCaseSensitive(document, "jobId");
+	if (cJSON_IsString(job_id) && (job_id->valuestring != NULL))
+	{
+		printk("JobId: %s \n", job_id->valuestring);
+		memcpy(g_job_id,
+		       job_id->valuestring,
+		       strlen(job_id->valuestring));
+	}
+	cJSON * status = cJSON_GetObjectItemCaseSensitive(document, "status");
+	if (cJSON_IsString(status) && (status->valuestring != NULL))
+	{
+		printk("status: %s \n", status->valuestring);
+	}
+	cJSON * document_version_number = cJSON_GetObjectItemCaseSensitive(document, "versionNumber");
+	if (cJSON_IsNumber(document_version_number))
+	{
+		printk("versionNumber: %d \n", document_version_number->valueint);
+		job_document_version_number = document_version_number->valueint;
+	}
+
+	cJSON * job_document = cJSON_GetObjectItemCaseSensitive(document, "jobDocument");
+	cJSON * fw_version = cJSON_GetObjectItemCaseSensitive(job_document, "fwversion");
+	if (cJSON_IsNumber(fw_version))
+	{
+		printk("fw_version: %d \n", fw_version->valueint);
+	}
+	cJSON * location_document = cJSON_GetObjectItemCaseSensitive(job_document, "location");
+	cJSON * host = cJSON_GetObjectItemCaseSensitive(location_document, "host");
+	if (cJSON_IsString(host) && (host->valuestring != NULL))
+	{
+		memcpy(hostname, host->valuestring, strlen(host->valuestring));
+	}
+
+	cJSON * path = cJSON_GetObjectItemCaseSensitive(location_document, "path");
+	if(cJSON_IsString(path) && (path->valuestring != NULL))
+	{
+		memcpy(file_path, path->valuestring, strlen(path->valuestring));
+	}
+	printk("host: %s, path:%s \n", hostname, file_path);
+	cJSON_free(json);
+	update_job(c, "IN_PROGRESS", g_job_id, job_document_version_number);
+
+	//dfu_start_thread(hostname, file_path);//, progress_cb);
+}
 
 extern void dfu_start_thread(const char * hostname, const char * resource_path);
 
@@ -317,7 +417,28 @@ void mqtt_evt_handler(struct mqtt_client *const c,
 				printk("Could not disconnect: %d\n", err);
 			}
 		}
-	} break;
+
+		if (p->message.topic.qos == MQTT_QOS_1_AT_LEAST_ONCE) {
+			const struct mqtt_puback_param ack = {
+				.message_id = p->message_id
+			};
+
+			/* Send acknowledgment. */
+			err = mqtt_publish_qos1_ack(c, &ack);
+			if(err) {
+				printk("unable to ack\n");
+			}
+		}
+		if (!strncmp(jobs_notify_next,
+			     p->message.topic.topic.utf8,
+			     p->message.topic.topic.size))
+		{
+		printk("Received on topic: %s\n",
+		       p->message.topic.topic.utf8);
+		}
+		jobs_handler(c, payload_buf);
+		break;
+	}
 
 	case MQTT_EVT_PUBACK:
 		if (evt->result != 0) {
@@ -361,11 +482,6 @@ static void start_dfu(cJSON * json)
 	}
 }
 
-static void jobs_handler(u8_t * json)
-{
-
-	dfu_start_thread(hostname, file_path);//, progress_cb);
-}
 
 /**@brief Resolves the configured hostname and
  * initializes the MQTT broker structure
@@ -633,6 +749,8 @@ static void modem_configure(void)
 void main(void)
 {
 	int err;
+	//cJSON_InitHooks();
+	cJSON_Init();
 	/* The mqtt client struct */
 	struct mqtt_client client;
 
@@ -642,9 +760,7 @@ void main(void)
 
 	client_init(&client);
 
-	err = mqtt_connect(&client);
-	if (err != 0) {
-		printk("ERROR: mqtt_connect %d\n", err);
+	err = mqtt_connect(&client); if (err != 0) { printk("ERROR: mqtt_connect %d\n", err);
 		return;
 	}
 
