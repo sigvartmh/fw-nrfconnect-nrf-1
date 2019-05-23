@@ -123,7 +123,7 @@ static int data_publish(struct mqtt_client *c, enum mqtt_qos qos,
 static int publish_shadow_state(struct mqtt_client *c)
 {
 	char update_delta_topic[UPDATE_DELTA_TOPIC_LEN + 1];
-	int app_version = 1;
+	int app_version = 2;
 	u8_t data[CONFIG_MQTT_MESSAGE_BUFFER_SIZE];
 	struct mqtt_publish_param param;
 
@@ -366,6 +366,7 @@ static void jobs_handler(struct mqtt_client * c, u8_t * json_string)
 	printk("host: %s, path:%s \n", hostname, file_path);
 	cJSON_free(json);
 	update_job(c, "IN_PROGRESS", g_job_id, job_document_version_number);
+	update_job(c, "SUCCEEDED", g_job_id, job_document_version_number+1);
 
 	//dfu_start_thread(hostname, file_path);//, progress_cb);
 }
