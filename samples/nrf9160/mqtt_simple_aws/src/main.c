@@ -37,12 +37,15 @@
 #define AWS_LEN (sizeof(AWS) - 1)
 
 #define JOBS_NOTIFY_TOPIC AWS "%s/jobs/notify-next"
+#define JOBS_TOPIC AWS "%s/jobs/"
+#define JOBS_TOPIC_LEN (AWS_LEN + CLIENT_ID_LEN + 7)
 #define JOBS_NOTIFY_TOPIC_LEN (AWS_LEN + CLIENT_ID_LEN + 17)
 #define JOBS_GET AWS "%s/jobs/%sget/%s"
 
 /* Buffer for keeping the client_id + \0 */
 static u8_t client_id_buf[CLIENT_ID_LEN + 1];
 static u8_t jobs_notify_next[JOBS_NOTIFY_TOPIC_LEN + 1];
+static u8_t jobs_topic[JOBS_TOPIC_LEN + 1];
 
 /* Buffers for MQTT client. */
 static u8_t rx_buffer[CONFIG_MQTT_MESSAGE_BUFFER_SIZE];
@@ -154,6 +157,13 @@ static int publish_shadow_state(struct mqtt_client *c)
 	return mqtt_publish(c, &param);
 }
 
+
+#define JOBS_UPDATE_TOPIC AWS "%s/jobs/%s/update"
+#define JOBS_UPDATE_TOPIC_LEN (AWS_LEN + CLIENT_ID_LEN + JOB_ID_MAX_LEN + 14)
+static u8_t g_job_id[JOB_ID_MAX_LEN];
+char jobs_update_topic[JOBS_UPDATE_TOPIC_LEN + 1];
+
+
 //static int jobs_topics_subscribe(struct mqtt_client * c)
 static int subscribe(struct mqtt_client * c)
 {
@@ -190,6 +200,12 @@ static int subscribe(struct mqtt_client * c)
 		       "jobId/",
 		       "accepted");
 	printk("rejected jobid topic: %s\n", jobs_get_rejected);
+	ret = snprintf(jobs_topic,
+		       JOBS_TOPIC_LEN,
+		       JOBS_TOPIC,
+		       client_id_buf);
+
+	printk("job_topic: %s\n", jobs_topic);
 
 	struct mqtt_topic subscribe_topic []= {
 		{
@@ -201,15 +217,15 @@ static int subscribe(struct mqtt_client * c)
 		},
 		{
 			.topic = {
-				.utf8 = "test/topic",
-				.size = strlen("test/topic")
+				.utf8 = jobs_notify_next,
+				.size = strlen(jobs_notify_next)
 			},
 			.qos = MQTT_QOS_1_AT_LEAST_ONCE
 		},
 		{
 			.topic = {
-				.utf8 = jobs_notify_next,
-				.size = strlen(jobs_notify_next)
+				.utf8 = jobs_get_accepted,
+				.size = strlen(jobs_get_accepted)
 			},
 			.qos = MQTT_QOS_1_AT_LEAST_ONCE
 		},
@@ -269,10 +285,6 @@ static int publish_get_payload(struct mqtt_client *c, size_t length)
 }
 
 
-static u8_t g_job_id[JOB_ID_MAX_LEN];
-
-#define JOBS_UPDATE_TOPIC AWS "%s/jobs/%s/update"
-#define JOBS_UPDATE_TOPIC_LEN (AWS_LEN + CLIENT_ID_LEN + JOB_ID_MAX_LEN + 14)
 #define JOBS_UPDATE_PAYLOAD "{\"status\":\"%s\",\"statusDetails\":{%s},\"expectedVersion\": \"%d\", \"includeJobExecutionState\": true, \"clientToken\": \"%s\"}"
 static void update_job(struct mqtt_client * c,
 		       const char * status,
@@ -280,7 +292,6 @@ static void update_job(struct mqtt_client * c,
 		       int expected_version)
 {
 
-	char jobs_update_topic[JOBS_UPDATE_TOPIC_LEN + 1];
 	u8_t update_job_document[CONFIG_MQTT_MESSAGE_BUFFER_SIZE];
 	int ret = snprintf(jobs_update_topic,
 			   ARRAY_SIZE(jobs_update_topic),
@@ -315,15 +326,14 @@ static void update_job(struct mqtt_client * c,
 
 }
 
-
-static void jobs_handler(struct mqtt_client * c, u8_t * json_string)
+static int notify_next_handler(struct mqtt_client *c, u8_t * json_string)
 {
-	int job_document_version_number = 0;
+	int job_version_number = 0;
 	cJSON * json = cJSON_Parse(json_string);
 	cJSON * document = cJSON_GetObjectItemCaseSensitive(json, "execution");
 	if(!document){
 		cJSON_free(json);
-		return;
+		return -EFAULT;
 	}
 	cJSON * job_id = cJSON_GetObjectItemCaseSensitive(document, "jobId");
 	if (cJSON_IsString(job_id) && (job_id->valuestring != NULL))
@@ -342,7 +352,7 @@ static void jobs_handler(struct mqtt_client * c, u8_t * json_string)
 	if (cJSON_IsNumber(document_version_number))
 	{
 		printk("versionNumber: %d \n", document_version_number->valueint);
-		job_document_version_number = document_version_number->valueint;
+		job_version_number = document_version_number->valueint;
 	}
 
 	cJSON * job_document = cJSON_GetObjectItemCaseSensitive(document, "jobDocument");
@@ -365,8 +375,29 @@ static void jobs_handler(struct mqtt_client * c, u8_t * json_string)
 	}
 	printk("host: %s, path:%s \n", hostname, file_path);
 	cJSON_free(json);
-	update_job(c, "IN_PROGRESS", g_job_id, job_document_version_number);
-	update_job(c, "SUCCEEDED", g_job_id, job_document_version_number+1);
+	return job_version_number;
+}
+
+
+static void jobs_handler(struct mqtt_client * c, u8_t * topic, u8_t * json_string)
+{
+	static int job_document_version_number = 0;
+	if(!strncmp(jobs_notify_next, topic, JOBS_NOTIFY_TOPIC_LEN))
+	{
+		printk("Notify handling\n");
+		job_document_version_number = notify_next_handler(c,json_string);
+		update_job(c, "IN_PROGRESS", g_job_id, job_document_version_number);
+	}
+	else if(!strncmp(jobs_update_topic, topic, JOBS_NOTIFY_TOPIC_LEN))
+	{
+		printk("Update job handeling\n");
+		//handle_update_topic
+	}
+	else
+	{
+		printk("Recived unexpected topic");
+	}
+	//update_job(c, "SUCCEEDED", g_job_id, job_document_version_number+1);
 
 	//dfu_start_thread(hostname, file_path);//, progress_cb);
 }
@@ -409,6 +440,7 @@ void mqtt_evt_handler(struct mqtt_client *const c,
 		if (err >= 0) {
 			data_print("Received: ", payload_buf,
 				   p->message.payload.len);
+			printk("Received on topic: %s\n", p->message.topic.topic.utf8);
 		} else {
 			printk("mqtt_read_publish_payload: Failed! %d\n", err);
 			printk("Disconnecting MQTT client...\n");
@@ -430,14 +462,14 @@ void mqtt_evt_handler(struct mqtt_client *const c,
 				printk("unable to ack\n");
 			}
 		}
-		if (!strncmp(jobs_notify_next,
+		/* TODO: compare on n topic or n of topic string recived? */
+		printk("jobs topic: %s\nmesg topic: %s\n", jobs_topic, p->message.topic.topic.utf8);
+		if (!strncmp(jobs_topic,
 			     p->message.topic.topic.utf8,
-			     p->message.topic.topic.size))
+			     JOBS_TOPIC_LEN - 1))
 		{
-		printk("Received on topic: %s\n",
-		       p->message.topic.topic.utf8);
+			jobs_handler(c, p->message.topic.topic.utf8, payload_buf);
 		}
-		jobs_handler(c, payload_buf);
 		break;
 	}
 
