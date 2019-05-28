@@ -118,7 +118,7 @@ static const struct json_obj_descr aws_jobs_document_descr[] = {
  * 		nextState: string<FotaStatus>
  * 	}
  * 	queuedAt: number<time>
- *
+ * }
  */
 
 struct status_details_obj
@@ -188,7 +188,7 @@ static enum job_execution_status job_state;
  */
 static int expected_document_version_number = 0;
 
-/* Struct for mqtt client handler */
+/* Struct for pointer to mqtt client handler */
 static struct mqtt_client * client;
 
 /* This is generated for each job by the client */
@@ -206,6 +206,8 @@ static char client_token_buf[64];
 #define JOBS_GET_TOPIC_LEN (AWS_LEN + CLIENT_ID_LEN + 11)
 #define JOBS_GET_JOBID_TOPIC AWS "%s/jobs/%s/get/#"
 #define JOBS_GET_JOBID_TOPIC_LEN (AWS_LEN + CLIENT_ID_LEN + JOB_ID_MAX_LEN + 12)
+#define JOBS_GET_JOBID_TOPIC_ACCEPTED AWS "%s/jobs/%s/get/accepted"
+#define JOBS_GET_JOBID_TOPIC_ACCEPTED LEN (AWS_LEN + CLIENT_ID_LEN + JOB_ID_MAX_LEN + 12)
 #define JOBS_NOTIFY_NEXT_TOPIC AWS "%s/jobs/notify-next"
 #define JOBS_NOTIFY_NEXT_TOPIC_LEN (AWS_LEN + CLIENT_ID_LEN + 17)
 
@@ -216,8 +218,7 @@ static char client_token_buf[64];
 static u8_t jobs_notify_next_topic[JOBS_NOTIFY_NEXT_TOPIC_LEN + 1];
 static u8_t job_id_buf[JOB_ID_MAX_LEN];
 
-static void aws_jobs_handler(struct mqtt_client * c,
-			     u8_t * topic,
+static void aws_jobs_handler(u8_t * topic,
 			     u8_t * json_payload)
 {
 	if (!strncmp(jobs_notify_next_topic, topic, JOBS_NOTIFY_TOPIC_LEN))
