@@ -1,5 +1,5 @@
+#include <zephyr.h>
 #include <net/mqtt.h>
-
 
 /*
  * Jobdocument structure
@@ -11,17 +11,127 @@
  * }
  */
 
+struct location_obj
+{
+	const char * host;
+	const char * path;
+};
+
+
+static const struct json_obj_descr location_obj_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct location_obj, host, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(struct location_obj, path, JSON_TOK_STRING),
+};
+
+
+struct operation_obj
+{
+	const char * app_fw_update;
+};
+
+static const struct json_obj_descr operation_obj_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct operation_obj,
+			    app_fw_update,
+			    JSON_TOK_STRING),
+};
+
+
+struct job_document
+{
+	struct operation_obj operation;
+	const char * fwversion;
+	int size;
+	struct location_obj location;
+};
+
+static const struct json_obj_descr job_document_descr[] = {
+	JSON_OBJ_DESCR_OBJECT(struct job_document,
+			      operation,
+			      operation_obj_descr
+			      ),
+	JSON_OBJ_DESCR_PRIM(struct job_document, fwversion, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(struct job_document, size, JSON_TOK_NUMBER),
+	JSON_OBJ_DESCR_OBJECT(struct job_document,
+			      location,
+			      location_obj_descr
+			      ),
+};
+
+struct execution_obj
+{
+	const char * job_id;
+	const char * status;
+	int queued_at;
+	int version_number;
+	int execution_number;
+	struct job_document;
+}
+
+static const struct json_obj_descr execution_obj_descr[] = {
+	JSON_OBJ_DESCR_PRIM_NAMED(struct execution_obj,
+				  "jobId",
+				  job_id,
+				  JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(struct execution_obj, status, JSON_TOK_NUMBER),
+	JSON_OBJ_DESCR_PRIM_NAMED(struct execution_obj,
+				  "queuedAt",
+				  queued_at,
+				  JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM_NAMED(struct execution_obj,
+				  "versionNumber",
+				  version_number,
+				  JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM_NAMED(struct execution_obj,
+				  "executionNumber",
+				  execution_number,
+				  JSON_TOK_STRING),
+	JSON_OBJ_DESCR_OBJECT_NAMED(struct execution_obj,
+			      "jobDocument",
+			      job_document,
+			      job_document_descr
+			      ),
+
+}
+
+struct aws_jobs_document
+{
+	int timestamp;
+	struct execution_obj execution;
+}
+
+static const struct json_obj_descr aws_jobs_document_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct aws_jobs_document,
+			    timestamp,
+			    JSON_TOK_NUMBER),
+	JSON_OBJ_DESCR_OBJECT(struct aws_jobs_document,
+			      execution,
+			      execution_obj_descr),
+}
+
+
 /* Job execution document
  * {
  * 	jobId: string
  * 	status:string<job_execution_status>
  * 	statusDetails: {
  * 		//nrfcloud specific
- * 		nextState: string<FotaStatus> 
+ * 		nextState: string<FotaStatus>
  * 	}
  * 	queuedAt: number<time>
  *
  */
+
+struct status_details_obj
+{
+	const char * nextState;
+};
+
+struct job_execution_document
+{
+	const char * jobId;
+	const char * status;
+
+}
 
 /* Simple state flow overview
  * Queue job
@@ -77,21 +187,17 @@ static enum job_execution_status job_state;
  * https://docs.aws.amazon.com/iot/latest/developerguide/jobs-api.html#mqtt-updatejobexecution
  */
 static int expected_document_version_number = 0;
+
+/* Struct for mqtt client handler */
+static struct mqtt_client * client;
+
 /* This is generated for each job by the client */
 static char client_token_buf[64];
-
-/* Client ID set by the device is connected to the certificates I think*/
-#if !defined(CONFIG_CLIENT_ID_LEN)
-#define IMEI_LEN 15
-#define CLIENT_ID_LEN (IMEI_LEN + 4)
-#else
-#define CLIENT_ID_LEN (ARRAY_SIZE(CLIENT_ID) - 1)
-#endif
 
 #define AWS "$aws/things/"
 #define AWS_LEN (sizeof(AWS) - 1)
 
-/* The max JOB_ID_LEN according to 
+/* The max JOB_ID_LEN according to
 * https://docs.aws.amazon.com/iot/latest/apireference/API_CreateJob.html#API_CreateJob_RequestParameters
 */
 #define JOB_ID_MAX_LEN 64
@@ -108,24 +214,25 @@ static char client_token_buf[64];
 #define JOBS_NOTIFY_TOPIC_LEN (AWS_LEN + CLIENT_ID_LEN + 12)
 
 static u8_t jobs_notify_next_topic[JOBS_NOTIFY_NEXT_TOPIC_LEN + 1];
-static u8_t client_id_buf[CLIENT_ID_LEN];
 static u8_t job_id_buf[JOB_ID_MAX_LEN];
 
 static void aws_jobs_handler(struct mqtt_client * c,
 			     u8_t * topic,
 			     u8_t * json_payload)
 {
-	if (!strncmp(jobs_notify_next_topic, topic, strlen(topic)))
-	{	
-	}
-	else if (!strncmp(jobs_update_topic, topic, strlen(topic)))
+	if (!strncmp(jobs_notify_next_topic, topic, JOBS_NOTIFY_TOPIC_LEN))
 	{
+		/* Accept job and update job document */
+	}
+	else if (!strncmp(jobs_update_topic, topic, JOBS_GET_JOBID_TOPIC))
+	{
+		/* Update job document version counter if accepted*/
 	}
 }
 
 
-/* 
- * Dispatcher for handling job updates the FSM state 
+/*
+ * Dispatcher for handling job updates the job state
  */
 static void aws_jobs_update_handler(struct mqtt_client * c,
 				    u8_t * topic,
@@ -136,8 +243,8 @@ static void aws_jobs_update_handler(struct mqtt_client * c,
 
 /*
  * Generic method for updating the Job status with the correct information
- */ 
-static int update_job_execution(struct mqtt_client * c,
+ */
+static int aws_update_job_execution(struct mqtt_client * c,
 				const char * status,
 				const char * job_id)
 {
@@ -154,7 +261,7 @@ int subscribe_to_jobs_topics(struct mqtt_client * c)
 	int ret = snprintf(jobs_get_topic,
 			   JOBS_GET_TOPIC_LEN,
 			   JOBS_GET_TOPIC,
-			   client_id_buf);
+			   c->client_id.utf8);
 
 	if (ret != JOBS_GET_LEN)
 	{
@@ -174,14 +281,14 @@ int subscribe_to_jobs_topics(struct mqtt_client * c)
 		{
 			.topic = {
 				.utf8 = jobs_get_topic,
-				.size = JOBS_GET_TOPIC_LEN 
+				.size = JOBS_GET_TOPIC_LEN
 			},
 			.qos = MQTT_QOS_1_AT_LEAST_ONCE
 		},
 		{
 			.topic = {
 				.utf8 = jobs_notify_next_topic,
-				.size = JOBS_NOTIFY_NEXT_TOPIC_LEN 
+				.size = JOBS_NOTIFY_NEXT_TOPIC_LEN
 			},
 			.qos = MQTT_QOS_1_AT_LEAST_ONCE
 		},
@@ -190,9 +297,9 @@ int subscribe_to_jobs_topics(struct mqtt_client * c)
 	const struct mqtt_subscription_list subscription_list = {
 		.list = (struct mqtt_topic *)&subscribe_topic,
 		.list_count = 2, //TODO: Find out if ARRAY_SIZE(subscribe_topic) works?
-		.message_id = 71775 
+		.message_id = 71775
 	};
-	
+
 	return mqtt_subscribe(c, &subscription_list);
 }
 
@@ -200,20 +307,16 @@ int subscribe_to_jobs_topics(struct mqtt_client * c)
  * Subscribe to the specific topics bounded to the current jobId this should only
  * be done once you have accepted a job
  */
-int subscribe_to_job_id_topic(struct mqtt_client * c)
+int aws_jobs_subscribe_to_job_id_topic(struct mqtt_client * c)
 {
 	char jobs_get_jobid_topic[JOBS_GET_JOBID_LEN  + 1];
 	printk("rejected topic: %s\n", jobs_get_rejected);
 	int ret = snprintf(jobs_get_jobid_topic,
 		       JOBS_GET_JOBID_TOPIC_LEN,
 		       JOBS_GET_JOBID_TOPIC,
-		       client_id_buf,
+		       c->client_id.utf8,
 		       job_id_buf);
-}
 
-int aws_jobs_init(char * client_id, u8_t len)
-{
-	memcpy(client_id_buf, client_id, len)
 }
 
 struct job_document
@@ -242,3 +345,10 @@ struct job_document parse_job_document(u8_t * json_string)
 	return job;
 }
 
+
+int aws_jobs_init(struct mqtt_client * c)
+{
+	__ASSERT(c != NULL, "Invalid mqtt_client object");
+	client = c;
+	subscribe_to_jobs_topics(c);
+}

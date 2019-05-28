@@ -12,7 +12,8 @@
 #include <net/mqtt.h>
 #include <net/socket.h>
 #include <lte_lc.h>
-#include <cJSON.h>
+#include "cJSON.h"
+#include "cJSON_os.h"
 
 #if defined(CONFIG_BSD_LIBRARY)
 #include "nrf_inbuilt_key.h"
@@ -163,7 +164,6 @@ static int publish_shadow_state(struct mqtt_client *c)
 static u8_t g_job_id[JOB_ID_MAX_LEN];
 char jobs_update_topic[JOBS_UPDATE_TOPIC_LEN + 1];
 
-
 //static int jobs_topics_subscribe(struct mqtt_client * c)
 static int subscribe(struct mqtt_client * c)
 {
@@ -285,10 +285,11 @@ static int publish_get_payload(struct mqtt_client *c, size_t length)
 }
 
 
-#define JOBS_UPDATE_PAYLOAD "{\"status\":\"%s\",\"statusDetails\":{%s},\"expectedVersion\": \"%d\", \"includeJobExecutionState\": true, \"clientToken\": \"%s\"}"
+#define JOBS_UPDATE_PAYLOAD "{\"status\":\"%s\",\"statusDetails\":{\"nextState\":\"%s\"},\"expectedVersion\": \"%d\", \"includeJobExecutionState\": true, \"clientToken\": \"%s\"}"
 static void update_job(struct mqtt_client * c,
 		       const char * status,
 		       const char * job_id,
+		       const char * next_state,
 		       int expected_version)
 {
 
@@ -308,7 +309,7 @@ static void update_job(struct mqtt_client * c,
 		       ARRAY_SIZE(update_job_document),
 		       JOBS_UPDATE_PAYLOAD,
 		       status,
-		       "\"state\":\"progress?\"",
+		       next_state,
 		       expected_version,
 		       "SomeClientToken");
 
@@ -378,6 +379,21 @@ static int notify_next_handler(struct mqtt_client *c, u8_t * json_string)
 	return job_version_number;
 }
 
+extern void dfu_start_thread(const char * hostname, const char * resource_path);
+
+static int update_handler(u8_t * json_string)
+{
+	int job_version_number = 0;
+	cJSON * document = cJSON_Parse(json_string);
+	cJSON * document_version_number = cJSON_GetObjectItemCaseSensitive(document, "versionNumber");
+	if (cJSON_IsNumber(document_version_number))
+	{
+		printk("versionNumber: %d \n", document_version_number->valueint);
+		job_version_number = document_version_number->valueint;
+	}
+	cJSON_free(document);
+	return job_version_number;
+}
 
 static void jobs_handler(struct mqtt_client * c, u8_t * topic, u8_t * json_string)
 {
@@ -386,12 +402,21 @@ static void jobs_handler(struct mqtt_client * c, u8_t * topic, u8_t * json_strin
 	{
 		printk("Notify handling\n");
 		job_document_version_number = notify_next_handler(c,json_string);
-		update_job(c, "IN_PROGRESS", g_job_id, job_document_version_number);
+		update_job(c, "IN_PROGRESS",
+			   g_job_id,
+			   "download_firmware",
+			   job_document_version_number);
+		dfu_start_thread(hostname, file_path);
+		update_job(c, "IN_PROGRESS",
+			   g_job_id,
+			   "apply_update",
+			   job_document_version_number);
 	}
 	else if(!strncmp(jobs_update_topic, topic, JOBS_NOTIFY_TOPIC_LEN))
 	{
 		printk("Update job handeling\n");
-		//handle_update_topic
+		job_document_version_number = update_handler(json_string);
+
 	}
 	else
 	{
@@ -399,10 +424,9 @@ static void jobs_handler(struct mqtt_client * c, u8_t * topic, u8_t * json_strin
 	}
 	//update_job(c, "SUCCEEDED", g_job_id, job_document_version_number+1);
 
-	//dfu_start_thread(hostname, file_path);//, progress_cb);
+	//, progress_cb);
 }
 
-extern void dfu_start_thread(const char * hostname, const char * resource_path);
 
 /**@brief MQTT client event handler
 */
@@ -463,7 +487,9 @@ void mqtt_evt_handler(struct mqtt_client *const c,
 			}
 		}
 		/* TODO: compare on n topic or n of topic string recived? */
-		printk("jobs topic: %s\nmesg topic: %s\n", jobs_topic, p->message.topic.topic.utf8);
+		printk("jobs topic: %s\n\rmesg topic: %s\n",
+		       jobs_topic,
+		       p->message.topic.topic.utf8);
 		if (!strncmp(jobs_topic,
 			     p->message.topic.topic.utf8,
 			     JOBS_TOPIC_LEN - 1))
