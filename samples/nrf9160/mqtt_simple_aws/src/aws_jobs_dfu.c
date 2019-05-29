@@ -1,6 +1,7 @@
 #include <zephyr.h>
 #include <stdio.h>
 #include <net/mqtt.h>
+#include <fota_download.h>
 #include "aws_jobs_dfu.h"
 #include <cJSON.h>
 
@@ -116,6 +117,8 @@ static u8_t file_path[CONFIG_MQTT_MESSAGE_BUFFER_SIZE];
 static u8_t jobs_jobid_update_topic[JOBS_UPDATE_TOPIC_LEN + 1];
 static u8_t jobs_jobid_update_accepted_topic[JOBS_UPDATE_TOPIC_LEN + 1];
 
+static struct k_work fota_work;
+
 int publish_data_to_topic(struct mqtt_client * c,
 			  char * topic,
 			  int topic_len,
@@ -204,7 +207,16 @@ static int update_job_execution_status(struct mqtt_client * c,
 
 }
 
-
+static void app_start_dfu(struct k_work * unused)
+{
+	int retval;
+	retval = fota_download_start(hostname, file_path);
+	if(retval != 0) {
+		printk("fota_download_start () failed, err %d",
+		       retval);
+	}
+	return;
+}
 
 void aws_jobs_handler(struct mqtt_client * c,
 			     u8_t * topic,
@@ -221,7 +233,7 @@ void aws_jobs_handler(struct mqtt_client * c,
 		execution_state = IN_PROGRESS;
 		fota_state = DOWNLOAD_FIRMWARE;
 
-		err = fota_download_start(hostname, resource_path);
+		k_work_submit(&fota_work);
 
 		if (err) {
 			execution_state = FAILED;
@@ -439,12 +451,18 @@ int subscribe_to_jobs_notify_next(struct mqtt_client * c)
 	return mqtt_subscribe(c, &subscription_list);
 }
 
-int aws_fota_dl_handler(const struct fota_download_evt * evt)
+fota_download_callback_t aws_fota_dl_handler(const struct fota_download_evt * evt)
 {
+	printk("=?=Fota callback recived===\n");
 	if (evt->id == FOTA_DOWNLOAD_EVT_DOWNLOAD_CLIENT &&
 		evt->dlc_evt->id == DOWNLOAD_CLIENT_EVT_DONE) {
 		execution_state = SUCCEEDED;
-		fota_status = APPLY_FIRMWARE;
+		fota_state = APPLY_FIRMWARE;
+		update_job_execution_status(client,
+					    execution_state,
+					    job_id_buf,
+					    fota_state,
+					    document_version_number);
 	}
 	//TODO: Handle fragments to give updates on progress to cloud
 }
@@ -510,6 +528,7 @@ int subscribe_to_job_id_topic(struct mqtt_client * c)
 //int aws_jobs_init(struct mqtt_client * c, const char * app_version)
 int aws_jobs_init(struct mqtt_client * c)
 {
+	k_work_init(&fota_work, app_start_dfu);
 	client = c;
 	int err = construct_notify_next_topic(c);
 	if (err) {

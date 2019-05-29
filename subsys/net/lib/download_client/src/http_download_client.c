@@ -6,14 +6,15 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <zephyr.h>
+#include <zephyr/types.h>
+#include <toolchain/common.h>
 #include <download_client.h>
 #include <zephyr.h>
 #include <net/socket.h>
-#include <zephyr/types.h>
-#include <misc/util.h>
 #include <logging/log.h>
 
-LOG_MODULE_REGISTER(download_client);
+LOG_MODULE_REGISTER(download_client, CONFIG_NRF_DOWNLOAD_CLIENT_LOG_LEVEL);
 
 #define GET_TEMPLATE                                                           \
 	"GET /%s HTTP/1.1\r\n"                                                 \
@@ -22,11 +23,15 @@ LOG_MODULE_REGISTER(download_client);
 	"Range: bytes=%u-%u\r\n"                                               \
 	"\r\n"
 
-static int resolve_and_connect(const char *const host,
-			       const char *const port,
+BUILD_ASSERT_MSG(CONFIG_NRF_DOWNLOAD_MAX_FRAGMENT_SIZE <=
+		 CONFIG_NRF_DOWNLOAD_MAX_RESPONSE_SIZE,
+	"The response buffer must accommodate for a full fragment");
+
+static int resolve_and_connect(const char *const host, const char *const port,
 			       u32_t family, u32_t proto)
 {
 	int fd;
+	int rc;
 
 	if (host == NULL) {
 		return -1;
@@ -34,15 +39,13 @@ static int resolve_and_connect(const char *const host,
 
 	struct addrinfo *addrinf = NULL;
 	struct addrinfo hints = {
-	    .ai_family = family,
-	    .ai_socktype = SOCK_STREAM,
-	    .ai_protocol = proto,
+		.ai_family = family,
+		.ai_socktype = SOCK_STREAM,
+		.ai_protocol = proto,
 	};
 
-	LOG_DBG("Requesting getaddrinfo() for %s", host);
-
-	/* DNS resolve the port. */
-	int rc = getaddrinfo(host, port, &hints, &addrinf);
+	/* Resolve the port. */
+	rc = getaddrinfo(host, port, &hints, &addrinf);
 
 	if (rc < 0 || (addrinf == NULL)) {
 		LOG_ERR("getaddrinfo() failed, err %d", errno);
@@ -52,9 +55,8 @@ static int resolve_and_connect(const char *const host,
 	struct addrinfo *addr = addrinf;
 	struct sockaddr *remoteaddr;
 
-	int addrlen = (family == AF_INET6)
-			  ? sizeof(struct sockaddr_in6)
-			  : sizeof(struct sockaddr_in);
+	int addrlen = (family == AF_INET6) ? sizeof(struct sockaddr_in6) :
+					     sizeof(struct sockaddr_in);
 
 	/* Open a socket based on the local address. */
 	fd = socket(family, SOCK_STREAM, proto);
@@ -63,15 +65,9 @@ static int resolve_and_connect(const char *const host,
 		while (addr != NULL) {
 			remoteaddr = addr->ai_addr;
 
-			LOG_DBG("Resolved address family %d\n",
-				addr->ai_family);
-
 			if (remoteaddr->sa_family == family) {
 				((struct sockaddr_in *)remoteaddr)->sin_port =
 					htons(80);
-
-				LOG_HEXDUMP_DBG((const uint8_t *)remoteaddr,
-					addr->ai_addrlen, "Resolved addr");
 
 				/** TODO:
 				 *  Need to set security setting for HTTPS.
@@ -115,13 +111,13 @@ static int http_request_send(const struct download_client *client, size_t len)
 
 static int get_request_send(struct download_client *client)
 {
-	__ASSERT(client, "NULL object");
-	__ASSERT(client->host, "NULL host");
-	__ASSERT(client->file, "NULL resource");
-
 	int err;
 	int len;
 	size_t off;
+
+	__ASSERT_NO_MSG(client);
+	__ASSERT_NO_MSG(client->host);
+	__ASSERT_NO_MSG(client->file);
 
 	/* Offset of last byte in range (Content-Range) */
 	off = client->progress + CONFIG_NRF_DOWNLOAD_MAX_FRAGMENT_SIZE - 1;
@@ -142,18 +138,21 @@ static int get_request_send(struct download_client *client)
 
 	LOG_HEXDUMP_DBG(client->buf, len, "HTTP request");
 
-	LOG_DBG("Sending HTTP request");
+	LOG_INF("Sending HTTP request");
 
 	err = http_request_send(client, len);
 	if (err) {
 		return err;
 	}
 
-	LOG_DBG("HTTP request sent");
-
 	return 0;
 }
 
+/* Returns:
+ *  1 while the header is being received
+ *  0 if the header has been fully received
+ * -1 on error
+ */
 static int header_parse(struct download_client *client)
 {
 	char *p;
@@ -166,7 +165,7 @@ static int header_parse(struct download_client *client)
 		return 1;
 	}
 
-	/* Offset of the header in the buffer */
+	/* Offset of the end of the HTTP header in the buffer */
 	hdr = p + strlen("\r\n\r\n") - client->buf;
 
 	__ASSERT(hdr < sizeof(client->buf), "Buffer overflow");
@@ -201,8 +200,7 @@ static int header_parse(struct download_client *client)
 		 * then update the offset.
 		 */
 		LOG_WRN("Copying %u payload bytes", client->offset - hdr);
-		memcpy(client->buf, client->buf + hdr,
-		       client->offset - hdr);
+		memcpy(client->buf, client->buf + hdr, client->offset - hdr);
 
 		client->offset -= hdr;
 	} else {
@@ -212,8 +210,8 @@ static int header_parse(struct download_client *client)
 		client->offset = 0;
 	}
 
-	return 0;
-}
+		LOG_INF("File size = %d", client->file_size);
+	}
 
 static int fragment_send(const struct download_client *client)
 {
@@ -234,13 +232,14 @@ static int fragment_send(const struct download_client *client)
 	return client->callback(&evt);
 }
 
-void download_thread(void *pclient, void *a2, void *a3)
+void download_thread(void *client, void *a, void *b)
 {
 	int rc;
 	size_t len;
-	struct download_client *dl;
+	struct download_client * const dl = client;
 
-	dl = pclient;
+restart_and_suspend:
+	k_thread_suspend(dl->tid);
 
 	while (true) {
 		__ASSERT(dl->offset < sizeof(dl->buf), "Buffer overflow");
@@ -249,7 +248,7 @@ void download_thread(void *pclient, void *a2, void *a3)
 		len = recv(dl->fd, dl->buf + dl->offset,
 			   sizeof(dl->buf) - dl->offset, 0);
 
-		if (len == -1 && errno != EAGAIN) {
+		if (len == -1) {
 			LOG_ERR("Error reading from socket: recv() errno %d",
 				errno);
 			const struct download_client_evt evt = {
@@ -257,7 +256,7 @@ void download_thread(void *pclient, void *a2, void *a3)
 				.error = -ENOTCONN
 			};
 			dl->callback(&evt);
-			// thread dead?
+			/* Restart and suspend */
 			break;
 		}
 
@@ -268,8 +267,8 @@ void download_thread(void *pclient, void *a2, void *a3)
 				.error = -ECONNRESET
 			};
 			dl->callback(&evt);
-			k_thread_suspend(dl->tid);
-			continue;
+			/* Restart and suspend */
+			break;
 		}
 
 		LOG_DBG("Read %d bytes from socket", len);
@@ -284,7 +283,7 @@ void download_thread(void *pclient, void *a2, void *a3)
 				continue;
 			}
 			if (rc < 0) {
-				/* thread dead? */
+				/* Restart and suspend */
 				break;
 			}
 
@@ -304,8 +303,7 @@ void download_thread(void *pclient, void *a2, void *a3)
 		 */
 		dl->progress += MIN(dl->offset, len);
 
-		LOG_INF("Downloaded bytes: %u/%u", dl->progress,
-			dl->file_size);
+		LOG_INF("Downloaded bytes: %u/%u", dl->progress, dl->file_size);
 
 		LOG_HEXDUMP_DBG(dl->buf, dl->offset, "Fragment");
 
@@ -317,8 +315,8 @@ void download_thread(void *pclient, void *a2, void *a3)
 				.id = DOWNLOAD_CLIENT_EVT_DONE,
 			};
 			dl->callback(&evt);
-			k_thread_suspend(dl->tid);
-			continue;
+			/* Restart and suspend */
+			break;
 		}
 
 		if (dl->offset < CONFIG_NRF_DOWNLOAD_MAX_FRAGMENT_SIZE) {
@@ -326,8 +324,15 @@ void download_thread(void *pclient, void *a2, void *a3)
 			continue;
 		}
 
-		/* Send fragment to application */
-		fragment_send(dl);
+		/* Send fragment to application.
+		 * If the application callback returns non-zero, abort.
+		 */
+		rc = fragment_send(dl);
+		if (rc) {
+			/* Restart and suspend */
+			LOG_INF("Fragment refused, download stopped.");
+			break;
+		}
 
 		/* Request next fragment */
 		dl->offset = 0;
@@ -336,24 +341,33 @@ void download_thread(void *pclient, void *a2, void *a3)
 		get_request_send(dl);
 	}
 
-	return;
+	/* Do not let the thread return, since it can't be restarted */
+	goto restart_and_suspend;
 }
 
 int download_client_init(struct download_client *const client,
-			 download_client_event_handler_t callback)
+			 download_client_callback_t callback)
 {
 	if (client == NULL || callback == NULL) {
 		return -EINVAL;
 	}
 
 	client->fd = -1;
-	client->tid = NULL;
 	client->callback = callback;
+
+	/* The thread is spawned now, but it will suspend itself;
+	 * it is resumed when the download is started via the API.
+	 */
+	client->tid =
+		k_thread_create(&client->thread, client->thread_stack,
+				K_THREAD_STACK_SIZEOF(client->thread_stack),
+				download_thread, client, NULL, NULL,
+				K_LOWEST_APPLICATION_THREAD_PRIO, 0, K_NO_WAIT);
 
 	return 0;
 }
 
-int download_client_connect(struct download_client * const client, char *host)
+int download_client_connect(struct download_client *const client, char *host)
 {
 	if (client == NULL || host == NULL) {
 		return -EINVAL;
@@ -374,12 +388,12 @@ int download_client_connect(struct download_client * const client, char *host)
 		return -EINVAL;
 	}
 
-	LOG_INF("Socket ready");
+	LOG_INF("Connected");
 
 	return 0;
 }
 
-int download_client_disconnect(struct download_client * const client)
+int download_client_disconnect(struct download_client *const client)
 {
 	int err;
 
@@ -389,7 +403,7 @@ int download_client_disconnect(struct download_client * const client)
 
 	err = close(client->fd);
 	if (err) {
-		return err;
+		return -errno;
 	}
 
 	client->fd = -1;
@@ -398,15 +412,17 @@ int download_client_disconnect(struct download_client * const client)
 }
 
 int download_client_start(struct download_client *client, char *file,
-			  size_t offset)
+			  size_t from)
 {
+	int err;
+
 	if (client == NULL || client->fd < 0) {
 		return -EINVAL;
 	}
 
 	client->file = file;
 	client->file_size = 0;
-	client->progress = offset;
+	client->progress = from;
 
 	client->offset = 0;
 	client->has_header = false;
@@ -417,16 +433,13 @@ int download_client_start(struct download_client *client, char *file,
 		LOG_DBG("Attempting to continue from non-2^ offset..");
 	}
 
-	get_request_send(client);
-
-	if (client->tid == NULL) {
-		client->tid = k_thread_create(
-			&client->thread, client->thread_stack, 2048,
-			download_thread, client, NULL, NULL,
-			K_LOWEST_APPLICATION_THREAD_PRIO, 0, K_NO_WAIT);
-	} else {
-		k_thread_resume(client->tid);
+	err = get_request_send(client);
+	if (err) {
+		return err;
 	}
+
+	/* Let the thread run */
+	k_thread_resume(client->tid);
 
 	return 0;
 }
@@ -439,4 +452,14 @@ void download_client_pause(struct download_client *client)
 void download_client_resume(struct download_client *client)
 {
 	k_thread_resume(client->tid);
+}
+
+int download_client_file_size_get(struct download_client *client, size_t *size)
+{
+	if (!client || !size) {
+		return -EINVAL;
+	}
+
+	*size = client->file_size;
+	return 0;
 }
