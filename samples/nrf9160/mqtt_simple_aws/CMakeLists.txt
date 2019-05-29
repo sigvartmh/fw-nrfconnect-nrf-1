@@ -13,5 +13,7 @@ project(mqtt-simple)
 # NORDIC SDK APP START
 target_sources(app PRIVATE src/main.c
 	src/dfu_thread.c
+	src/aws_jobs_dfu.c
 						   )
+target_include_directories(app PRIVATE src)
 # NORDIC SDK APP END

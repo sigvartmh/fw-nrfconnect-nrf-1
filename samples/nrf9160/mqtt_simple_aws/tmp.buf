@@ -1,0 +1,243 @@
+/* Construct topics 
+static int subscribe(struct mqtt_client * c)
+{
+	char jobs_get_accepted[JOBS_GET_LEN + 1];
+	char jobs_get_rejected[JOBS_GET_LEN + 1];
+	char jobs_get_jobid_accepted[JOBS_GET_LEN  + 1];
+	char jobs_get_jobid_rejected[JOBS_GET_LEN + 1];
+
+	int ret = snprintf(jobs_notify_next, ARRAY_SIZE(jobs_notify_next),
+		       JOBS_NOTIFY_TOPIC, client_id_buf);
+	if (ret != JOBS_NOTIFY_TOPIC_LEN){
+		return -ENOMEM;
+	}
+
+	printk("notify next: %s\n", jobs_notify_next);
+	ret = snprintf(jobs_get_accepted, ARRAY_SIZE(jobs_get_accepted),
+		       JOBS_GET, client_id_buf, "",  "accepted");
+	printk("accepted topic: %s\n", jobs_get_accepted);
+	ret = snprintf(jobs_get_rejected, ARRAY_SIZE(jobs_get_rejected),
+		       JOBS_GET, client_id_buf, "", "rejected");
+	printk("rejected topic: %s\n", jobs_get_rejected);
+	ret = snprintf(jobs_get_jobid_accepted,
+		       ARRAY_SIZE(jobs_get_jobid_accepted),
+		       JOBS_GET,
+		       client_id_buf,
+		       "jobId/",
+		       "accepted");
+	printk("rejected jobid accepted: %s\n", jobs_get_accepted);
+	ret = snprintf(jobs_get_jobid_rejected,
+		       ARRAY_SIZE(jobs_get_jobid_rejected),
+		       JOBS_GET,
+		       client_id_buf,
+		       "jobId/",
+		       "accepted");
+	printk("rejected jobid topic: %s\n", jobs_get_rejected);
+	ret = snprintf(jobs_topic,
+		       JOBS_TOPIC_LEN,
+		       JOBS_TOPIC,
+		       client_id_buf);
+
+	printk("job_topic: %s\n", jobs_topic);
+
+	struct mqtt_topic subscribe_topic []= {
+		{
+			.topic = {
+				.utf8 = CONFIG_MQTT_SUB_TOPIC,
+				.size = strlen(CONFIG_MQTT_SUB_TOPIC)
+			},
+			.qos = MQTT_QOS_1_AT_LEAST_ONCE
+		},
+		{
+			.topic = {
+				.utf8 = jobs_notify_next,
+				.size = strlen(jobs_notify_next)
+			},
+			.qos = MQTT_QOS_1_AT_LEAST_ONCE
+		},
+		{
+			.topic = {
+				.utf8 = jobs_get_accepted,
+				.size = strlen(jobs_get_accepted)
+			},
+			.qos = MQTT_QOS_1_AT_LEAST_ONCE
+		},
+	};
+
+	const struct mqtt_subscription_list subscription_list = {
+		.list = (struct mqtt_topic *)&subscribe_topic,
+		.list_count = 3,
+		.message_id = 1234
+	};
+
+	printk("Subscribing to: %s len %u\n", CONFIG_MQTT_SUB_TOPIC,
+	       (unsigned int)strlen(CONFIG_MQTT_SUB_TOPIC));
+
+	return mqtt_subscribe(c, &subscription_list);
+}*/
+
+/**@brief Function to subscribe to the configured topic
+static int publish_shadow_state(struct mqtt_client *c)
+{
+	char update_delta_topic[UPDATE_DELTA_TOPIC_LEN + 1];
+	int app_version = 2;
+	u8_t data[CONFIG_MQTT_MESSAGE_BUFFER_SIZE];
+	struct mqtt_publish_param param;
+
+	int ret = snprintf(update_delta_topic, sizeof(update_delta_topic),
+		       UPDATE_DELTA_TOPIC, client_id_buf);
+
+	if (ret != UPDATE_DELTA_TOPIC_LEN) {
+		return -ENOMEM;
+	}
+
+	snprintf(data, ARRAY_SIZE(data), SHADOW_STATE_UPDATE, app_version);
+
+
+	param.message.topic.qos = 1;
+	param.message.topic.topic.utf8 = update_delta_topic;
+	param.message.topic.topic.size = UPDATE_DELTA_TOPIC_LEN;
+	param.message.payload.data = data;
+	param.message.payload.len = strlen(data);
+	param.message_id = sys_rand32_get();
+	param.dup_flag = 0;
+	param.retain_flag = 0;
+
+	data_print("publishing: ", data, strlen(data));
+	printk("to topic: %s len: %u\n",
+	       update_delta_topic,
+	       (unsigned int)strlen(update_delta_topic));
+
+	return mqtt_publish(c, &param);
+}
+*/
+
+static int notify_next_handler(struct mqtt_client *c, u8_t * json_string)
+{
+	int job_version_number = 0;
+	cJSON * json = cJSON_Parse(json_string);
+	cJSON * document = cJSON_GetObjectItemCaseSensitive(json, "execution");
+	if(!document){
+		cJSON_free(json);
+		return -EFAULT;
+	}
+	cJSON * job_id = cJSON_GetObjectItemCaseSensitive(document, "jobId");
+	if (cJSON_IsString(job_id) && (job_id->valuestring != NULL))
+	{
+		printk("JobId: %s \n", job_id->valuestring);
+		memcpy(g_job_id,
+		       job_id->valuestring,
+		       strlen(job_id->valuestring));
+	}
+	cJSON * status = cJSON_GetObjectItemCaseSensitive(document, "status");
+	if (cJSON_IsString(status) && (status->valuestring != NULL))
+	{
+		printk("status: %s \n", status->valuestring);
+	}
+	cJSON * document_version_number = cJSON_GetObjectItemCaseSensitive(document, "versionNumber");
+	if (cJSON_IsNumber(document_version_number))
+	{
+		printk("versionNumber: %d \n", document_version_number->valueint);
+		job_version_number = document_version_number->valueint;
+	}
+
+	cJSON * job_document = cJSON_GetObjectItemCaseSensitive(document, "jobDocument");
+	cJSON * fw_version = cJSON_GetObjectItemCaseSensitive(job_document, "fwversion");
+	if (cJSON_IsNumber(fw_version))
+	{
+		printk("fw_version: %d \n", fw_version->valueint);
+	}
+	cJSON * location_document = cJSON_GetObjectItemCaseSensitive(job_document, "location");
+	cJSON * host = cJSON_GetObjectItemCaseSensitive(location_document, "host");
+	if (cJSON_IsString(host) && (host->valuestring != NULL))
+	{
+		memcpy(hostname, host->valuestring, strlen(host->valuestring));
+	}
+
+	cJSON * path = cJSON_GetObjectItemCaseSensitive(location_document, "path");
+	if(cJSON_IsString(path) && (path->valuestring != NULL))
+	{
+		memcpy(file_path, path->valuestring, strlen(path->valuestring));
+	}
+	printk("host: %s, path:%s \n", hostname, file_path);
+	cJSON_free(json);
+	return job_version_number;
+}
+
+static void jobs_handler(struct mqtt_client * c, u8_t * topic, u8_t * json_string)
+{
+	static int job_document_version_number = 0;
+	if(!strncmp(jobs_notify_next, topic, JOBS_NOTIFY_TOPIC_LEN))
+	{
+		printk("Notify handling\n");
+		job_document_version_number = notify_next_handler(c,json_string);
+		update_job(c, "IN_PROGRESS", g_job_id, job_document_version_number);
+	}
+	else if(!strncmp(jobs_update_topic, topic, JOBS_NOTIFY_TOPIC_LEN))
+	{
+		printk("Update job handeling\n");
+		//handle_update_topic
+	}
+	else
+	{
+		printk("Recived unexpected topic");
+	}
+	//update_job(c, "SUCCEEDED", g_job_id, job_document_version_number+1);
+
+	//dfu_start_thread(hostname, file_path);//, progress_cb);
+}
+
+struct job_document
+{
+	char job_id[JOB_ID_MAX_LEN];
+	char status[STATUS_MAX_LEN];
+	int versionNumber;
+}
+
+struct job_document parse_job_document(u8_t * json_string)
+{
+	struct job_document job;
+	cJSON * json = cJSON_Parse(json_string);
+	cJSON * document = cJSON_GetObjectItemCaseSensitive(json, "execution");
+	if(!document){
+		cJSON_free(json);
+		return NULL;
+	}
+
+	/* If we find a job_id we store it in a global buffer to be used when subscribing */
+	if (cJSON_IsString(job_id) && (job_id->valuestring != NULL))
+	{
+		memcpy(job.job_id, job_id->valuestring, strlen(job_id->valuestring));
+	}
+
+	return job;
+}
+
+#define JOBS_UPDATE_TOPIC AWS "%s/jobs/%s/update"
+#define JOBS_UPDATE_TOPIC_LEN (AWS_LEN + CLIENT_ID_LEN + JOB_ID_MAX_LEN + 14)
+static u8_t g_job_id[JOB_ID_MAX_LEN];
+char jobs_update_topic[JOBS_UPDATE_TOPIC_LEN + 1];
+		
+/* TODO: compare on n topic or n of topic string recived? */
+		printk("jobs topic: %s\nmesg topic: %s\n", jobs_topic, p->message.topic.topic.utf8);
+		if (!strncmp(jobs_topic,
+			     p->message.topic.topic.utf8,
+			     JOBS_TOPIC_LEN - 1))
+		{
+			jobs_handler(c, p->message.topic.topic.utf8, payload_buf);
+		}
+
+static void start_dfu(cJSON * json)
+{
+	cJSON * host = cJSON_GetObjectItemCaseSensitive(json, "hostname");
+	if (cJSON_IsString(host) && (host->valuestring != NULL))
+	{
+		memcpy(hostname, host->valuestring, strlen(host->valuestring));
+	}
+
+	cJSON * file = cJSON_GetObjectItemCaseSensitive(json, "file_path");
+	if(cJSON_IsString(file) && (file->valuestring != NULL))
+	{
+		memcpy(file_path, file->valuestring, strlen(file->valuestring));
+	}
+}
