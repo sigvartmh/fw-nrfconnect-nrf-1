@@ -38,5 +38,19 @@ const char * job_execution_status_map [] = {
 	"REMOVED",
 	"CANCELED"
 };
+
+/*
+ * AWS job handler which should handle incoming mqtt publish events
+ * on AWS specific topics
+ */
+void aws_jobs_handler(struct mqtt_client * c,
+			     u8_t * topic,
+			     u8_t * json_payload)
+/*
+ * Initializes the global client struct that is used in callbacks
+ * and subscribes required topics for AWS jobs
+ */
+int aws_jobs_init(struct mqtt_client * c)
+			 u8_t * json_payload)
 #endif
 

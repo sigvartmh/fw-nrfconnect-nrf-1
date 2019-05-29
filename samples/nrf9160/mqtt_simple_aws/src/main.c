@@ -141,7 +141,7 @@ extern void dfu_start_thread(const char * hostname, const char * resource_path);
 
 /**@brief MQTT client event handler
 */
-void mqtt_evt_handler(struct mqtt_client *const c,
+void mqtt_evt_handler(struct mqtt_client * const c,
 		      const struct mqtt_evt *evt)
 {
 	int err;
@@ -157,6 +157,10 @@ void mqtt_evt_handler(struct mqtt_client *const c,
 		err = aws_jobs_init(c);
 		if(err){
 			printk("Unable to initialize AWS jobs upon connection\n");
+			err = mqtt_disconnect(c);
+			if (err) {
+				printk("Could not disconnect: %d\n", err);
+			}
 		}
 		break;
 
@@ -171,10 +175,14 @@ void mqtt_evt_handler(struct mqtt_client *const c,
 		printk("[%s:%d] MQTT PUBLISH result=%d len=%d\n", __func__,
 		       __LINE__, evt->result, p->message.payload.len);
 		err = publish_get_payload(c, p->message.payload.len);
-		aws_jobs_handler(c, p->message.topic.topic.utf8, payload_buf);
 		if (err >= 0) {
+			aws_jobs_handler(c,
+					 p->message.topic.topic.utf8,
+					 payload_buf);
+			/*
 			data_print("Received: ", payload_buf,
 				   p->message.payload.len);
+			*/
 			printk("Received on topic: %s\n", p->message.topic.topic.utf8);
 		} else {
 			printk("mqtt_read_publish_payload: Failed! %d\n", err);
