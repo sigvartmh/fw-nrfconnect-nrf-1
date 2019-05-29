@@ -45,12 +45,11 @@ const char * job_execution_status_map [] = {
  */
 void aws_jobs_handler(struct mqtt_client * c,
 			     u8_t * topic,
-			     u8_t * json_payload)
+			     u8_t * json_payload);
 /*
  * Initializes the global client struct that is used in callbacks
  * and subscribes required topics for AWS jobs
  */
-int aws_jobs_init(struct mqtt_client * c)
-			 u8_t * json_payload)
+int aws_jobs_init(struct mqtt_client * c);
 #endif
 

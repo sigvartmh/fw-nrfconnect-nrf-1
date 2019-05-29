@@ -82,7 +82,7 @@
 #define SHADOW_STATE_UPDATE "{\"state\":{\"reported\":{\"nrfcloud__fota_v1__app_v\":%d}}}"
 
 #define JOBS_UPDATE_PAYLOAD "{\"status\":\"%s\",\"statusDetails\":{\"nextState\":\"%s\"},\
-			    \"expectedVersion\": \"%d\", \"includeJobExecutionState\": true,\
+			    \"expectedVersion\": %d, \"includeJobExecutionState\": true,\
 			    \"clientToken\": \"%s\"}"
 
 /* Enum for tracking the job exectuion state */
@@ -94,7 +94,7 @@ static enum fota_status fota_state;
  * the update using that expectedVersionNumber will be rejected
  * https://docs.aws.amazon.com/iot/latest/developerguide/jobs-api.html#mqtt-updatejobexecution
  */
-static int expected_document_version_number = 0;
+static int document_version_number = 0;
 
 /* Client struct pointer for MQTT */
 struct mqtt_client * client;
@@ -109,10 +109,38 @@ static u8_t jobs_get_jobid_updated_rejected_topic[JOBS_GET_JOBID_TOPIC_MAX_LEN+ 
 
 /* Buffer to keep the current job_id */
 static u8_t job_id_buf[JOB_ID_MAX_LEN];
+/* Create a sensible max (maybe 255?) */
 static u8_t hostname[CONFIG_MQTT_MESSAGE_BUFFER_SIZE];
 static u8_t file_path[CONFIG_MQTT_MESSAGE_BUFFER_SIZE];
 
 static u8_t jobs_jobid_update_topic[JOBS_UPDATE_TOPIC_LEN + 1];
+static u8_t jobs_jobid_update_accepted_topic[JOBS_UPDATE_TOPIC_LEN + 1];
+
+int publish_data_to_topic(struct mqtt_client * c,
+			  char * topic,
+			  int topic_len,
+			  char * data,
+			  int data_len)
+{
+	struct mqtt_publish_param param;
+	param.message.topic.qos = 1;
+	param.message.topic.topic.utf8 = topic;
+	param.message.topic.topic.size = topic_len;
+	param.message.payload.data = data;
+	param.message.payload.len = data_len;
+	param.message_id = sys_rand32_get();
+	param.dup_flag = 0;
+	param.retain_flag = 0;
+
+	printk("Publishing document\n");
+	int err = mqtt_publish(c, &param);
+	if(err) {
+		printk("unable to publish update document\n");
+		return -1;// -ERR;
+	}
+
+	return 0;//expected_version;
+}
 
 static int update_job_execution_status(struct mqtt_client * c,
 		      		       enum job_execution_status status,
@@ -150,55 +178,75 @@ static int update_job_execution_status(struct mqtt_client * c,
 	printk("document: %s\n", update_job_document);
 
 	/* TODO: Not sure you can do error checking for this case */
+	/*
 	if (ret < ARRAY_SIZE(update_job_document)) {
 		return -ENOMEM;
 	}
+	*/
 
 	/* Increment version number by 1 as expected by AWS */
 	//expected_version = expected_version + 1;
 
-	struct mqtt_publish_param param;
-	param.message.topic.qos = 1;
-	param.message.topic.topic.utf8 = jobs_jobid_update_topic;
-	param.message.topic.topic.size = strlen(jobs_jobid_update_topic);
-	param.message.payload.data = update_job_document;
-	param.message.payload.len = strlen(update_job_document);
-	param.message_id = sys_rand32_get();
-	param.dup_flag = 0;
-	param.retain_flag = 0;
-
-	int err = mqtt_publish(c, &param);
-	if(err) {
-		printk("unable to publish update document\n");
-		return -1;// -ERR;
+	ret = publish_data_to_topic(c,
+		      jobs_jobid_update_topic,
+		      strlen(jobs_jobid_update_topic),
+		      update_job_document,
+		      strlen(update_job_document)
+		     );
+	if(ret)
+	{
+		return ret;
 	}
 
-	return 0;//expected_version;
+	document_version_number = expected_version + 1;
+	return ret;
+
 
 }
+
 
 
 void aws_jobs_handler(struct mqtt_client * c,
 			     u8_t * topic,
 			     u8_t * json_payload)
 {
+	int err;
 	printk("Entered aws_jobs hander with topic: %s\n\r payload: %s", topic, json_payload);
 	if (!strncmp(jobs_notify_next_topic, topic, strlen(topic)))
 	{
 		/* Accepting update job */
-		int document_version_number = parse_job_document(json_payload);
+		err = parse_job_document(json_payload);
 		subscribe_to_job_id_topics(c, job_id_buf);
+
 		execution_state = IN_PROGRESS;
 		fota_state = DOWNLOAD_FIRMWARE;
+
+		err = fota_download_start(hostname, resource_path);
+
+		if (err) {
+			execution_state = FAILED;
+			fota_state = NONE;
+			update_job_execution_status(c,
+						    execution_state,
+						    job_id_buf,
+					            fota_state,
+					            document_version_number);
+			return;
+		}
+
 		update_job_execution_status(c,
 					    execution_state,
 					    job_id_buf,
 					    fota_state,
 					    document_version_number);
+		/* Handle error state where you can't start the fota
+		}*/
+
+
 		//expected_document_version_number = accept_job(job_id);
 		//unsubscribe_notify_next_topic(c);
 	}
-	else if (!strncmp(jobs_get_jobid_updated_accepted_topic,
+	else if (!strncmp(jobs_jobid_update_accepted_topic,
 			  topic,
 			  strlen(topic)
 			  )
@@ -206,6 +254,14 @@ void aws_jobs_handler(struct mqtt_client * c,
 	{
 		if (execution_state == IN_PROGRESS)
 		{
+			/* Update document version number */
+
+		}
+		else if (execution_state == SUCCEEDED &&
+			 fota_state == APPLY_FIRMWARE)
+		{
+			/* Download completed and reported initiate system reset */
+			//NVIC_SystemReset();
 		}
 	}
 	else
@@ -219,16 +275,52 @@ int parse_job_document(u8_t * json_payload)
 	cJSON * document = cJSON_GetObjectItemCaseSensitive(json, "execution");
 	if(!document){
 		cJSON_free(json);
-		return -EFAULT;
+		return -EINVAL;
 	}
 	cJSON * job_id = cJSON_GetObjectItemCaseSensitive(document, "jobId");
 	if (cJSON_IsString(job_id) && (job_id->valuestring != NULL))
 	{
-		printk("JobId: %s \n", job_id->valuestring);
+		printk("\r\nJobId: %s \n", job_id->valuestring);
 		memcpy(job_id_buf,
 		       job_id->valuestring,
 		       strlen(job_id->valuestring));
 	}
+
+	cJSON * version_number = cJSON_GetObjectItemCaseSensitive(document, "versionNumber");
+	if (cJSON_IsNumber(version_number))
+	{
+		printk("versionNumber: %d \n", version_number->valueint);
+		document_version_number = version_number->valueint;
+	}
+	else
+	{
+		return -EINVAL;
+	}
+
+
+	cJSON * job_document = cJSON_GetObjectItemCaseSensitive(document, "jobDocument");
+	cJSON * fw_version = cJSON_GetObjectItemCaseSensitive(job_document, "fwversion");
+	if (cJSON_IsNumber(fw_version))
+	{
+		printk("fw_version: %d \n", fw_version->valueint);
+	}
+	cJSON * location_document = cJSON_GetObjectItemCaseSensitive(job_document, "location");
+	cJSON * host = cJSON_GetObjectItemCaseSensitive(location_document, "host");
+	if (cJSON_IsString(host) && (host->valuestring != NULL))
+	{
+		memcpy(hostname, host->valuestring, strlen(host->valuestring));
+	}
+
+	cJSON * path = cJSON_GetObjectItemCaseSensitive(location_document, "path");
+	if(cJSON_IsString(path) && (path->valuestring != NULL))
+	{
+		memcpy(file_path, path->valuestring, strlen(path->valuestring));
+	}
+	printk("host: %s, path:%s \n", hostname, file_path);
+	cJSON_free(json);
+
+
+	return 0;
 }
 
 /*
@@ -261,26 +353,6 @@ static int notify_next_handler(struct mqtt_client *c, u8_t * json_string)
 		job_version_number = document_version_number->valueint;
 	}
 
-	cJSON * job_document = cJSON_GetObjectItemCaseSensitive(document, "jobDocument");
-	cJSON * fw_version = cJSON_GetObjectItemCaseSensitive(job_document, "fwversion");
-	if (cJSON_IsNumber(fw_version))
-	{
-		printk("fw_version: %d \n", fw_version->valueint);
-	}
-	cJSON * location_document = cJSON_GetObjectItemCaseSensitive(job_document, "location");
-	cJSON * host = cJSON_GetObjectItemCaseSensitive(location_document, "host");
-	if (cJSON_IsString(host) && (host->valuestring != NULL))
-	{
-		memcpy(hostname, host->valuestring, strlen(host->valuestring));
-	}
-
-	cJSON * path = cJSON_GetObjectItemCaseSensitive(location_document, "path");
-	if(cJSON_IsString(path) && (path->valuestring != NULL))
-	{
-		memcpy(file_path, path->valuestring, strlen(path->valuestring));
-	}
-	printk("host: %s, path:%s \n", hostname, file_path);
-	cJSON_free(json);
 	return job_version_number;
 }
 */
@@ -313,16 +385,12 @@ static int publish_version_to_device_shadow(struct mqtt_client *c,
 
 	snprintf(data, ARRAY_SIZE(data), SHADOW_STATE_UPDATE, app_version);
 
-	param.message.topic.qos = 1;
-	param.message.topic.topic.utf8 = update_delta_topic;
-	param.message.topic.topic.size = UPDATE_DELTA_TOPIC_LEN;
-	param.message.payload.data = data;
-	param.message.payload.len = strlen(data);
-	param.message_id = sys_rand32_get();
-	param.dup_flag = 0;
-	param.retain_flag = 0;
-
-	return mqtt_publish(c, &param);
+	return publish_data_to_topic(c,
+			      update_delta_topic,
+			      UPDATE_DELTA_TOPIC_LEN,
+			      data,
+			      strlen(data)
+			     );
 }
 
 
@@ -371,16 +439,15 @@ int subscribe_to_jobs_notify_next(struct mqtt_client * c)
 	return mqtt_subscribe(c, &subscription_list);
 }
 
-/*
-int fota_client_cb(void * evt)
+int aws_fota_dl_handler(const struct fota_download_evt * evt)
 {
-	switch(evt->type) {
-	case DOWNLOAD_CLIENT_EVT_DONE:
-		state = SUCCEEDED;
-	        update_job_execution_status(client,
-
+	if (evt->id == FOTA_DOWNLOAD_EVT_DOWNLOAD_CLIENT &&
+		evt->dlc_evt->id == DOWNLOAD_CLIENT_EVT_DONE) {
+		execution_state = SUCCEEDED;
+		fota_status = APPLY_FIRMWARE;
+	}
+	//TODO: Handle fragments to give updates on progress to cloud
 }
-*/
 
 /* Topics which needs to be subscribed to for getting notfied of a job and updates
  * https://docs.aws.amazon.com/iot/latest/developerguide/jobs-devices.html */
@@ -440,22 +507,32 @@ int subscribe_to_job_id_topic(struct mqtt_client * c)
 	return ret;
 }
 
+//int aws_jobs_init(struct mqtt_client * c, const char * app_version)
 int aws_jobs_init(struct mqtt_client * c)
 {
 	client = c;
 	int err = construct_notify_next_topic(c);
 	if (err) {
-		return -1; //ERR
+		return err; //ERR
 	}
 
 	err = subscribe_to_jobs_notify_next(c);
 	if (err) {
-		return -1; //ERR
+		return err; //ERR
 	}
+
 	err = publish_version_to_device_shadow(c,"1");
 	if (err) {
-		return -1; //ERR
+		return err; //ERR
 	}
+
+
+	err = fota_download_init(aws_fota_dl_handler);
+	if (err) {
+		return err; //ERR
+	}
+
+	return 0;
 
 }
 
