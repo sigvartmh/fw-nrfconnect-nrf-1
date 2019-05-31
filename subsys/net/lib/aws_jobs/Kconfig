@@ -1,0 +1,20 @@
+# Copyright (c) 2018 Nordic Semiconductor
+#
+# SPDX-License-Identifier: LicenseRef-BSD-5-Clause-Nordic
+#
+
+menuconfig AWS_JOBS 
+	bool "AWS jobs library"
+	select CJSON_LIB
+	select MQTT_SOCKET_LIB
+
+if AWS_JOBS 
+
+
+module=AWS_JOBS
+module-dep=LOG
+module-str=Log level for nRF Cloud
+module-help=Enables nRF Cloud log messages.
+source "${ZEPHYR_BASE}/subsys/logging/Kconfig.template.log_config"
+
+endif # AWS_JOBS 
