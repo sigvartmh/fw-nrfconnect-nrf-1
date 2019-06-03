@@ -14,6 +14,18 @@
  * @defgroup aws_jobs AWS Jobs library
  * @{
  * @brief Library for interacting with AWS Jobs.
+ *
+ *  The AWS Jobs library provides APIs that can be used to:
+ *  - report status,
+ *  - subscribe to job topics.
+ *
+ *  It also contains:
+ *  - string templates for topics,
+ *  - defines for lengths of topics, status, and job IDs,
+ *  - defines for Subscribe message IDs.
+ *
+ *  This library assumes that all strings can be UTF-8 formatted.
+ *
  */
 
 #ifdef __cplusplus
@@ -208,7 +220,7 @@ int aws_jobs_subscribe_notify(struct mqtt_client *const client);
 
 
 /**
- * @brief Construct the notify topic and unsubscribe to stop receiving
+ * @brief Constructs the notify topic and unsubscribe to stop receiving
  *	      AWS IoT jobs lists.
  *
  * @param[in] client Connected MQTT client instance.
@@ -301,8 +313,8 @@ int aws_jobs_subscribe_job_id_update(struct mqtt_client *const client,
 
 
 /**
- * @brief Construct the update topic for a job ID and unsubscribe from rejected
- *	      and accepted to stop receiving feedback from the job execution.
+ * @brief Construct the update topic for a job ID and unsubscribes from rejected
+ *	      and accepted to stop receive feedback from the job execution.
  *
  * @param[in] client Connected MQTT client instance.
  * @param[in] job_id Job ID of the currently accepted job.

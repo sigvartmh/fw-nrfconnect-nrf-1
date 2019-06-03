@@ -58,7 +58,7 @@ static int construct_get_topic(const u8_t *client_id,
 			   GET_TOPIC_TEMPLATE,
 			   client_id,
 			   "#");
-	get_topic_len = ret + 1;
+	get_topic_len = ret;
 	ret = report_snprintf_err(ret, GET_TOPIC_LEN, "get_topic");
 
 	if (ret) {
@@ -143,7 +143,7 @@ static int construct_notify_next_topic(const u8_t *client_id,
 			   NOTIFY_NEXT_TOPIC_MAX_LEN,
 			   NOTIFY_NEXT_TOPIC_TEMPLATE,
 			   client_id);
-	notify_next_topic_len = ret + 1;
+	notify_next_topic_len = ret;
 	ret = report_snprintf_err(ret,
 			    NOTIFY_NEXT_TOPIC_MAX_LEN,
 			    "notify_next_topic");
@@ -181,6 +181,7 @@ int aws_jobs_subscribe_notify_next(struct mqtt_client *const client)
 	}
 
 	LOG_DBG("Subscribe: %s", subscribe_topic.topic.utf8);
+	printk("%s, Subscribe :%s\n", __func__, subscribe_topic.topic.utf8);
 
 	return mqtt_subscribe(client, &subscription_list);
 }
@@ -235,7 +236,7 @@ static int construct_notify_topic(const u8_t *client_id,
 			   NOTIFY_TOPIC_MAX_LEN,
 			   NOTIFY_TOPIC_TEMPLATE,
 			   client_id);
-	notify_topic_len = ret + 1;
+	notify_topic_len = ret;
 	ret = report_snprintf_err(ret, NOTIFY_TOPIC_MAX_LEN, "notify_topic");
 
 	if (ret) {
@@ -426,7 +427,7 @@ static int construct_job_id_get_topic(const u8_t *client_id,
 			  client_id,
 			  job_id,
 			  "#");
-	job_id_get_topic_len = ret + 1;
+	job_id_get_topic_len = ret;
 	ret = report_snprintf_err(ret,
 				  JOB_ID_GET_TOPIC_MAX_LEN,
 				  "job_id_get_topic");
@@ -523,7 +524,7 @@ static int construct_job_id_update_topic(const u8_t *client_id,
 			   client_id,
 			   job_id,
 			   suffix);
-	job_id_update_topic_len = ret + 1;
+	job_id_update_topic_len = ret;
 
 	ret = report_snprintf_err(ret,
 				  JOB_ID_UPDATE_TOPIC_MAX_LEN,
@@ -630,7 +631,7 @@ int aws_jobs_update_job_execution(struct mqtt_client *const client,
 		       status_details,
 		       expected_version,
 		       client_token);
-	update_job_payload_len = ret + 1;
+	update_job_payload_len = ret;
 	ret = report_snprintf_err(ret,
 				  ARRAY_SIZE(update_job_payload),
 				  "update_job_payload");
