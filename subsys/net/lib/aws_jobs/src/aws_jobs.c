@@ -60,7 +60,7 @@ static struct mqtt_topic construct_get_topic(u8_t *client_id)
 
 int aws_jobs_subscribe_get(struct mqtt_client *client)
 {
-
+	__ASSERT(client != NULL, "invalid client");
 
 	struct mqtt_topic subscribe_topic = construct_get_topic(
 						client->client_id.utf8
@@ -106,7 +106,7 @@ static struct mqtt_topic construct_notify_next_topic(u8_t *client_id)
 
 int aws_jobs_subscribe_notify_next(struct mqtt_client *client)
 {
-
+	__ASSERT(client != NULL, "invalid client");
 
 	struct mqtt_topic subscribe_topic = construct_notify_next_topic(
 						client->client_id.utf8
@@ -153,6 +153,8 @@ static struct mqtt_topic construct_notify_topic(u8_t *client_id)
 
 int aws_jobs_subscribe_notify(struct mqtt_client *client)
 {
+	__ASSERT(client != NULL, "invalid client");
+
 	struct mqtt_topic subscribe_topic = construct_notify_topic(
 						client->client_id.utf8
 						);
@@ -170,6 +172,8 @@ int aws_jobs_subscribe_notify(struct mqtt_client *client)
 int aws_jobs_subscribe_expected_topics(struct mqtt_client *client,
 				       bool notify_next)
 {
+	__ASSERT(client != NULL, "invalid client");
+
 	struct mqtt_topic subscribe_topics[2];
 	u8_t *client_id = client->client_id.utf8;
 
@@ -223,6 +227,9 @@ static struct mqtt_topic construct_job_id_get_topic(u8_t *client_id,
 
 int subscribe_job_id_get_topic(struct mqtt_client *client, u8_t *job_id)
 {
+	__ASSERT(client != NULL, "invalid client");
+	__ASSERT(job_id != NULL, "invalid job_id");
+
 	struct mqtt_topic subscribe_topic = construct_job_id_get_topic(
 						client->client_id.utf8,
 						job_id
@@ -283,6 +290,11 @@ int aws_update_job_execution(struct mqtt_client *client,
 			     int expected_version,
 			     u8_t *client_token)
 {
+	__ASSERT(client != NULL, "invalid client");
+	__ASSERT(job_id != NULL, "invalid job_id");
+	__ASSERT(status_details != NULL, "invalid status_details");
+	__ASSERT(client_token != NULL, "invalid client_token");
+
 	/* Max size document is 1350 char but the max size json document is
 	 * actually 32kb set it to what is the limiting factor which is the MQTT
 	 * buffer size for reception end
