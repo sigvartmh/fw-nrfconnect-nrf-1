@@ -155,6 +155,7 @@ void mqtt_evt_handler(struct mqtt_client * const c,
 
 		printk("[%s:%d] MQTT client connected!\n", __func__, __LINE__);
 		err = aws_jobs_init(c);
+		//aws_jobs_connected(true);
 		if(err){
 			printk("Unable to initialize AWS jobs upon connection\n");
 			err = mqtt_disconnect(c);
@@ -176,9 +177,11 @@ void mqtt_evt_handler(struct mqtt_client * const c,
 		       __LINE__, evt->result, p->message.payload.len);
 		err = publish_get_payload(c, p->message.payload.len);
 		if (err >= 0) {
+			/*
 			aws_jobs_handler(c,
 					 p->message.topic.topic.utf8,
 					 payload_buf);
+					 */
 			/*
 			data_print("Received: ", payload_buf,
 				   p->message.payload.len);

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: LicenseRef-BSD-5-Clause-Nordic
  */
 
-#ifndef AWS_JOBS_INTERNAL_H__ 
+#ifndef AWS_JOBS_INTERNAL_H__
 #define AWS_JOBS_INTERNAL_H__
 
 #ifdef __cplusplus
@@ -24,6 +24,8 @@ const char * fota_status_map [] = {
 	"apply_update",
 	"none"
 };
+
+static enum fota_status fota_state;
 
 #ifdef __cplusplus
 }

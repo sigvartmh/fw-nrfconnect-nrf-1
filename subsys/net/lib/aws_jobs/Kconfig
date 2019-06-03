@@ -3,18 +3,21 @@
 # SPDX-License-Identifier: LicenseRef-BSD-5-Clause-Nordic
 #
 
-menuconfig AWS_JOBS 
+menuconfig AWS_JOBS
 	bool "AWS jobs library"
 	select CJSON_LIB
-	select MQTT_SOCKET_LIB
 
-if AWS_JOBS 
+if AWS_JOBS
+
+config CLIENT_ID_LEN
+	int "MQTT client ID length"
+	default 19
 
 
 module=AWS_JOBS
 module-dep=LOG
-module-str=Log level for nRF Cloud
-module-help=Enables nRF Cloud log messages.
+module-str=Log level for AWS Jobs
+module-help=Enables AWS jobs log messages.
 source "${ZEPHYR_BASE}/subsys/logging/Kconfig.template.log_config"
 
-endif # AWS_JOBS 
+endif # AWS_JOBS

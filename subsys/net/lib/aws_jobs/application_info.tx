@@ -1,0 +1,23 @@
+
+/* Simple state flow overview
+ * Queue job
+ * device notfied of job
+ * device update job with in progress
+ * device initiates download from http
+ * update fota status with download firmware
+ * firmware downloaded
+ * update fota status with apply firmware
+ * update with success
+ * reboot
+ */
+
+/*
+ * FOTA Jobdocument structure
+ * {
+ *	operation: <json obj> (currently only app_fw_update)
+ *	fwversion: string
+ *	size: number
+ *	location: string
+ * }
+ */
+

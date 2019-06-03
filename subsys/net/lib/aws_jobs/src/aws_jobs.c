@@ -1,183 +1,154 @@
 #include <zephyr.h>
 #include <stdio.h>
 #include <net/mqtt.h>
-#include <fota_download.h>
 #include <cJSON.h>
-#include "aws_jobs.h"
+#include <aws_jobs.h>
+#include <logging/log.h>
 
-/*
- * Jobdocument structure
- * {
- *	operation: <json obj> (currently only app_fw_update)
- *	fwversion: string
- *	size: number
- *	location: string
- * }
- */
+LOG_MODULE_REGISTER(aws_jobs, CONFIG_AWS_JOBS_LOG_LEVEL);
 
-/* Job execution document
- * {
- * 	jobId: string
- * 	status:string<job_execution_status>
- * 	statusDetails: {
- * 		//nrfcloud specific
- * 		nextState: string<FotaStatus>
- * 	}
- * 	queuedAt: number<time>
- *
- */
-
-/* Simple state flow overview
- * Queue job
- * device notfied of job
- * device update job with in progress
- * device initiates download from http
- * update fota status with download firmware
- * firmware downloaded
- * update fota status with apply firmware
- * update with success
- * reboot
- */
 
 /* The max JOB_ID_LEN according to AWS docs
  * https://docs.aws.amazon.com/general/latest/gr/aws_service_limits.html#job-limits
  */
-
 #define JOB_ID_MAX_LEN 64
 #define STATUS_MAX_LEN 12
-#define IMEI_LEN 15
-#define CLIENT_ID_LEN (IMEI_LEN + 4)
+
+#define AWS_JOBS_SUB_BASE 2110
+#define SUB_NOTIFIY_NEXT (AWS_JOBS_SUB_BASE + 0)
+#define SUB_UPDATE (AWS_JOBS_SUB_BASE + 1)
 
 #define AWS "$aws/things/"
 #define AWS_LEN (sizeof(AWS) - 1)
 
-#define JOBS_NOTIFY_NEXT_TOPIC AWS "%s/jobs/notify-next"
-#define JOBS_NOTIFY_NEXT_TOPIC_LEN (AWS_LEN + CLIENT_ID_LEN + 18)
+#define NOTIFY_NEXT_TOPIC AWS "%s/jobs/notify-next"
+#define NOTIFY_NEXT_TOPIC_LEN (AWS_LEN + CONFIG_CLIENT_ID_LEN + 18)
+#define NOTIFY_TOPIC AWS "%s/jobs/notify"
+#define NOTIFY_TOPIC_LEN (AWS_LEN + CONFIG_CLIENT_ID_LEN + 12)
 
-#define JOBS_GET_TOPIC AWS "%s/jobs/get/#"
-#define JOBS_GET_TOPIC_LEN (AWS_LEN + CLIENT_ID_LEN + 11)
+#define GET_TOPIC AWS "%s/jobs/get/#"
+#define GET_TOPIC_LEN (AWS_LEN + CONFIG_CLIENT_ID_LEN + 11)
 
-#define JOBS_GET_JOBID_TOPIC AWS "%s/jobs/%s/get/#"
-#define JOBS_GET_JOBID_TOPIC_MAX_LEN (AWS_LEN +\
-				      CLIENT_ID_LEN +\
-				      JOB_ID_MAX_LEN +\
-				      13)
-#define JOBS_GET_JOBID_TOPIC_SPECIFIED AWS "%s/jobs/%s/get/%s"
-#define JOBS_GET_JOBID_TOPIC_SPECIFIED_MAX_LEN (AWS_LEN +\
-						CLIENT_ID_LEN +\
-						JOB_ID_MAX_LEN + 12 + 9 + 2)
-//#define JOBS_GET_JOBID_TOPIC_LEN (AWS_LEN + CLIENT_ID_LEN + JOB_ID_MAX_LEN + 12)
+#define GET_JOBID_TOPIC AWS "%s/jobs/%s/get/#"
+#define GET_JOBID_TOPIC_MAX_LEN (AWS_LEN +\
+				 CONFIG_CLIENT_ID_LEN +\
+				 JOB_ID_MAX_LEN +\
+				 12)
 
-/* For future use-cases */
-#define JOBS_NOTIFY_TOPIC AWS "%s/jobs/notify"
-#define JOBS_NOTIFY_TOPIC_LEN (AWS_LEN + CLIENT_ID_LEN + 12)
-
-/* Topic for updating shadow topic with version number */
-#define UPDATE_DELTA_TOPIC AWS "%s/shadow/update"
-#define UPDATE_DELTA_TOPIC_LEN (AWS_LEN + CLIENT_ID_LEN + 14)
-
-#define JOBS_UPDATE_TOPIC AWS "%s/jobs/%s/update"
-#define JOBS_UPDATE_TOPIC_LEN (AWS_LEN + CLIENT_ID_LEN + JOB_ID_MAX_LEN + 14)
-//TODO: Switch this back
-//#define SHADOW_STATE_UPDATE "{\"state\":{\"reported\":{\"nrfcloud__fota_v1__app_v\":\"%s\"}}}"
-#define SHADOW_STATE_UPDATE "{\"state\":{\"reported\":{\"nrfcloud__fota_v1__app_v\":%d}}}"
-
-#define JOBS_UPDATE_PAYLOAD "{\"status\":\"%s\",\"statusDetails\":{\"nextState\":\"%s\"},\
-			    \"expectedVersion\": %d, \"includeJobExecutionState\": true,\
-			    \"clientToken\": \"%s\"}"
-
-/* Enum for tracking the job exectuion state */
-static enum job_execution_status execution_state;
-static enum fota_status fota_state;
-
-/* Global local counter which contains the expected job document version,
- * this needs to match what the AWS jobs document contains if not
- * the update using that expectedVersionNumber will be rejected
- * https://docs.aws.amazon.com/iot/latest/developerguide/jobs-api.html#mqtt-updatejobexecution
+#define UPDATE_TOPIC AWS "%s/jobs/%s/update/%s"
+#define UPDATE_TOPIC_LEN (AWS_LEN + CONFIG_CLIENT_ID_LEN + JOB_ID_MAX_LEN + 14)
+/* Job execution update document
+ * {
+ * 	jobId: string
+ * 	status:string<job_execution_status>
+ * 	queuedAt: number<time>
+ * 	lastUpdateAt: number<time>
+ * 	versionNumber: number<document version number>
+ * 	executionNumber: number<num of executions>
+ * 	jobsDocument: JSON<job document>
+ *
  */
-static int document_version_number = 0;
 
-/* Client struct pointer for MQTT */
-struct mqtt_client * client;
 
-/* This is generated for each job by the client */
+/* Job execution update document
+ * {
+ * 	jobId: string
+ * 	status:string<job_execution_status>
+ * 	statusDetails: {
+ * 	}
+ * 	queuedAt: number<time>
+ *
+ */
+#define UPDATE_PAYLOAD "{\"status\":\"%s\",\"statusDetails\":%s},\
+			\"expectedVersion\": %d, \"includeJobExecutionState\": true,\
+			\"clientToken\": \"%s\"}"
+
+/* This is generated for each job by the client can be ignored */
 static char client_token_buf[64];
-
-/* Staticly allocated buffers for keeping the topics needed for AWS jobs */
-static u8_t jobs_notify_next_topic[JOBS_NOTIFY_NEXT_TOPIC_LEN + 1];
-static u8_t jobs_get_jobid_updated_accepted_topic[JOBS_GET_JOBID_TOPIC_MAX_LEN+ 1];
-static u8_t jobs_get_jobid_updated_rejected_topic[JOBS_GET_JOBID_TOPIC_MAX_LEN+ 1];
 
 /* Buffer to keep the current job_id */
 static u8_t job_id_buf[JOB_ID_MAX_LEN];
-/* Create a sensible max (maybe 255?) */
-static u8_t hostname[CONFIG_MQTT_MESSAGE_BUFFER_SIZE];
-static u8_t file_path[CONFIG_MQTT_MESSAGE_BUFFER_SIZE];
 
-static u8_t jobs_jobid_update_topic[JOBS_UPDATE_TOPIC_LEN + 1];
-static u8_t jobs_jobid_update_accepted_topic[JOBS_UPDATE_TOPIC_LEN + 1];
+/* Staticly allocated buffers for keeping the topics needed for AWS jobs */
+static u8_t notify_next_topic[NOTIFY_NEXT_TOPIC_LEN + 1];
+static u8_t job_id_update_topic[UPDATE_TOPIC_LEN + 1];
+static u8_t job_id_update_accepted_topic[GET_JOBID_TOPIC_MAX_LEN+ 1];
+static u8_t job_id_update_rejected_topic[GET_JOBID_TOPIC_MAX_LEN+ 1];
 
-int publish_data_to_topic(struct mqtt_client * c,
-			  char * topic,
-			  int topic_len,
-			  char * data,
-			  int data_len)
+/* Client struct pointer for MQTT */
+struct mqtt_client * client = NULL;
+
+static int publish_data_to_topic(u8_t * topic,
+			  size_t topic_len,
+			  u8_t * data,
+			  size_t data_len)
 {
-	struct mqtt_publish_param param;
-	param.message.topic.qos = 1;
-	param.message.topic.topic.utf8 = topic;
-	param.message.topic.topic.size = topic_len;
-	param.message.payload.data = data;
-	param.message.payload.len = data_len;
-	param.message_id = sys_rand32_get();
-	param.dup_flag = 0;
-	param.retain_flag = 0;
+	__ASSERT_NO_MSG(client != NULL);
+	__ASSERT_NO_MSG(topic != NULL);
+	__ASSERT_NO_MSG(data != NULL);
 
-	printk("Publishing document\n");
-	int err = mqtt_publish(c, &param);
+	struct mqtt_publish_param param = {
+		.message.topic.qos = 1,
+		.message.topic.topic.utf8 = topic,
+		.message.topic.topic.size = topic_len,
+		.message.payload.data = data,
+		.message.payload.len = data_len,
+		.message_id = sys_rand32_get(),
+		.dup_flag = 0,
+		.retain_flag = 0,
+	};
+
+	LOG_INF("Publishing job document: %s", data);
+	LOG_INF("To topic: %s\n", topic);
+	int err = mqtt_publish(client, &param);
 	if(err) {
-		printk("unable to publish update document\n");
+		LOG_ERR("Unable to publish\n");
 		return -1;// -ERR;
 	}
 
 	return 0;//expected_version;
 }
 
-static int update_job_execution_status(struct mqtt_client * c,
-		      		       enum job_execution_status status,
-		      		       char * job_id,
-		      		       enum fota_status next_state,
-		      		       int expected_version)
+
+int update_execution_status(enum job_execution_status status,
+			    char * job_id,
+			    char * status_details,
+			    int expected_version)
 {
+	__ASSERT(client != NULL, "MQTT client not initialized");
+	__ASSERT(job_id != NULL, "Have not recived job ID");
+
 	/* Max size document is 1350 char but the max size json document is actually 32kb
 	 * set it to what is the limiting factor which is the MQTT buffer size on the
 	 * reception end
 	 */
-	u8_t update_job_document[CONFIG_MQTT_MESSAGE_BUFFER_SIZE];
 
-	int ret = snprintf(jobs_jobid_update_topic,
-			   JOBS_UPDATE_TOPIC_LEN,
-		           JOBS_UPDATE_TOPIC,
-			   c->client_id.utf8,
-			   job_id);
+	u8_t job_document[CONFIG_MQTT_MESSAGE_BUFFER_SIZE];
 
-	/* TODO: Add error check
-	if (ret < JOBS_UPDATE_TOPIC_LEN) {
-		return -ENOMEM;
-	}*/
-	printk("Publishing to topic: %s\n", jobs_jobid_update_topic);
+	int ret = snprintf(job_id_update_topic,
+			   UPDATE_TOPIC_LEN,
+		           UPDATE_TOPIC,
+			   client->client_id.utf8,
+			   job_id,
+			   "");
 
-	ret = snprintf(update_job_document,
-		       ARRAY_SIZE(update_job_document),
-		       JOBS_UPDATE_PAYLOAD,
+	ret = snprintf(job_document,
+		       ARRAY_SIZE(job_document),
+		       UPDATE_PAYLOAD,
 		       job_execution_status_map[status],
-		       fota_status_map[next_state],
+		       status_details,
 		       expected_version,
 		       /*TODO: Place holder until I know what to do with it */
-		       "SomeClientToken");
+		       "");
 
-	printk("document: %s\n", update_job_document);
+	/* TODO: Error check ret from sn printfs */
+	LOG_INF("execution status update document: %s\n", job_document);
 
+	ret = publish_data_to_topic(
+		      job_id_update_topic,
+		      strlen(job_id_update_topic),
+		      job_document,
+		      strlen(job_document));
 	/* TODO: Not sure you can do error checking for this case */
 	/*
 	if (ret < ARRAY_SIZE(update_job_document)) {
@@ -185,61 +156,49 @@ static int update_job_execution_status(struct mqtt_client * c,
 	}
 	*/
 
-	/* Increment version number by 1 as expected by AWS */
-	//expected_version = expected_version + 1;
-
-	ret = publish_data_to_topic(c,
-		      jobs_jobid_update_topic,
-		      strlen(jobs_jobid_update_topic),
-		      update_job_document,
-		      strlen(update_job_document)
-		     );
-	if(ret)
-	{
-		return ret;
-	}
-
-	document_version_number = expected_version + 1;
-	return ret;
-
-
+	return 0;
 }
 
-
-
-void aws_jobs_handler(struct mqtt_client * c,
-			     u8_t * topic,
-			     u8_t * json_payload)
+int aws_jobs_process(u8_t * topic,
+	             u8_t * json_payload)
 {
+	__ASSERT_NO_MSG(topic != NULL);
+	__ASSERT_NO_MSG(json_payload != NULL);
 	int err;
-	printk("Entered aws_jobs hander with topic: %s\n\r payload: %s", topic, json_payload);
-	if (!strncmp(jobs_notify_next_topic, topic, strlen(topic)))
+	if (!strncmp(notify_next_topic, topic, MIN(NOTIFY_NEXT_TOPIC_LEN, strlen(topic))))
 	{
 		/* Accepting update job */
 		err = parse_job_document(json_payload);
-		subscribe_to_job_id_topics(c, job_id_buf);
+		subscribe_job_id_topics();
 
-		execution_state = IN_PROGRESS;
+		//execution_state = IN_PROGRESS;
+		/*
 		fota_state = DOWNLOAD_FIRMWARE;
 
 		err = fota_download_start(hostname, file_path);
+		*/
 
 		if (err) {
+			/*
 			execution_state = FAILED;
 			fota_state = NONE;
+			*
 			update_job_execution_status(c,
 						    execution_state,
 						    job_id_buf,
 					            fota_state,
 					            document_version_number);
 			return;
+			*/
 		}
 
+		/*
 		update_job_execution_status(c,
 					    execution_state,
 					    job_id_buf,
 					    fota_state,
 					    document_version_number);
+					    */
 		/* Handle error state where you can't start the fota
 		}*/
 
@@ -247,23 +206,24 @@ void aws_jobs_handler(struct mqtt_client * c,
 		//expected_document_version_number = accept_job(job_id);
 		//unsubscribe_notify_next_topic(c);
 	}
-	else if (!strncmp(jobs_jobid_update_accepted_topic,
+	else if (!strncmp(job_id_update_accepted_topic,
 			  topic,
 			  strlen(topic)
 			  )
 		)
 	{
+		/*
 		if (execution_state == IN_PROGRESS)
 		{
-			/* Update document version number */
 
 		}
 		else if (execution_state == SUCCEEDED &&
 			 fota_state == APPLY_FIRMWARE)
 		{
-			/* Download completed and reported initiate system reset */
+			// Download completed and reported initiate system reset
 			//NVIC_SystemReset();
 		}
+		 Update document version number */
 	}
 	else
 	{
@@ -278,6 +238,7 @@ int parse_job_document(u8_t * json_payload)
 		cJSON_free(json);
 		return -EINVAL;
 	}
+
 	cJSON * job_id = cJSON_GetObjectItemCaseSensitive(document, "jobId");
 	if (cJSON_IsString(job_id) && (job_id->valuestring != NULL))
 	{
@@ -291,7 +252,7 @@ int parse_job_document(u8_t * json_payload)
 	if (cJSON_IsNumber(version_number))
 	{
 		printk("versionNumber: %d \n", version_number->valueint);
-		document_version_number = version_number->valueint;
+		//document_version_number = version_number->valueint;
 	}
 	else
 	{
@@ -299,174 +260,66 @@ int parse_job_document(u8_t * json_payload)
 	}
 
 
-	cJSON * job_document = cJSON_GetObjectItemCaseSensitive(document, "jobDocument");
-	cJSON * fw_version = cJSON_GetObjectItemCaseSensitive(job_document, "fwversion");
-	if (cJSON_IsNumber(fw_version))
-	{
-		printk("fw_version: %d \n", fw_version->valueint);
-	}
-	cJSON * location_document = cJSON_GetObjectItemCaseSensitive(job_document, "location");
-	cJSON * host = cJSON_GetObjectItemCaseSensitive(location_document, "host");
-	if (cJSON_IsString(host) && (host->valuestring != NULL))
-	{
-		memcpy(hostname, host->valuestring, strlen(host->valuestring));
-	}
-
-	cJSON * path = cJSON_GetObjectItemCaseSensitive(location_document, "path");
-	if(cJSON_IsString(path) && (path->valuestring != NULL))
-	{
-		memcpy(file_path, path->valuestring, strlen(path->valuestring));
-	}
-	printk("host: %s, path:%s \n", hostname, file_path);
 	cJSON_free(json);
-
 
 	return 0;
 }
 
-/*
-static int notify_next_handler(struct mqtt_client *c, u8_t * json_string)
+/* Function which returns the JobDocument found in the job execution document
+int get_job_document(u8_t * output_buffer)
 {
-	int job_version_number = 0;
-	cJSON * json = cJSON_Parse(json_string);
-	cJSON * document = cJSON_GetObjectItemCaseSensitive(json, "execution");
-	if(!document){
-		cJSON_free(json);
-		return -EFAULT;
-	}
-	cJSON * job_id = cJSON_GetObjectItemCaseSensitive(document, "jobId");
-	if (cJSON_IsString(job_id) && (job_id->valuestring != NULL))
-	{
-		printk("JobId: %s \n", job_id->valuestring);
-		memcpy(g_job_id,
-		       job_id->valuestring,
-		       strlen(job_id->valuestring));
-	}
-	cJSON * status = cJSON_GetObjectItemCaseSensitive(document, "status");
-	if (cJSON_IsString(status) && (status->valuestring != NULL))
-	{
-		printk("status: %s \n", status->valuestring);
-	}
-	cJSON * document_version_number = cJSON_GetObjectItemCaseSensitive(document, "versionNumber");
-	if (cJSON_IsNumber(document_version_number))
-	{
-		printk("versionNumber: %d \n", document_version_number->valueint);
-		job_version_number = document_version_number->valueint;
-	}
+}*/
 
-	return job_version_number;
-}
-*/
-
-
-/*
- * Dispatcher for handling job updates the FSM state
- */
-static void aws_jobs_update_handler(struct mqtt_client * c,
-				    u8_t * topic,
-				    u8_t * json_payload)
+static int construct_notify_next_topic(void)
 {
-}
-
-
-static int publish_version_to_device_shadow(struct mqtt_client *c,
-					    const char * app_version)
-{
-	char update_delta_topic[UPDATE_DELTA_TOPIC_LEN + 1];
-	u8_t data[CONFIG_MQTT_MESSAGE_BUFFER_SIZE];
-
-	struct mqtt_publish_param param;
-
-	int ret = snprintf(update_delta_topic, sizeof(update_delta_topic),
-		       UPDATE_DELTA_TOPIC, c->client_id.utf8);
-
-	if (ret != UPDATE_DELTA_TOPIC_LEN) {
-		return -ENOMEM;
-	}
-
-	snprintf(data, ARRAY_SIZE(data), SHADOW_STATE_UPDATE, app_version);
-
-	return publish_data_to_topic(c,
-			      update_delta_topic,
-			      UPDATE_DELTA_TOPIC_LEN,
-			      data,
-			      strlen(data)
-			     );
-}
-
-
-/*
- * Generic method for updating the Job status with the correct information
-static int update_job_execution(struct mqtt_client * c,
-				const char * status,
-				const char * job_id)
-{
-}
- */
-
-int construct_notify_next_topic(struct mqtt_client * c)
-{
-	int ret = snprintf(jobs_notify_next_topic,
-			   JOBS_NOTIFY_NEXT_TOPIC_LEN,
-		           JOBS_NOTIFY_NEXT_TOPIC,
-			   c->client_id.utf8);
+	int ret = snprintf(notify_next_topic,
+			   NOTIFY_NEXT_TOPIC_LEN,
+		           NOTIFY_NEXT_TOPIC,
+			   client->client_id.utf8);
 	//TODO: Find a way to error check this
 	return 0;
 }
 
-int subscribe_to_jobs_notify_next(struct mqtt_client * c)
+int subscribe_notify_next(void)
 {
-	__ASSERT(strlen(jobs_notify_next) != NULL,
-			"Jobs notify next has not been constructed")
+	__ASSERT(jobs_notify_next != NULL, "Jobs notify next has not been constructed");
+	__ASSERT(client != NULL, "MQTT client not initialized");
+
 	struct mqtt_topic subscribe_topic [] =
 	{
 		{
 			.topic = {
-				.utf8 = jobs_notify_next_topic,
-				.size = strlen(jobs_notify_next_topic)
+				.utf8 = notify_next_topic,
+				.size = strlen(notify_next_topic)
 			},
 			.qos = MQTT_QOS_1_AT_LEAST_ONCE
 		},
 	};
 
-	printk("Subscribing to: %s\r\n", jobs_notify_next_topic);
+	LOG_INF("Subscribe: %s\n", notify_next_topic);
 
 	const struct mqtt_subscription_list subscription_list = {
 		.list = (struct mqtt_topic *)&subscribe_topic,
 		.list_count = 1,
-		.message_id = 1234
+		.message_id = SUB_NOTIFIY_NEXT
 	};
 
-	return mqtt_subscribe(c, &subscription_list);
+	return mqtt_subscribe(client, &subscription_list);
 }
 
-fota_download_callback_t aws_fota_dl_handler(const struct fota_download_evt * evt)
-{
-	printk("=?=Fota callback recived===\n");
-	if (evt->id == FOTA_DOWNLOAD_EVT_DOWNLOAD_CLIENT &&
-		evt->dlc_evt->id == DOWNLOAD_CLIENT_EVT_DONE) {
-		execution_state = SUCCEEDED;
-		fota_state = APPLY_FIRMWARE;
-		update_job_execution_status(client,
-					    execution_state,
-					    job_id_buf,
-					    fota_state,
-					    document_version_number);
-	}
-	//TODO: Handle fragments to give updates on progress to cloud
-}
 
 /* Topics which needs to be subscribed to for getting notfied of a job and updates
  * https://docs.aws.amazon.com/iot/latest/developerguide/jobs-devices.html */
-int subscribe_to_job_id_topics(struct mqtt_client * c, const char * job_id)
+int subscribe_job_id_topics(void)
 {
+	//RETURN_IF_NOT_CONNECTED
 	/* We subscribe to both accepted and rejected so we do get/# to simplify our code */
-	char jobs_get_jobid_topic[JOBS_GET_JOBID_TOPIC_MAX_LEN + 1];
-	int ret = snprintf(jobs_get_jobid_topic,
-			   JOBS_GET_JOBID_TOPIC_MAX_LEN,
-			   JOBS_GET_JOBID_TOPIC,
-			   c->client_id.utf8,
-			   job_id);
+	char get_job_id_topic[GET_JOBID_TOPIC_MAX_LEN + 1];
+	int ret = snprintf(get_job_id_topic,
+			   GET_JOBID_TOPIC_MAX_LEN,
+			   GET_JOBID_TOPIC,
+			   client->client_id.utf8,
+			   job_id_buf);
 
 	/*
 	if (ret != JOBS_GET_TOPIC_LEN)
@@ -475,14 +328,14 @@ int subscribe_to_job_id_topics(struct mqtt_client * c, const char * job_id)
 	}
 	*/
 
-	printk("Jobs get jobid: %s\n", jobs_get_jobid_topic);
+	LOG_DBG("jobid topic: %s\n", get_job_id_topic);
 
 	/* Generate subscription list, if you update this update the list_count */
 	struct mqtt_topic subscribe_topic []= {
 		{
 			.topic = {
-				.utf8 = jobs_get_jobid_topic,
-				.size = strlen(jobs_get_jobid_topic)
+				.utf8 = get_job_id_topic,
+				.size = strlen(get_job_id_topic)
 			},
 			.qos = MQTT_QOS_1_AT_LEAST_ONCE
 		},
@@ -494,47 +347,91 @@ int subscribe_to_job_id_topics(struct mqtt_client * c, const char * job_id)
 		.message_id = 111  //TODO: Find a good message_id number?
 	};
 
-	return mqtt_subscribe(c, &subscription_list);
+	return mqtt_subscribe(client, &subscription_list);
+}
+
+/*
+int unsubscribe_notify_next(void)
+{
+	return mqtt_unsubscribe(client, &subscription_list);
+}
+*/
+
+int construct_job_id_update_topic(void)
+{
+	int ret = snprintf(job_id_update_accepted_topic,
+			  UPDATE_TOPIC_LEN,
+		          UPDATE_TOPIC,
+		          client->client_id.utf8,
+		          job_id_buf,
+			  "accepted");
+
+	ret = snprintf(job_id_update_rejected_topic,
+			  UPDATE_TOPIC_LEN,
+		          UPDATE_TOPIC,
+		          client->client_id.utf8,
+		          job_id_buf,
+			  "rejected");
+	//TODO: Handle error
+	return 0;
 }
 
 /*
  * Subscribe to the specific topics bounded to the current jobId this should only
  * be done once you have accepted a job
  */
-int subscribe_to_job_id_topic(struct mqtt_client * c)
+int subscribe_job_id_update(void)
 {
-	char jobs_get_jobid_topic[JOBS_GET_JOBID_TOPIC_SPECIFIED_MAX_LEN  + 1];
-	int ret = snprintf(jobs_get_jobid_topic,
-			  JOBS_GET_JOBID_TOPIC_SPECIFIED_MAX_LEN,
-		          JOBS_GET_JOBID_TOPIC_SPECIFIED,
-		          c->client_id.utf8,
+	__ASSERT_NO_MSG(client != NULL);
+	__ASSERT_NO_MSG(job_id_buf != NULL);
+
+	/* Constructing job_id_update_topic */
+	construct_job_id_update_topic();
+
+	/* Subscribe to both rejected and accepted */
+	int ret = snprintf(job_id_update_topic,
+			  UPDATE_TOPIC_LEN,
+		          UPDATE_TOPIC,
+		          client->client_id.utf8,
 		          job_id_buf,
-			  "accepted"
-			  );
-	return ret;
+			  "#");
+
+
+	__ASSERT_NO_MSG(job_id_update_topic != NULL);
+
+	struct mqtt_topic subscribe_topic []= {
+		{
+			.topic = {
+				.utf8 = job_id_update_topic,
+				.size = strlen(job_id_update_topic)
+			},
+			.qos = MQTT_QOS_1_AT_LEAST_ONCE
+		},
+	};
+
+	const struct mqtt_subscription_list subscription_list = {
+		.list = (struct mqtt_topic *)&subscribe_topic,
+		.list_count = 1,
+		.message_id = SUB_UPDATE
+	};
+
+	return mqtt_subscribe(client, &subscription_list);
 }
 
-//int aws_jobs_init(struct mqtt_client * c, const char * app_version)
+/*
+ * @brief Initialize AWS job library with the current MQTT client in use
+ * for AWS IoT.
+ *
+ * @param[in] c Pointer to initialized MQTT Client instance
+ */
 int aws_jobs_init(struct mqtt_client * c)
 {
+	/* Initialize the pointer to the MQTT instance */
 	client = c;
-	int err = construct_notify_next_topic(c);
-	if (err) {
-		return err; //ERR
-	}
+	__ASSERT_NO_MSG(client != NULL);
 
-	err = subscribe_to_jobs_notify_next(c);
-	if (err) {
-		return err; //ERR
-	}
+	int err = construct_notify_next_topic();
 
-	err = publish_version_to_device_shadow(c,"1");
-	if (err) {
-		return err; //ERR
-	}
-
-
-	err = fota_download_init(aws_fota_dl_handler);
 	if (err) {
 		return err; //ERR
 	}
@@ -542,4 +439,3 @@ int aws_jobs_init(struct mqtt_client * c)
 	return 0;
 
 }
-

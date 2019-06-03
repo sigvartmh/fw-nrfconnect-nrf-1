@@ -60,7 +60,7 @@ const char * job_execution_status_map [] = {
  *
  *  @retval 0 If initialzed successfully.
  */
-int aws_jobs_init(struct mqtt_client c);
+int aws_jobs_init(struct mqtt_client * c);
 
 /**@brief Handeling of AWS jobs topics and states
  *
