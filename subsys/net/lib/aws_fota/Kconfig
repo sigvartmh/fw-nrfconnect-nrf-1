@@ -1,0 +1,33 @@
+# Copyright (c) 2018 Nordic Semiconductor
+#
+# SPDX-License-Identifier: LicenseRef-BSD-5-Clause-Nordic
+#
+
+menuconfig AWS_JOBS_FOTA
+	bool "AWS Jobs FOTA library"
+	select AWS_JOBS
+	select FOTA_DOWNLOAD
+	select JSON_LIBRARY
+	#we need to imply a value for heap as this library requiers a heap
+	#for the JSON obj parse
+
+if AWS_JOBS_FOTA
+
+config VERSION_STRING_MAX_LEN
+	int "Application version string max length"
+	default 10
+
+config AWS_IOT_JOBS_MESSAGE_SIZE
+	int "MQTT message reception buffer size for AWS IoT Jobs messages"
+	default 1350
+config DEVICE_SHADOW_PAYLOAD_SIZE
+	int "MQTT message reception buffer size for AWS IoT Jobs messages"
+	default 256
+
+module=AWS_JOBS_FOTA
+module-dep=LOG
+module-str=Log level for AWS Jobs FOTA
+module-help=Enables AWS Jobs FOTA log messages.
+source "${ZEPHYR_BASE}/subsys/logging/Kconfig.template.log_config"
+
+endif # AWS_JOBS
