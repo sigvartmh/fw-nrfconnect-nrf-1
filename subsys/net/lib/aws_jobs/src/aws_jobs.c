@@ -11,6 +11,17 @@
 
 LOG_MODULE_REGISTER(aws_jobs, CONFIG_AWS_JOBS_LOG_LEVEL);
 
+/** @brief Mapping of enum to strings for Job Execution Status. */
+static const char *execution_status_strings[] = {
+	[AWS_JOBS_QUEUED] = "QUEUED",
+	[AWS_JOBS_IN_PROGRESS] = "IN_PROGRESS",
+	[AWS_JOBS_SUCCEEDED] = "SUCCEEDED",
+	[AWS_JOBS_FAILED] = "FAILED",
+	[AWS_JOBS_TIMED_OUT] = "TIMED_OUT",
+	[AWS_JOBS_REJECTED] = "REJECTED",
+	[AWS_JOBS_REMOVED] = "REMOVED",
+	[AWS_JOBS_CANCELED] = "CANCELED"
+};
 
 /**
  * @brief Local function used to error check snprintf outputs.
