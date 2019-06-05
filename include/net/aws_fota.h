@@ -51,6 +51,9 @@ int aws_fota_init(struct mqtt_client *const client,
 		  const char *app_version,
 		  aws_fota_callback_t cb);
 
+int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
+			      const struct mqtt_evt *evt);
+
 #ifdef __cplusplus
 }
 #endif

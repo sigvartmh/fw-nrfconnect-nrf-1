@@ -20,9 +20,19 @@ config VERSION_STRING_MAX_LEN
 config AWS_IOT_JOBS_MESSAGE_SIZE
 	int "MQTT message reception buffer size for AWS IoT Jobs messages"
 	default 1350
+
 config DEVICE_SHADOW_PAYLOAD_SIZE
 	int "MQTT message reception buffer size for AWS IoT Jobs messages"
-	default 256
+	default 255
+
+config AWS_IOT_FOTA_HOSTNAME_MAX_LEN
+	int "Hostname buffer size"
+	default 255
+
+config AWS_IOT_FOTA_FILE_PATH_MAX_LEN
+	int "Hostname buffer size"
+	default 255
+
 
 module=AWS_JOBS_FOTA
 module-dep=LOG

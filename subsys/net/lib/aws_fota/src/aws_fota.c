@@ -7,6 +7,12 @@
 #include <logging/log.h>
 
 #include "aws_fota_internal.h"
+#define ERR_CHECK(err)\
+	do {\
+		if (err) {\
+			return err;\
+		}\
+	} while(0)
 
 LOG_MODULE_REGISTER(aws_jobs_fota, CONFIG_AWS_JOBS_FOTA_LOG_LEVEL);
 
@@ -67,6 +73,10 @@ static const struct json_obj_descr notify_next_obj_descr[] = {
 			      execution_obj_descr),
 };
 
+/* Pointer to initialized MQTT client instance */
+// TODO: A better awy of doing this?
+static struct mqtt_client *c;
+
 /* Enum for tracking the job exectuion state */
 static enum execution_status execution_state = QUEUED;
 static enum fota_status fota_state = NONE;
@@ -78,7 +88,39 @@ static char version[CONFIG_VERSION_STRING_MAX_LEN + 1];
 static u8_t notify_next_topic[NOTIFY_NEXT_TOPIC_MAX_LEN + 1];
 static u8_t job_id_update_accepted_topic[JOB_ID_UPDATE_TOPIC_MAX_LEN + 1];
 static u8_t job_id_update_rejected_topic[JOB_ID_UPDATE_TOPIC_MAX_LEN + 1];
-static u8_t payload_buf[CONFIG_AWS_IOT_JOBS_MESSAGE_SIZE];
+/* Allocated buffers for keeping hostname, json payload and file_path */
+static u8_t payload_buf[CONFIG_AWS_IOT_JOBS_MESSAGE_SIZE + 1];
+static u8_t hostname[CONFIG_AWS_IOT_FOTA_HOSTNAME_MAX_LEN + 1];
+static u8_t file_path[CONFIG_AWS_IOT_FOTA_FILE_PATH_MAX_LEN + 1];
+static u8_t job_id[JOB_ID_MAX_LEN + 1];
+static aws_fota_callback_t callback;
+
+/**@brief Function to read the published payload.
+ */
+static int publish_get_payload(struct mqtt_client *c, size_t length)
+{
+	u8_t *buf = payload_buf;
+	u8_t *end = buf + length;
+
+	if (length > sizeof(payload_buf)) {
+		return -EMSGSIZE;
+	}
+
+	while (buf < end) {
+		int ret = mqtt_read_publish_payload_blocking(c, buf, end - buf);
+
+		if (ret < 0 && ret != -EAGAIN) {
+			return ret;
+		} else if (ret == 0) {
+			return -EIO;
+		}
+
+		buf += ret;
+	}
+
+	return 0;
+}
+
 
 static int construct_notify_next_topic(const u8_t * client_id, u8_t * topic_buf)
 {
@@ -207,13 +249,6 @@ static int update_job_execution(struct mqtt_client *const client,
 }
 
 
-#define ERR_CHECK(err)\
-	do {\
-		if (err) {\
-			return err;\
-		}\
-	} while(0)
-
 static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 				   const u8_t * topic,
 				   u32_t topic_len,
@@ -239,7 +274,7 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 					      hostname,
 					      file_path);
 					      */
-		ERR_CHECK(err);
+		//ERR_CHECK(err);
 		/* Unsubscribe from notify_next_topic to not recive more jobs
 		 * while processing the current job.
 		 */
@@ -276,9 +311,10 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 	} else if (!strncmp(job_id_update_accepted_topic,
 			    topic,
 			    MIN(JOB_ID_UPDATE_TOPIC_MAX_LEN, topic_len))) {
-		err = parse_accepted_topic_payload(json_payload, status);
+		//err = parse_accepted_topic_payload(json_payload, status,
+		//&doc_version_number);
 		/* Set state to IN_PROGRES */
-		execution_state = status;
+		//execution_state = status;
 		if (execution_state == IN_PROGRESS &&
 		    fota_state == DOWNLOAD_FIRMWARE) {
 			fota_download_start(hostname, file_path);
@@ -286,19 +322,20 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		else if (execution_state == IN_PROGRESS &&
 		    fota_state == APPLY_FIRMWARE) {
 			//clean up and report status
-			fota_state = NONE;
-			aws_jobs_update_job_execution(client,
-						      job_id,
-						      SUCCEEDED,
-						      status_details,
-						      expected_version,
-						      "");
+			fota_state = NONE; //Maybe keep applying firmware as we haven't rebooted
+			update_job_execution(client,
+					     job_id,
+					     SUCCEEDED,
+					     fota_state,
+					     doc_version_number,
+					     "");
 		}
 		else if (execution_state == SUCCEEDED &&
 		    fota_state == APPLY_FIRMWARE) {
-			callback_emit(AWS_FOTA_EVT_FINISHED);
+			//callback_emit(AWS_FOTA_EVT_FINISHED);
 		}
 	}
+	return 0;
 
 }
 
@@ -345,9 +382,11 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 	case MQTT_EVT_PUBLISH: {
 		const struct mqtt_publish_param *p = &evt->param.publish;
 		//get_payload
+		err = publish_get_payload(client, p->message.payload.len);
+
 		err = aws_fota_on_publish_evt(client,
-					      topic,
-					      topic_len,
+					      p->message.topic.topic.utf8,
+					      p->message.topic.topic.size,
 					      payload_buf);
 
 	} break;
@@ -358,49 +397,47 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 			return 0;
 		}
 		/* check evt->param.puback.message_id */
-		/* We expect that the client*/
-		break;
+		/* We expect that the client pubacks*/
+		return 0;
 
 	case MQTT_EVT_SUBACK:
 		if (evt->result != 0) {
-			break;
+			return 0;
 		}
 
 		/* check evt->param.suback.message_id against SUB_BASE */
-		break;
+		return 0;
 
 	default:
 		/* Handling for default case? */
-		break;
+		return 0;
 	}
+	return 0;
 }
 
-/* Pointer to initialized MQTT client instance */
-// TODO: A better awy of doing this?
-static struct mqtt_client * c;
-
-fota_download_callback_t http_fota_handler(fota_download_evt_id evt)
+void http_fota_handler(enum fota_download_evt_id evt)
 {
 	__ASSERT_NO_MSG(c != NULL);
 
 	switch(evt) {
 		case FOTA_DOWNLOAD_EVT_FINISHED:
 			fota_state = APPLY_FIRMWARE;
+			update_job_execution(c,
+					     job_id,
+					     IN_PROGRESS,
+					     fota_state,
+					     doc_version_number,
+					     "");
 
-			aws_jobs_update_job_execution(c,
-						      job_id,
-						      IN_PROGRESS,
-						      status_details,
-						      expected_version,
-						      "");
 			break;
 		case FOTA_DOWNLOAD_EVT_ERROR:
-			aws_jobs_update_job_execution(c,
-						      job_id,
-						      FAILED,
-						      status_details,
-						      expected_version,
-						      "");
+			update_job_execution(c,
+					     job_id,
+					     FAILED,
+					     fota_state,
+					     doc_version_number,
+					     "");
+			//Emit AWS_FOTA_ERR
 			break;
 	}
 
@@ -448,33 +485,6 @@ int aws_fota_init(struct mqtt_client *const client,
 	memcpy(version,
 	       app_version,
 	       MIN(strlen(app_version), CONFIG_VERSION_STRING_MAX_LEN));
-
-	return 0;
-}
-
-
-/**@brief Function to read the published payload.
- */
-static int publish_get_payload(struct mqtt_client *c, size_t length)
-{
-	u8_t *buf = payload_buf;
-	u8_t *end = buf + length;
-
-	if (length > sizeof(payload_buf)) {
-		return -EMSGSIZE;
-	}
-
-	while (buf < end) {
-		int ret = mqtt_read_publish_payload_blocking(c, buf, end - buf);
-
-		if (ret < 0 && ret != -EAGAIN) {
-			return ret;
-		} else if (ret == 0) {
-			return -EIO;
-		}
-
-		buf += ret;
-	}
 
 	return 0;
 }
