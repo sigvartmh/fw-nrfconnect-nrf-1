@@ -143,7 +143,11 @@ void mqtt_evt_handler(struct mqtt_client * const c,
 		      const struct mqtt_evt *evt)
 {
 	int err;
-	aws_fota_mqtt_evt_handler(c, evt);
+	err = aws_fota_mqtt_evt_handler(c, evt);
+	if (err > 0) {
+		/* Event handled by FOTA library so we can skip it */
+		return;
+	}
 
 	switch (evt->type) {
 	case MQTT_EVT_CONNACK:
@@ -194,7 +198,7 @@ void mqtt_evt_handler(struct mqtt_client * const c,
 				printk("unable to ack\n");
 			}
 		}
-		data_print("Received: ", payload_buf, p->message.payload.len);
+		//data_print("Received: ", payload_buf, p->message.payload.len);
 		break;
 	}
 
