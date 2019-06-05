@@ -109,6 +109,22 @@ static u8_t file_path[CONFIG_AWS_IOT_FOTA_FILE_PATH_MAX_LEN + 1];
 static u8_t job_id[JOB_ID_MAX_LEN + 1];
 static aws_fota_callback_t callback;
 
+/**@brief Find key corresponding to val in map.
+ */
+static int val_to_key(const char ** map, size_t num_keys,
+		const char * val, size_t val_len)
+{
+	for (int i = 0; i < num_keys; ++i) {
+		if (val_len != strlen(map[i])) {
+			continue;
+		} else if (strncmp(val, map[i], val_len) == 0) {
+			return i;
+		}
+	}
+
+	return -1;
+}
+
 /**@brief Function to read the published payload.
  */
 static int publish_get_payload(struct mqtt_client *c, size_t length)
