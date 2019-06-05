@@ -21,7 +21,6 @@
 #define CONFIG_NRF_CLOUD_SEC_TAG 16842753
 #define CONFIG_AWS_HOSTNAME "a25jld2wxwm7qs-ats.iot.eu-central-1.amazonaws.com"
 
-//#include "aws_cert/rootca_rsa2048.h"
 #include "aws_cert/rootca_ec.h"
 #include "aws_cert/private_key.h"
 #include "aws_cert/pubcert.h"
@@ -143,7 +142,12 @@ void mqtt_evt_handler(struct mqtt_client * const c,
 		      const struct mqtt_evt *evt)
 {
 	int err;
-	aws_fota_mqtt_evt_handler(c, evt);
+
+	err = aws_fota_mqtt_evt_handler(c, evt);
+	if (err > 0) {
+		/* Event handled by FOTA library so we can skip it */
+		return;
+	}
 
 	switch (evt->type) {
 	case MQTT_EVT_CONNACK:
@@ -153,7 +157,7 @@ void mqtt_evt_handler(struct mqtt_client * const c,
 		}
 
 		printk("[%s:%d] MQTT client connected!\n", __func__, __LINE__);
-		if(err){
+		if (err) {
 			printk("Unable to initialize AWS jobs upon connection\n");
 			err = mqtt_disconnect(c);
 			if (err) {
@@ -190,7 +194,7 @@ void mqtt_evt_handler(struct mqtt_client * const c,
 
 			/* Send acknowledgment. */
 			err = mqtt_publish_qos1_ack(c, &ack);
-			if(err) {
+			if (err) {
 				printk("unable to ack\n");
 			}
 		}
@@ -436,7 +440,7 @@ static int client_init(struct mqtt_client *client)
 	client->transport.type = MQTT_TRANSPORT_SECURE;
 
 	static sec_tag_t sec_tag_list[] = {CONFIG_NRF_CLOUD_SEC_TAG};
-	struct mqtt_sec_config * tls_config = &(client->transport).tls.config;
+	struct mqtt_sec_config *tls_config = &(client->transport).tls.config;
 
 	tls_config->peer_verify = 2;
 	tls_config->cipher_list = NULL;
@@ -491,7 +495,7 @@ static void modem_configure(void)
 
 void aws_fota_cb_handler(enum aws_fota_evt_id evt)
 {
-	//When the applicaiton is ready restart
+	/* When the applicaiton is ready restart */
 	return 0;
 }
 
