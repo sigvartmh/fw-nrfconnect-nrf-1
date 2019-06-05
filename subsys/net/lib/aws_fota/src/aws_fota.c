@@ -433,26 +433,11 @@ static int publish_get_payload(struct mqtt_client *c, size_t length)
 	}
 
 	while (buf < end) {
-		int ret = mqtt_read_publish_payload(c, buf, end - buf);
+		int ret = mqtt_read_publish_payload_blocking(c, buf, end - buf);
 
-		if (ret < 0) {
-			int err;
-
-			if (ret != -EAGAIN) {
-				return ret;
-			}
-
-			printk("mqtt_read_publish_payload: EAGAIN\n");
-
-			err = poll(&fds, 1, K_SECONDS(CONFIG_MQTT_KEEPALIVE));
-			if (err > 0 && (fds.revents & POLLIN) == POLLIN) {
-				continue;
-			} else {
-				return -EIO;
-			}
-		}
-
-		if (ret == 0) {
+		if (ret < 0 && ret != -EAGAIN) {
+			return ret;
+		} else if (ret == 0) {
 			return -EIO;
 		}
 
