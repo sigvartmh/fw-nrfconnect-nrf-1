@@ -14,19 +14,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-/* Enum to keep the fota status */
-enum fota_status {
-	NONE = 0,
-	DOWNLOAD_FIRMWARE,
-	APPLY_FIRMWARE,
-};
-
-/* Map of fota status to report back */
-const char *fota_status_strings[] = {
-	[DOWNLOAD_FIRMWARE] = "download_firmware",
-	[APPLY_FIRMWARE] = "apply_update",
-	[NONE] = "none",
-};
 
 enum aws_fota_evt_id {
 	/** AWS FOTA complete and status reported to job document */
