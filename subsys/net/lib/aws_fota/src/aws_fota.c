@@ -16,6 +16,20 @@
 
 LOG_MODULE_REGISTER(aws_jobs_fota, CONFIG_AWS_JOBS_FOTA_LOG_LEVEL);
 
+/* Enum to keep the fota status */
+enum fota_status {
+	NONE = 0,
+	DOWNLOAD_FIRMWARE,
+	APPLY_FIRMWARE,
+};
+
+/* Map of fota status to report back */
+static const char *fota_status_strings[] = {
+	[DOWNLOAD_FIRMWARE] = "download_firmware",
+	[APPLY_FIRMWARE] = "apply_update",
+	[NONE] = "none",
+};
+
 static const struct json_obj_descr location_obj_descr[] = {
 	JSON_OBJ_DESCR_PRIM(struct location_obj, protocol, JSON_TOK_STRING),
 	JSON_OBJ_DESCR_PRIM(struct location_obj, host, JSON_TOK_STRING),
@@ -78,7 +92,7 @@ static const struct json_obj_descr notify_next_obj_descr[] = {
 static struct mqtt_client *c;
 
 /* Enum for tracking the job exectuion state */
-static enum execution_status execution_state = QUEUED;
+static enum execution_status execution_state = AWS_JOBS_QUEUED;
 static enum fota_status fota_state = NONE;
 static uint32_t doc_version_number = 0;
 /* Buffer for reporting the current application version */
@@ -241,7 +255,7 @@ static int update_job_execution(struct mqtt_client *const client,
 		}
 		ret =  aws_jobs_update_job_execution(client,
 					      job_id,
-					      IN_PROGRESS,
+					      AWS_JOBS_IN_PROGRESS,
 					      status_details,
 					      version_number,
 					      client_token);
@@ -299,7 +313,7 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		fota_state = DOWNLOAD_FIRMWARE;
 		update_job_execution(client,
 				     job_id,
-				     IN_PROGRESS,
+				     AWS_JOBS_IN_PROGRESS,
 				     fota_state,
 				     doc_version_number,
 		 /* Client token are not used by this library */
@@ -315,22 +329,22 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		//&doc_version_number);
 		/* Set state to IN_PROGRES */
 		//execution_state = status;
-		if (execution_state == IN_PROGRESS &&
+		if (execution_state == AWS_JOBS_IN_PROGRESS &&
 		    fota_state == DOWNLOAD_FIRMWARE) {
 			fota_download_start(hostname, file_path);
 		}
-		else if (execution_state == IN_PROGRESS &&
+		else if (execution_state == AWS_JOBS_IN_PROGRESS &&
 		    fota_state == APPLY_FIRMWARE) {
 			//clean up and report status
 			fota_state = NONE; //Maybe keep applying firmware as we haven't rebooted
 			update_job_execution(client,
 					     job_id,
-					     SUCCEEDED,
+					     AWS_JOBS_SUCCEEDED,
 					     fota_state,
 					     doc_version_number,
 					     "");
 		}
-		else if (execution_state == SUCCEEDED &&
+		else if (execution_state == AWS_JOBS_SUCCEEDED &&
 		    fota_state == APPLY_FIRMWARE) {
 			//callback_emit(AWS_FOTA_EVT_FINISHED);
 		}
@@ -424,7 +438,7 @@ void http_fota_handler(enum fota_download_evt_id evt)
 			fota_state = APPLY_FIRMWARE;
 			update_job_execution(c,
 					     job_id,
-					     IN_PROGRESS,
+					     AWS_JOBS_IN_PROGRESS,
 					     fota_state,
 					     doc_version_number,
 					     "");
@@ -433,7 +447,7 @@ void http_fota_handler(enum fota_download_evt_id evt)
 		case FOTA_DOWNLOAD_EVT_ERROR:
 			update_job_execution(c,
 					     job_id,
-					     FAILED,
+					     AWS_JOBS_FAILED,
 					     fota_state,
 					     doc_version_number,
 					     "");
