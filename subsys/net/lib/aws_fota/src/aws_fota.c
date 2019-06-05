@@ -69,6 +69,8 @@ static const struct json_obj_descr notify_next_obj_descr[] = {
 
 /* Enum for tracking the job exectuion state */
 static enum execution_status execution_state = QUEUED;
+static enum fota_status fota_state = NONE;
+static uint32_t doc_version_number = 0;
 /* Buffer for reporting the current application version */
 static char version[CONFIG_VERSION_STRING_MAX_LEN + 1];
 
@@ -77,6 +79,26 @@ static u8_t notify_next_topic[NOTIFY_NEXT_TOPIC_MAX_LEN + 1];
 static u8_t job_id_update_accepted_topic[JOB_ID_UPDATE_TOPIC_MAX_LEN + 1];
 static u8_t job_id_update_rejected_topic[JOB_ID_UPDATE_TOPIC_MAX_LEN + 1];
 static u8_t payload_buf[CONFIG_AWS_IOT_JOBS_MESSAGE_SIZE];
+
+static int construct_notify_next_topic(const u8_t * client_id, u8_t * topic_buf)
+{
+	__ASSERT_NO_MSG(client_id != NULL);
+	__ASSERT_NO_MSG(topic_buf != NULL);
+
+	int ret = snprintf(topic_buf,
+			   NOTIFY_NEXT_TOPIC_MAX_LEN,
+			   NOTIFY_NEXT_TOPIC_TEMPLATE,
+			   client_id);
+	if (ret >= NOTIFY_NEXT_TOPIC_MAX_LEN) {
+		LOG_ERR("Unable to fit formated string into to allocate "
+			"memory for notify_next_topic");
+		return -ENOMEM;
+	} else if (ret < 0) {
+		LOG_ERR("Formatting error for notify_next_topic %d",ret);
+		return ret;
+	}
+	return 0;
+}
 
 static int construct_job_id_update_topic(const u8_t *client_id,
 			   const u8_t *job_id,
@@ -153,6 +175,133 @@ static int update_device_shadow_version(struct mqtt_client *const client)
 	return mqtt_publish(client, &param);
 }
 
+#define STATUS_DETAILS_TEMPLATE "{\"nextState\":\"%s\"}"
+#define STATUS_DETAILS_MAX_LEN  ((sizeof("{\"nextState\":\"\"}") - 1) +\
+				(sizeof(fota_status_strings[DOWNLOAD_FIRMWARE]\
+				) - 1))
+
+static int update_job_execution(struct mqtt_client *const client,
+				const u8_t * job_id,
+				enum execution_status state,
+				enum fota_status next_state,
+				int version_number,
+				const char * client_token)
+{
+		char status_details[STATUS_DETAILS_MAX_LEN + 1];
+		int ret = snprintf(status_details,
+				   STATUS_DETAILS_MAX_LEN,
+				   STATUS_DETAILS_TEMPLATE,
+				   fota_status_strings[next_state]);
+		if (ret >= STATUS_DETAILS_MAX_LEN) {
+			return -ENOMEM;
+		} else if (ret < 0) {
+			return ret;
+		}
+		ret =  aws_jobs_update_job_execution(client,
+					      job_id,
+					      IN_PROGRESS,
+					      status_details,
+					      version_number,
+					      client_token);
+		return ret;
+}
+
+
+#define ERR_CHECK(err)\
+	do {\
+		if (err) {\
+			return err;\
+		}\
+	} while(0)
+
+static int aws_fota_on_publish_evt(struct mqtt_client *const client,
+				   const u8_t * topic,
+				   u32_t topic_len,
+				   const u8_t * json_payload)
+{
+	int err;
+	char job_id[JOB_ID_MAX_LEN];
+
+	/* If not processign job */
+	/* Reciving an publish on notify_next_topic could be a job */
+	if (!strncmp(notify_next_topic,
+		    topic,
+		    MIN(NOTIFY_NEXT_TOPIC_MAX_LEN, topic_len)
+		    )
+	    ) {
+		/*
+		 * Check if the current message recived on notify-next is a
+		 * job.
+		 */
+		/*
+		err = parse_notify_next_topic(json_payload,
+					      job_id,
+					      hostname,
+					      file_path);
+					      */
+		ERR_CHECK(err);
+		/* Unsubscribe from notify_next_topic to not recive more jobs
+		 * while processing the current job.
+		 */
+		err = aws_jobs_unsubscribe_expected_topics(client, true);
+		ERR_CHECK(err);
+		/* Subscribe to update topic to recive feedback on wether an
+		 * update is accepted or not.
+		 */
+		err = aws_jobs_subscribe_job_id_update(client, job_id);
+		ERR_CHECK(err);
+
+		err = construct_job_id_update_topic(client->client_id.utf8,
+					      job_id,
+					      "/accepted",
+					      job_id_update_accepted_topic);
+		ERR_CHECK(err);
+		err = construct_job_id_update_topic(client->client_id.utf8,
+					      job_id,
+					      "/rejected",
+					      job_id_update_rejected_topic);
+
+		fota_state = DOWNLOAD_FIRMWARE;
+		update_job_execution(client,
+				     job_id,
+				     IN_PROGRESS,
+				     fota_state,
+				     doc_version_number,
+		 /* Client token are not used by this library */
+				     "");
+
+		/* Handled by the library*/
+		return 1;
+
+	} else if (!strncmp(job_id_update_accepted_topic,
+			    topic,
+			    MIN(JOB_ID_UPDATE_TOPIC_MAX_LEN, topic_len))) {
+		err = parse_accepted_topic_payload(json_payload, status);
+		/* Set state to IN_PROGRES */
+		execution_state = status;
+		if (execution_state == IN_PROGRESS &&
+		    fota_state == DOWNLOAD_FIRMWARE) {
+			fota_download_start(hostname, file_path);
+		}
+		else if (execution_state == IN_PROGRESS &&
+		    fota_state == APPLY_FIRMWARE) {
+			//clean up and report status
+			fota_state = NONE;
+			aws_jobs_update_job_execution(client,
+						      job_id,
+						      SUCCEEDED,
+						      status_details,
+						      expected_version,
+						      "");
+		}
+		else if (execution_state == SUCCEEDED &&
+		    fota_state == APPLY_FIRMWARE) {
+			callback_emit(AWS_FOTA_EVT_FINISHED);
+		}
+	}
+
+}
+
 /**
  * Return 0 for events which should be further processed by the client
  * Return >= 1 for events which can be skipped/events handled by the
@@ -226,101 +375,6 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 	}
 }
 
-#define ERR_CHECK(err)\
-	do {\
-		if (err) {\
-			return err;\
-		}\
-	} while(0)
-
-static int aws_fota_on_publish_evt(struct mqtt_client *const client,
-				   const u8_t * topic,
-				   u32_t topic_len,
-				   const u8_t * json_payload)
-{
-	int err;
-	char job_id[JOB_ID_MAX_LEN];
-
-	/* If not processign job */
-	/* Reciving an publish on notify_next_topic could be a job */
-	if (!strncmp(notify_next_topic,
-		    topic,
-		    MIN(NOTIFY_NEXT_TOPIC_MAX_LEN, topic_len)
-		    )
-	    ) {
-		/*
-		 * Check if the current message recived on notify-next is a
-		 * job.
-		 */
-		err = parse_notify_next_topic(json_payload,
-					      job_id,
-					      hostname,
-					      file_path);
-		ERR_CHECK(err);
-		/* Unsubscribe from notify_next_topic to not recive more jobs
-		 * while processing the current job.
-		 */
-		err = aws_jobs_unsubscribe_expected_topics(client, true);
-		ERR_CHECK(err);
-		/* Subscribe to update topic to recive feedback on wether an
-		 * update is accepted or not.
-		 */
-		err = aws_jobs_subscribe_job_id_update(client, job_id);
-		ERR_CHECK(err);
-
-		err = construct_job_id_update_topic(client->client_id.utf8,
-					      job_id,
-					      "/accepted",
-					      job_id_update_accepted_topic);
-		ERR_CHECK(err);
-		err = construct_job_id_update_topic(client->client_id.utf8,
-					      job_id,
-					      "/rejected",
-					      job_id_update_rejected_topic);
-
-		fota_status = DOWNLOAD_FIRMWARE;
-		char status_details [] = "{\"nextState\":\"download_firmware\"}"
-		aws_jobs_update_job_execution(client,
-					 job_id,
-					 IN_PROGRESS,
-					 status_details,
-					 expected_version,
-					 /* Client token are not used by this
-					  * library*/
-					 "");
-
-		/* Handled by the library*/
-		return 1;
-
-	} else if (!strncmp(job_id_update_accepted_topic,
-			    topic,
-			    MIN(JOB_ID_UPDATE_TOPIC_MAX_LEN, topic_len))) {
-		err = parse_accepted_topic_payload(json_payload, status);
-		/* Set state to IN_PROGRES */
-		execution_state = status;
-		if (execution_state == IN_PROGRESS &&
-		    fota_state == DOWNLOAD_FIRMWARE) {
-			fota_download_start(hostname, file_path);
-		}
-		else if (execution_state == IN_PROGRESS &&
-		    fota_state == APPLY_FIRMWARE) {
-			//clean up and report status
-			fota_state = NONE;
-			aws_jobs_update_job_execution(client,
-						      job_id,
-						      SUCCEEDED,
-						      status_details,
-						      expected_version,
-						      "");
-		}
-		else if (execution_state == SUCCEEDED &&
-		    fota_state == APPLY_FIRMWARE) {
-			callback_emit(AWS_FOTA_EVT_FINISHED);
-		}
-	}
-
-}
-
 /* Pointer to initialized MQTT client instance */
 // TODO: A better awy of doing this?
 static struct mqtt_client * c;
@@ -351,28 +405,6 @@ fota_download_callback_t http_fota_handler(fota_download_evt_id evt)
 	}
 
 }
-
-static int construct_notify_next_topic(const u8_t * client_id, u8_t * topic_buf)
-{
-	__ASSERT_NO_MSG(client_id != NULL);
-	__ASSERT_NO_MSG(topic_buf != NULL);
-
-	int ret = snprintf(topic_buf,
-			   NOTIFY_NEXT_TOPIC_MAX_LEN,
-			   NOTIFY_NEXT_TOPIC_TEMPLATE,
-			   client_id);
-	if (ret >= size) {
-		LOG_ERR("Unable to fit formated string into to allocate "
-			"memory for notify_next_topic");
-		return -ENOMEM;
-	} else if (ret < 0) {
-		LOG_ERR("Formatting error for notify_next_topic");
-			"%d", entry, ret);
-		return ret;
-	}
-	return 0;
-}
-
 
 
 /**@brief Initialize the AWS Firmware Over the Air library.
@@ -462,36 +494,6 @@ static int publish_get_payload(struct mqtt_client *c, size_t length)
 	return 0;
 }
 
-#define STATUS_DETAILS_TEMPLATE "{\"nextState\":\"%s\"}"
-#define STATUS_DETAILS_MAX_LEN  ((sizeof("{\"nextState\":\"\"}") - 1) +\
-				(sizeof(fota_status_strings[DOWNLOAD_FIRMWARE]\
-				) - 1))
-
-static int update_job_execution(struct mqtt_client *const client,
-				const u8_t * job_id,
-				enum execution_status state,
-				enum fota_status next_state,
-				int version_number,
-				const char * client_token)
-{
-		char status_details[STATUS_DETAILS_MAX_LEN + 1];
-		int ret = snprintf(status_details,
-				   STATUS_DETAILS_MAX_LEN,
-				   STATUS_DETAILS_TEMPLATE,
-				   fota_status_strings[next_state]);
-		if (ret >= STATUS_DETAILS_MAX_LEN) {
-			return -ENOMEM;
-		} else if (ret < 0) {
-			return ret;
-		}
-		ret =  aws_jobs_update_job_execution(client,
-					      job_id,
-					      IN_PROGRESS,
-					      status_details,
-					      version_number,
-					      client_token);
-		return ret;
-}
 
 /*
 static int parse_job_document(const u8_t *job_document)
