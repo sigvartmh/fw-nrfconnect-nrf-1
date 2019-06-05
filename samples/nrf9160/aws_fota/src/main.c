@@ -143,7 +143,7 @@ void mqtt_evt_handler(struct mqtt_client * const c,
 		      const struct mqtt_evt *evt)
 {
 	int err;
-	//aws_fota_mqtt_evt_handler(c, evt);
+	aws_fota_mqtt_evt_handler(c, evt);
 
 	switch (evt->type) {
 	case MQTT_EVT_CONNACK:
@@ -194,6 +194,7 @@ void mqtt_evt_handler(struct mqtt_client * const c,
 				printk("unable to ack\n");
 			}
 		}
+		data_print("Received: ", payload_buf, p->message.payload.len);
 		break;
 	}
 
@@ -488,7 +489,7 @@ static void modem_configure(void)
 #endif
 }
 
-aws_fota_callback_t aws_fota_cb_handler(enum aws_fota_evt_id evt)
+void aws_fota_cb_handler(enum aws_fota_evt_id evt)
 {
 	//When the applicaiton is ready restart
 	return 0;
@@ -506,9 +507,15 @@ void main(void)
 	modem_configure();
 
 	client_init(&client);
-	aws_fota_init(&client, "v1.0.0", aws_fota_cb_handler);
+	err = aws_fota_init(&client, "v1.0.1", aws_fota_cb_handler);
+	if (err != 0) {
+		printk("ERROR: aws_fota_init %d\n", err);
+		return;
+	}
 
-	err = mqtt_connect(&client); if (err != 0) { printk("ERROR: mqtt_connect %d\n", err);
+	err = mqtt_connect(&client);
+	if (err != 0) {
+		printk("ERROR: mqtt_connect %d\n", err);
 		return;
 	}
 

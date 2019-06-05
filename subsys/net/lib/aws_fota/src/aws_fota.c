@@ -87,6 +87,48 @@ static const struct json_obj_descr notify_next_obj_descr[] = {
 			      execution_obj_descr),
 };
 
+static const struct json_obj_descr status_details_obj_descr[] = {
+	JSON_OBJ_DESCR_PRIM_NAMED(struct status_details_obj,
+				  "nextState",
+				  next_state,
+				  JSON_TOK_STRING),
+};
+
+static const struct json_obj_descr execution_state_obj_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct execution_state_obj,
+			    status,
+			    JSON_TOK_STRING),
+	JSON_OBJ_DESCR_OBJECT_NAMED(struct execution_state_obj,
+				    "statusDetails",
+				    status_details,
+				    status_details_obj_descr),
+	JSON_OBJ_DESCR_PRIM_NAMED(struct execution_state_obj,
+				  "versionNumber",
+				  version_number,
+				  JSON_TOK_NUMBER),
+};
+
+static const struct json_obj_descr update_response_obj_descr[] = {
+	JSON_OBJ_DESCR_OBJECT_NAMED(struct update_response_obj,
+				    "executionState",
+				    execution_state,
+				    execution_state_obj_descr),
+	JSON_OBJ_DESCR_PRIM_NAMED(struct update_response_obj,
+				  "jobDocument",
+				  job_document,
+				  JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(struct update_response_obj,
+			    timestamp,
+			    JSON_TOK_NUMBER),
+	JSON_OBJ_DESCR_PRIM_NAMED(struct update_response_obj,
+				  "clientToken",
+				  client_token,
+				  JSON_TOK_STRING),
+};
+
+
+
+
 /* Pointer to initialized MQTT client instance */
 // TODO: A better awy of doing this?
 static struct mqtt_client *c;
@@ -204,7 +246,7 @@ static int construct_job_id_update_topic(const u8_t *client_id,
 #define UPDATE_DELTA_TOPIC_LEN (AWS_LEN +\
 				CONFIG_CLIENT_ID_MAX_LEN +\
 				(sizeof("/shadow/update") - 1))
-#define SHADOW_STATE_UPDATE "{\"state\":{\"reported\":{\"nrfcloud__fota_v1__app_v\":%s}}}"
+#define SHADOW_STATE_UPDATE "{\"state\":{\"reported\":{\"nrfcloud__fota_v1__app_v\":\"%s\"}}}"
 static int update_device_shadow_version(struct mqtt_client *const client)
 {
 	struct mqtt_publish_param param;
@@ -215,7 +257,7 @@ static int update_device_shadow_version(struct mqtt_client *const client)
 			   sizeof(update_delta_topic),
 			   UPDATE_DELTA_TOPIC,
 			   client->client_id.utf8);
-	u32_t update_delta_topic_len = ret + 1;
+	u32_t update_delta_topic_len = ret;
 
 	if (ret >= UPDATE_DELTA_TOPIC_LEN) {
 		return -ENOMEM;
@@ -227,13 +269,16 @@ static int update_device_shadow_version(struct mqtt_client *const client)
 		       CONFIG_DEVICE_SHADOW_PAYLOAD_SIZE,
 		       SHADOW_STATE_UPDATE,
 		       version);
-	u32_t shadow_update_payload_len = ret + 1;
+	u32_t shadow_update_payload_len = ret;
 
 	if (ret >= UPDATE_DELTA_TOPIC_LEN) {
 		return -ENOMEM;
 	} else if (ret < 0) {
 		return ret;
 	}
+
+	printk("payload: %s\n", shadow_update_payload);
+	printk("topic %s\n", update_delta_topic);
 
 	param.message.topic.qos = MQTT_QOS_1_AT_LEAST_ONCE;
 	param.message.topic.topic.utf8 = update_delta_topic;
@@ -324,6 +369,7 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 				   const u8_t * json_payload,
 				   u32_t payload_len)
 {
+	printk("fota_published_to_sub_topic_evt handler\n");
 	int err;
 	//char job_id[JOB_ID_MAX_LEN];
 
@@ -340,11 +386,11 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		 */
 		/*
 		*/
-		err = parse_notify_next_topic(json_payload,
-					      payload_len,
-					      job_id,
-					      hostname,
-					      file_path);
+		err = parse_notify_next_document(json_payload,
+					         payload_len,
+					         job_id,
+					         hostname,
+					         file_path);
 		ERR_CHECK(err);
 		/* Unsubscribe from notify_next_topic to not recive more jobs
 		 * while processing the current job.
@@ -425,13 +471,7 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 			return 0;
 		}
 
-		err = construct_notify_next_topic(client->client_id.utf8,
-						  notify_next_topic);
-		if (err) {
-			return err;
-		}
-
-		err = aws_jobs_subscribe_expected_topics(client, true);
+		err = aws_jobs_subscribe_notify_next(client);
 		if (err) {
 			return err;
 		}
@@ -453,6 +493,7 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 	case MQTT_EVT_PUBLISH: {
 		const struct mqtt_publish_param *p = &evt->param.publish;
 		//get_payload
+		/*
 		err = publish_get_payload(client, p->message.payload.len);
 		if (err) {
 			return err;
@@ -462,6 +503,8 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 					      p->message.topic.topic.size,
 					      payload_buf,
 					      p->message.payload.len);
+					      */
+		return 0;
 
 	} break;
 
@@ -550,7 +593,15 @@ int aws_fota_init(struct mqtt_client *const client,
 
 	c = client;
 	callback = cb;
-	int err = fota_download_init(http_fota_handler);
+
+	int err = construct_notify_next_topic(client->client_id.utf8,
+						  notify_next_topic);
+	if (err) {
+		LOG_ERR("construct_notify_next_topic error %d", err);
+		return err;
+	}
+
+	err = fota_download_init(http_fota_handler);
 	if (err != 0) {
 		LOG_ERR("fota_download_init error %d", err);
 		return err;
@@ -559,33 +610,6 @@ int aws_fota_init(struct mqtt_client *const client,
 	memcpy(version,
 	       app_version,
 	       MIN(strlen(app_version), CONFIG_VERSION_STRING_MAX_LEN));
-
-	return 0;
-}
-
-
-/**@brief Function to read the published payload.
- */
-static int publish_get_payload(struct mqtt_client *c, size_t length)
-{
-	u8_t *buf = payload_buf;
-	u8_t *end = buf + length;
-
-	if (length > sizeof(payload_buf)) {
-		return -EMSGSIZE;
-	}
-
-	while (buf < end) {
-		int ret = mqtt_read_publish_payload_blocking(c, buf, end - buf);
-
-		if (ret < 0 && ret != -EAGAIN) {
-			return ret;
-		} else if (ret == 0) {
-			return -EIO;
-		}
-
-		buf += ret;
-	}
 
 	return 0;
 }

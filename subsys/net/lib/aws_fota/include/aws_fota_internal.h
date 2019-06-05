@@ -72,6 +72,23 @@ struct notify_next_obj {
 	struct execution_obj execution;
 };
 
+struct status_details_obj {
+	const char *next_state;
+};
+
+struct execution_state_obj {
+	const char *status;
+	struct status_details_obj status_details;
+	int version_number;
+};
+
+struct update_response_obj {
+	struct execution_state_obj execution_state;
+	const char* job_document;
+	int timestamp;
+	const char* client_token;
+};
+
 
 #ifdef __cplusplus
 }
