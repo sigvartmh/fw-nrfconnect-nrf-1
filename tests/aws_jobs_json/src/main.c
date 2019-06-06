@@ -47,19 +47,34 @@ static void test_timestamp_only(void)
 static void test_update_job_exec_rsp_minimal(void)
 {
 	char encoded[] = "{\"timestamp\":4096,\"clientToken\":\"token\"}";
+	char status[100];
 	int ret;
 
 	ret = aws_fota_parse_update_job_exec_state_rsp(encoded,
-			sizeof(encoded) - 1);
+			sizeof(encoded) - 1, status);
 
 	/* Only two last fields are set */
-	zassert_equal(ret, 0b1100, "All fields decoded correctly");
+	zassert_equal(ret,0b11000, "All fields decoded correctly");
 }
+
+static void test_update_job_exec_rsp(void)
+{
+	char expected_status[] = "IN_PROGRESS";
+	char encoded[] = "{\"status\":\"IN_PROGRESS\",\"statusDetails\":{\"nextState\":\"download_firmware\"},\"expectedVersion\":\"1\",\"clientToken\": \"\"}";
+	char status[100];
+	int ret;
+
+	ret = aws_fota_parse_update_job_exec_state_rsp(encoded,
+			sizeof(encoded) - 1, status);
+	zassert_true(!strncmp(status, expected_status, sizeof(expected_status) - 1), NULL);
+}
+
 
 void test_main(void)
 {
 	ztest_test_suite(lib_json_test,
 			 ztest_unit_test(test_update_job_exec_rsp_minimal),
+			 ztest_unit_test(test_update_job_exec_rsp),
 			 ztest_unit_test(test_timestamp_only),
 			 ztest_unit_test(test_notify_next)
 			 );
