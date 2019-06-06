@@ -105,50 +105,46 @@ static const struct json_obj_descr status_details_obj_descr[] = {
 				  JSON_TOK_STRING),
 };
 
-static const struct json_obj_descr execution_state_obj_descr[] = {
-	JSON_OBJ_DESCR_PRIM(struct execution_state_obj,
-			    status,
-			    JSON_TOK_STRING),
-	JSON_OBJ_DESCR_OBJECT_NAMED(struct execution_state_obj,
-				    "statusDetails",
-				    status_details,
-				    status_details_obj_descr),
-	JSON_OBJ_DESCR_PRIM_NAMED(struct execution_state_obj,
-				  "versionNumber",
-				  version_number,
-				  JSON_TOK_NUMBER),
-};
-
 struct update_rsp_obj {
-	struct execution_state_obj execution_state;
-	const char *job_document;
+	const char *status;
+	struct status_details_obj status_details;
+	const char *expected_version;
 	int timestamp;
 	const char *client_token;
 };
 
 static const struct json_obj_descr update_job_exec_stat_rsp_descr[] = {
+	JSON_OBJ_DESCR_PRIM_NAMED(struct update_rsp_obj, "status",
+			status, JSON_TOK_STRING),
+
 	JSON_OBJ_DESCR_OBJECT_NAMED(struct update_rsp_obj,
-			"executionState", execution_state,
-			execution_state_obj_descr),
+				    "statusDetails",
+				    status_details,
+				    status_details_obj_descr),
 
-	JSON_OBJ_DESCR_PRIM_NAMED(struct update_rsp_obj, "jobDocument",
-			job_document, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM_NAMED(struct update_rsp_obj, "expectedVersion",
+			expected_version, JSON_TOK_STRING),
 
-	JSON_OBJ_DESCR_PRIM_NAMED(struct update_rsp_obj, "timestamp",
-			timestamp, JSON_TOK_NUMBER),
+	JSON_OBJ_DESCR_PRIM(struct update_rsp_obj, timestamp, JSON_TOK_NUMBER),
 
 	JSON_OBJ_DESCR_PRIM_NAMED(struct update_rsp_obj, "clientToken",
 			client_token, JSON_TOK_STRING),
 };
 
 int aws_fota_parse_update_job_exec_state_rsp(char *update_rsp_document,
-		size_t payload_len)
+		size_t payload_len, char *status)
 {
 	struct update_rsp_obj rsp;
 
 	int ret = json_obj_parse(update_rsp_document, payload_len,
 			update_job_exec_stat_rsp_descr,
 			ARRAY_SIZE(update_job_exec_stat_rsp_descr), &rsp);
+
+	if(rsp.status != 0) {
+		memcpy(status, rsp.status,
+			MIN(strlen(rsp.status), STATUS_MAX_LEN));
+	}
+
 	return ret;
 }
 
