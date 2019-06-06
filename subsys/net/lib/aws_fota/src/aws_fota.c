@@ -7,6 +7,7 @@
 #include <logging/log.h>
 
 #include "aws_fota_internal.h"
+
 #define ERR_CHECK(err)\
 	do {\
 		if (err) {\
@@ -36,7 +37,6 @@ static const struct json_obj_descr location_obj_descr[] = {
 	JSON_OBJ_DESCR_PRIM(struct location_obj, path, JSON_TOK_STRING),
 };
 
-
 static const struct json_obj_descr job_document_obj_descr[] = {
 	JSON_OBJ_DESCR_PRIM(struct job_document_obj,
 			    operation,
@@ -49,7 +49,6 @@ static const struct json_obj_descr job_document_obj_descr[] = {
 	JSON_OBJ_DESCR_OBJECT(struct job_document_obj,
 			      location,
 			      location_obj_descr),
-
 };
 
 static const struct json_obj_descr execution_obj_descr[] = {
@@ -126,9 +125,6 @@ static const struct json_obj_descr update_response_obj_descr[] = {
 				  JSON_TOK_STRING),
 };
 
-
-
-
 /* Pointer to initialized MQTT client instance */
 // TODO: A better awy of doing this?
 static struct mqtt_client *c;
@@ -154,7 +150,7 @@ static aws_fota_callback_t callback;
 /**@brief Find key corresponding to val in map.
  */
 static int val_to_key(const char ** map, size_t num_keys,
-		const char * val, size_t val_len)
+		const char *val, size_t val_len)
 {
 	for (int i = 0; i < num_keys; ++i) {
 		if (val_len != strlen(map[i])) {
@@ -163,7 +159,6 @@ static int val_to_key(const char ** map, size_t num_keys,
 			return i;
 		}
 	}
-
 	return -1;
 }
 
@@ -177,7 +172,6 @@ static int publish_get_payload(struct mqtt_client *c, size_t length)
 	if (length > sizeof(payload_buf)) {
 		return -EMSGSIZE;
 	}
-
 	while (buf < end) {
 		int ret = mqtt_read_publish_payload_blocking(c, buf, end - buf);
 
@@ -186,15 +180,12 @@ static int publish_get_payload(struct mqtt_client *c, size_t length)
 		} else if (ret == 0) {
 			return -EIO;
 		}
-
 		buf += ret;
 	}
-
 	return 0;
 }
 
-
-static int construct_notify_next_topic(const u8_t * client_id, u8_t * topic_buf)
+static int construct_notify_next_topic(const u8_t *client_id, u8_t *topic_buf)
 {
 	__ASSERT_NO_MSG(client_id != NULL);
 	__ASSERT_NO_MSG(topic_buf != NULL);
@@ -215,9 +206,7 @@ static int construct_notify_next_topic(const u8_t * client_id, u8_t * topic_buf)
 }
 
 static int construct_job_id_update_topic(const u8_t *client_id,
-			   const u8_t *job_id,
-			   const u8_t *suffix,
-			   u8_t *topic_buf)
+		const u8_t *job_id, const u8_t *suffix, u8_t *topic_buf)
 {
 	__ASSERT_NO_MSG(client_id != NULL);
 	__ASSERT_NO_MSG(job_id != NULL);
@@ -232,7 +221,7 @@ static int construct_job_id_update_topic(const u8_t *client_id,
 			   suffix);
 	if (ret >= JOB_ID_UPDATE_TOPIC_MAX_LEN) {
 		LOG_ERR("Unable to fit formated string into to allocate "
-			"memory for job_id_update_topic");
+			"memory for construct_job_id_update_topic");
 		return -ENOMEM;
 	} else if (ret < 0) {
 		LOG_ERR("Formatting error for job_id_update topic: %d", ret);
@@ -246,7 +235,9 @@ static int construct_job_id_update_topic(const u8_t *client_id,
 #define UPDATE_DELTA_TOPIC_LEN (AWS_LEN +\
 				CONFIG_CLIENT_ID_MAX_LEN +\
 				(sizeof("/shadow/update") - 1))
-#define SHADOW_STATE_UPDATE "{\"state\":{\"reported\":{\"nrfcloud__fota_v1__app_v\":\"%s\"}}}"
+#define SHADOW_STATE_UPDATE \
+	"{\"state\":{\"reported\":{\"nrfcloud__fota_v1__app_v\":\"%s\"}}}"
+
 static int update_device_shadow_version(struct mqtt_client *const client)
 {
 	struct mqtt_publish_param param;
@@ -298,11 +289,11 @@ static int update_device_shadow_version(struct mqtt_client *const client)
 				) - 1))
 
 static int update_job_execution(struct mqtt_client *const client,
-				const u8_t * job_id,
+				const u8_t *job_id,
 				enum execution_status state,
 				enum fota_status next_state,
 				int version_number,
-				const char * client_token)
+				const char *client_token)
 {
 		char status_details[STATUS_DETAILS_MAX_LEN + 1];
 		int ret = snprintf(status_details,
@@ -323,7 +314,6 @@ static int update_job_execution(struct mqtt_client *const client,
 		return ret;
 }
 
-
 static int parse_notify_next_document(char *job_document,
 				      u32_t payload_len,
 				      char *job_id_buf,
@@ -341,17 +331,14 @@ static int parse_notify_next_document(char *job_document,
 		return -EFAULT;
 	}
 
-	memcpy(job_id_buf,
-	       job.execution.job_id,
+	memcpy(job_id_buf, job.execution.job_id,
 	       MIN(strlen(job.execution.job_id), JOB_ID_MAX_LEN));
 
-	memcpy(hostname_buf,
-	       job.execution.job_document.location.host,
+	memcpy(hostname_buf, job.execution.job_document.location.host,
 	       MIN(strlen(job.execution.job_document.location.host),
 			  CONFIG_AWS_IOT_FOTA_HOSTNAME_MAX_LEN));
 
-	memcpy(file_path_buf,
-	       job.execution.job_document.location.path,
+	memcpy(file_path_buf, job.execution.job_document.location.path,
 	       MIN(strlen(job.execution.job_document.location.path),
 			  CONFIG_AWS_IOT_FOTA_FILE_PATH_MAX_LEN));
 
@@ -364,9 +351,9 @@ static int parse_notify_next_document(char *job_document,
 
 
 static int aws_fota_on_publish_evt(struct mqtt_client *const client,
-				   const u8_t * topic,
+				   const u8_t *topic,
 				   u32_t topic_len,
-				   const u8_t * json_payload,
+				   const u8_t *json_payload,
 				   u32_t payload_len)
 {
 	printk("fota_published_to_sub_topic_evt handler\n");
@@ -375,28 +362,24 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 
 	/* If not processign job */
 	/* Reciving an publish on notify_next_topic could be a job */
-	if (!strncmp(notify_next_topic,
-		    topic,
-		    MIN(NOTIFY_NEXT_TOPIC_MAX_LEN, topic_len)
-		    )
-	    ) {
+	if (!strncmp(notify_next_topic, topic,
+		    MIN(NOTIFY_NEXT_TOPIC_MAX_LEN, topic_len))) {
 		/*
 		 * Check if the current message recived on notify-next is a
 		 * job.
 		 */
 		/*
 		*/
-		err = parse_notify_next_document(json_payload,
-					         payload_len,
-					         job_id,
-					         hostname,
-					         file_path);
+		err = parse_notify_next_document(json_payload, payload_len,
+						 job_id, hostname, file_path);
 		ERR_CHECK(err);
+
 		/* Unsubscribe from notify_next_topic to not recive more jobs
 		 * while processing the current job.
 		 */
 		err = aws_jobs_unsubscribe_expected_topics(client, true);
 		ERR_CHECK(err);
+
 		/* Subscribe to update topic to recive feedback on wether an
 		 * update is accepted or not.
 		 */
@@ -404,29 +387,21 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		ERR_CHECK(err);
 
 		err = construct_job_id_update_topic(client->client_id.utf8,
-					      job_id,
-					      "/accepted",
-					      job_id_update_accepted_topic);
+			job_id, "/accepted", job_id_update_accepted_topic);
 		ERR_CHECK(err);
 		err = construct_job_id_update_topic(client->client_id.utf8,
-					      job_id,
-					      "/rejected",
-					      job_id_update_rejected_topic);
+			job_id, "/rejected", job_id_update_rejected_topic);
 
 		fota_state = DOWNLOAD_FIRMWARE;
-		update_job_execution(client,
-				     job_id,
-				     AWS_JOBS_IN_PROGRESS,
-				     fota_state,
-				     doc_version_number,
-		 /* Client token are not used by this library */
-				     "");
+
+		/* Client token are not used by this library */
+		update_job_execution(client, job_id, AWS_JOBS_IN_PROGRESS,
+				fota_state, doc_version_number, "");
 
 		/* Handled by the library*/
 		return 1;
 
-	} else if (!strncmp(job_id_update_accepted_topic,
-			    topic,
+	} else if (!strncmp(job_id_update_accepted_topic, topic,
 			    MIN(JOB_ID_UPDATE_TOPIC_MAX_LEN, topic_len))) {
 		//err = parse_accepted_topic_payload(json_payload, status,
 		//&doc_version_number);
@@ -435,19 +410,14 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		if (execution_state == AWS_JOBS_IN_PROGRESS &&
 		    fota_state == DOWNLOAD_FIRMWARE) {
 			fota_download_start(hostname, file_path);
-		}
-		else if (execution_state == AWS_JOBS_IN_PROGRESS &&
+		} else if (execution_state == AWS_JOBS_IN_PROGRESS &&
 		    fota_state == APPLY_FIRMWARE) {
 			//clean up and report status
-			fota_state = NONE; //Maybe keep applying firmware as we haven't rebooted
-			update_job_execution(client,
-					     job_id,
-					     AWS_JOBS_SUCCEEDED,
-					     fota_state,
-					     doc_version_number,
-					     "");
-		}
-		else if (execution_state == AWS_JOBS_SUCCEEDED &&
+			//Maybe keep applying firmware as we haven't rebooted
+			fota_state = NONE; 
+			update_job_execution(client, job_id, AWS_JOBS_SUCCEEDED,
+					fota_state, doc_version_number, "");
+		} else if (execution_state == AWS_JOBS_SUCCEEDED &&
 		    fota_state == APPLY_FIRMWARE) {
 			//callback_emit(AWS_FOTA_EVT_FINISHED);
 		}
@@ -465,6 +435,7 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 			      const struct mqtt_evt *evt)
 {
 	int err;
+
 	switch (evt->type) {
 	case MQTT_EVT_CONNACK:
 		if (evt->result != 0) {
@@ -537,25 +508,17 @@ void http_fota_handler(enum fota_download_evt_id evt)
 	__ASSERT_NO_MSG(c != NULL);
 
 	switch(evt) {
-		case FOTA_DOWNLOAD_EVT_FINISHED:
-			fota_state = APPLY_FIRMWARE;
-			update_job_execution(c,
-					     job_id,
-					     AWS_JOBS_IN_PROGRESS,
-					     fota_state,
-					     doc_version_number,
-					     "");
+	case FOTA_DOWNLOAD_EVT_FINISHED:
+		fota_state = APPLY_FIRMWARE;
+		update_job_execution(c, job_id, AWS_JOBS_IN_PROGRESS,
+				     fota_state, doc_version_number, "");
 
-			break;
-		case FOTA_DOWNLOAD_EVT_ERROR:
-			update_job_execution(c,
-					     job_id,
-					     AWS_JOBS_FAILED,
-					     fota_state,
-					     doc_version_number,
-					     "");
-			//Emit AWS_FOTA_ERR
-			break;
+		break;
+	case FOTA_DOWNLOAD_EVT_ERROR:
+		update_job_execution(c, job_id, AWS_JOBS_FAILED, fota_state,
+				     doc_version_number, "");
+		//Emit AWS_FOTA_ERR
+		break;
 	}
 
 }
@@ -575,17 +538,15 @@ int aws_fota_init(struct mqtt_client *const client,
 		  const char *app_version,
 		  aws_fota_callback_t cb)
 {
+	int err;
+
 	if (client ==NULL || app_version == NULL || cb == NULL) {
 		return -EINVAL;
-
-	}
-
-	if (CONFIG_AWS_IOT_JOBS_MESSAGE_SIZE > client->rx_buf_size) {
+	} else if (CONFIG_AWS_IOT_JOBS_MESSAGE_SIZE > client->rx_buf_size) {
 		LOG_ERR("The expected message size is larger than the "
 			"allocated rx_buffer in the MQTT client");
 		return -EMSGSIZE;
-	}
-	if (CONFIG_DEVICE_SHADOW_PAYLOAD_SIZE > client->tx_buf_size) {
+	} else if (CONFIG_DEVICE_SHADOW_PAYLOAD_SIZE > client->tx_buf_size) {
 		LOG_ERR("The expected update_payload size is larger than the"
 			"allocated tx_buffer");
 		return -EMSGSIZE;
@@ -594,7 +555,7 @@ int aws_fota_init(struct mqtt_client *const client,
 	c = client;
 	callback = cb;
 
-	int err = construct_notify_next_topic(client->client_id.utf8,
+	 err = construct_notify_next_topic(client->client_id.utf8,
 						  notify_next_topic);
 	if (err) {
 		LOG_ERR("construct_notify_next_topic error %d", err);
