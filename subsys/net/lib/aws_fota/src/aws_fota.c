@@ -333,8 +333,8 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 			callback(AWS_FOTA_EVT_DONE);
 		}
 		return 1;
-	} else if (topic_len <= JOB_ID_UPDATE_TOPIC_MAX_LEN &&
-		   !strncmp(job_id_update_rejected_topic, topic, topic_len)) {
+	} else if (!strncmp(job_id_update_rejected_topic, topic,
+			    MIN(JOB_ID_UPDATE_TOPIC_MAX_LEN, topic_len))) {
 		LOG_ERR("Job document update was rejected");
 		err = publish_get_payload(client, payload_buf, payload_len);
 		if (err) {
