@@ -610,7 +610,7 @@ int aws_jobs_unsubscribe_job_id_update(struct mqtt_client *const client,
 
 
 #define UPDATE_JOB_PAYLOAD "{\"status\":\"%s\",\
-			    \"statusDetails\":\"%s\",\
+			    \"statusDetails\": %s,\
 			    \"expectedVersion\": \"%d\",\
 			    \"clientToken\": \"%s\"}"
 int aws_jobs_update_job_execution(struct mqtt_client *const client,
