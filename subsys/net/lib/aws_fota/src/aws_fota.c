@@ -46,9 +46,9 @@ static u8_t notify_next_topic[NOTIFY_NEXT_TOPIC_MAX_LEN + 1];
 static u8_t job_id_update_accepted_topic[JOB_ID_UPDATE_TOPIC_MAX_LEN + 1];
 static u8_t job_id_update_rejected_topic[JOB_ID_UPDATE_TOPIC_MAX_LEN + 1];
 /* Allocated buffers for keeping hostname, json payload and file_path */
-static u8_t payload_buf[CONFIG_AWS_IOT_JOBS_MESSAGE_SIZE + 1];
-static u8_t hostname[CONFIG_AWS_IOT_FOTA_HOSTNAME_MAX_LEN + 1];
-static u8_t file_path[CONFIG_AWS_IOT_FOTA_FILE_PATH_MAX_LEN + 1];
+static u8_t payload_buf[CONFIG_AWS_FOTA_PAYLOAD_SIZE + 1];
+static u8_t hostname[CONFIG_AWS_FOTA_HOSTNAME_MAX_LEN + 1];
+static u8_t file_path[CONFIG_AWS_FOTA_FILE_PATH_MAX_LEN + 1];
 static u8_t job_id[JOB_ID_MAX_LEN + 1];
 static aws_fota_callback_t callback;
 
@@ -317,12 +317,10 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		 * Set state to what was in the response payload
 		 * execution_state = status;
 		 */
-		execution_state = AWS_JOBS_IN_PROGRESS;
-		printk("Accepted update\n");
-		printk("Response payload: %s", json_payload);
 
-		if (execution_state == AWS_JOBS_IN_PROGRESS &&
-		    fota_state == DOWNLOAD_FIRMWARE) {
+		if (fota_state == DOWNLOAD_FIRMWARE) {
+			/* TODO: Get this state from the update document */
+			execution_state = AWS_JOBS_IN_PROGRESS;
 			err = fota_download_start(hostname, file_path);
 			if (err) {
 				printk("Error when trying to start firmware
@@ -454,12 +452,9 @@ static void http_fota_handler(enum fota_download_evt_id evt)
 	switch (evt) {
 	case FOTA_DOWNLOAD_EVT_FINISHED:
 		fota_state = APPLY_FIRMWARE;
-		/*
 		update_job_execution(c, job_id, AWS_JOBS_SUCCEEDED,
 				     fota_state, doc_version_number, "");
-		*/
 		/* TODO: Emit AWS_FOTA_DONE when update_job_execution is done*/
-		printk("FOTA finished\n");
 
 		break;
 	case FOTA_DOWNLOAD_EVT_ERROR:
@@ -482,9 +477,9 @@ int aws_fota_init(struct mqtt_client *const client,
 
 	if (client == NULL || app_version == NULL || cb == NULL) {
 		return -EINVAL;
-	} else if (client->rx_buf_size < CONFIG_AWS_IOT_JOBS_MESSAGE_SIZE) {
-		LOG_ERR("The expected message size is larger than the
-				allocated rx_buffer in the MQTT client");
+	} else if (CONFIG_AWS_FOTA_PAYLOAD_SIZE > client->rx_buf_size) {
+		LOG_ERR("The expected message size is larger than the "
+			"allocated rx_buffer in the MQTT client");
 		return -EMSGSIZE;
 	} else if (client->tx_buf_size < CONFIG_DEVICE_SHADOW_PAYLOAD_SIZE) {
 		LOG_ERR("The expected update_payload size is larger than the

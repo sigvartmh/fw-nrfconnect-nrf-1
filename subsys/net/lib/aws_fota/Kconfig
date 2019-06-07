@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: LicenseRef-BSD-5-Clause-Nordic
 #
 
-menuconfig AWS_JOBS_FOTA
+menuconfig AWS_FOTA
 	bool "AWS Jobs FOTA library"
 	select AWS_JOBS
 	select FOTA_DOWNLOAD
@@ -11,30 +11,30 @@ menuconfig AWS_JOBS_FOTA
 	#we need to imply a value for heap as this library requiers a heap
 	#for the JSON obj parse
 
-if AWS_JOBS_FOTA
+if AWS_FOTA
 
 config VERSION_STRING_MAX_LEN
 	int "Application version string max length"
 	default 10
 
-config AWS_IOT_JOBS_MESSAGE_SIZE
-	int "MQTT message reception buffer size for AWS IoT Jobs messages"
+config AWS_FOTA_PAYLOAD_SIZE
+	int "MQTT payload reception buffer size for AWS IoT Jobs messages"
 	default 1350
 
 config DEVICE_SHADOW_PAYLOAD_SIZE
-	int "MQTT message reception buffer size for AWS IoT Jobs messages"
+	int "MQTT payload transmission buffer size for AWS IoT device shadow updates"
 	default 255
 
-config AWS_IOT_FOTA_HOSTNAME_MAX_LEN
+config AWS_FOTA_HOSTNAME_MAX_LEN
 	int "Hostname buffer size"
 	default 255
 
-config AWS_IOT_FOTA_FILE_PATH_MAX_LEN
-	int "Hostname buffer size"
+config AWS_FOTA_FILE_PATH_MAX_LEN
+	int "File path buffer size"
 	default 255
 
 
-module=AWS_JOBS_FOTA
+module=AWS_FOTA
 module-dep=LOG
 module-str=Log level for AWS Jobs FOTA
 module-help=Enables AWS Jobs FOTA log messages.

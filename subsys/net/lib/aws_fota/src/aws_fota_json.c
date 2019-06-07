@@ -173,13 +173,13 @@ int aws_fota_parse_notify_next_document(char *job_document, u32_t payload_len,
 	if (job.execution.job_document.location.host != 0) {
 		memcpy(hostname_buf, job.execution.job_document.location.host,
 			MIN(strlen(job.execution.job_document.location.host),
-				CONFIG_AWS_IOT_FOTA_HOSTNAME_MAX_LEN));
+				CONFIG_AWS_FOTA_HOSTNAME_MAX_LEN));
 	}
 
 	if (job.execution.job_document.location.path != 0) {
 		memcpy(file_path_buf, job.execution.job_document.location.path,
 			MIN(strlen(job.execution.job_document.location.path),
-				CONFIG_AWS_IOT_FOTA_FILE_PATH_MAX_LEN));
+				CONFIG_AWS_FOTA_FILE_PATH_MAX_LEN));
 	}
 
 	return ret;
