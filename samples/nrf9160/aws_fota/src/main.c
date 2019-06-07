@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 Nordic Semiconductor ASA
+ * Copyright (c) 2019 Nordic Semiconductor ASA
  *
  * SPDX-License-Identifier: LicenseRef-BSD-5-Clause-Nordic
  */
@@ -467,8 +467,9 @@ static int fds_init(struct mqtt_client *c)
 	return 0;
 }
 
-/**@brief Configures modem to provide LTE link. Blocks until link is
- * successfully established.
+/**@brief Configures modem to provide LTE link.
+ *
+ * Blocks until link is successfully established.
  */
 static void modem_configure(void)
 {
@@ -488,10 +489,11 @@ static void modem_configure(void)
 #endif
 }
 
-void aws_fota_cb_handler(enum aws_fota_evt_id evt)
+static void aws_fota_cb_handler(enum aws_fota_evt_id evt)
 {
-	/* When the applicaiton is ready restart */
-	return 0;
+	/* Notify application that FOTA is done and the application should
+	 * restart/the library is ready for the application to restart.
+	 */
 }
 
 void main(void)
@@ -506,6 +508,7 @@ void main(void)
 	modem_configure();
 
 	client_init(&client);
+
 	err = aws_fota_init(&client, "v1.0.1", aws_fota_cb_handler);
 	if (err != 0) {
 		printk("ERROR: aws_fota_init %d\n", err);
@@ -554,7 +557,6 @@ void main(void)
 			printk("POLLNVAL\n");
 			break;
 		}
-
 	}
 
 	printk("Disconnecting MQTT client...\n");

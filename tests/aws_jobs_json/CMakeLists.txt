@@ -25,6 +25,6 @@ target_include_directories(app
 # is not executed. Hence these can not be set through prj.conf.
 target_compile_options(app
   PRIVATE
-  -DCONFIG_AWS_IOT_FOTA_HOSTNAME_MAX_LEN=1024
-  -DCONFIG_AWS_IOT_FOTA_FILE_PATH_MAX_LEN=1024
+  -DCONFIG_AWS_FOTA_HOSTNAME_MAX_LEN=1024
+  -DCONFIG_AWS_FOTA_FILE_PATH_MAX_LEN=1024
   )

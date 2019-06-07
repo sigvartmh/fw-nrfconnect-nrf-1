@@ -229,7 +229,7 @@ static int update_job_execution(struct mqtt_client *const client,
 static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 				   const u8_t *topic,
 				   u32_t topic_len,
-				   const u8_t *json_payload,
+				   u8_t *json_payload,
 				   u32_t payload_len)
 {
 	printk("fota_published_to_sub_topic_evt handler\n");
@@ -411,7 +411,7 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 
 	case MQTT_EVT_PUBACK:
 		if (evt->result != 0) {
-			LOG_ERR("MQTT PUBACK error %d\n", evt->result);
+			LOG_ERR("MQTT PUBACK error %d", evt->result);
 			return 0;
 		}
 		/* check evt->param.puback.message_id */
@@ -431,8 +431,8 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 						   doc_version_number,
 						   "");
 			if (err) {
-				printk("Error when updating job_execution_status"
-				       ": %d\n", err);
+				printk("Error when updating "
+				       "job_execution_status : %d\n", err);
 			return err;
 			}
 		}

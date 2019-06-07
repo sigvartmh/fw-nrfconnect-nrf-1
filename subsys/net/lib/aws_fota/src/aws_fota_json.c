@@ -154,8 +154,9 @@ int aws_fota_parse_update_job_exec_state_rsp(char *update_rsp_document,
 	return ret;
 }
 
-int aws_fota_parse_notify_next_document(char *job_document, u32_t payload_len,
-		char *job_id_buf, char *hostname_buf, char *file_path_buf)
+int aws_fota_parse_notify_next_document(char *job_document,
+		u32_t payload_len, char *job_id_buf, char *hostname_buf,
+		char *file_path_buf)
 {
 	struct notify_next_obj job;
 
