@@ -54,24 +54,10 @@ static u8_t file_path[CONFIG_AWS_FOTA_FILE_PATH_MAX_LEN + 1];
 static u8_t job_id[JOB_ID_MAX_LEN + 1];
 static aws_fota_callback_t callback;
 
-/**@brief Find key corresponding to val in map.
- */
-static int val_to_key(const char **map, size_t num_keys,
-		const char *val, size_t val_len)
-{
-	for (int i = 0; i < num_keys; ++i) {
-		if (val_len != strlen(map[i])) {
-			continue;
-		} else if (strncmp(val, map[i], val_len) == 0) {
-			return i;
-		}
-	}
-	return -1;
-}
 
 /**@brief Function to read the published payload.
  */
-static int publish_get_payload(struct mqtt_client *c,
+static int publish_get_payload(struct mqtt_client *client,
 			       u8_t *write_buf,
 			       size_t length)
 {
@@ -82,7 +68,7 @@ static int publish_get_payload(struct mqtt_client *c,
 		return -EMSGSIZE;
 	}
 	while (buf < end) {
-		int ret = mqtt_read_publish_payload_blocking(c, buf, end - buf);
+		int ret = mqtt_read_publish_payload_blocking(client, buf, end - buf);
 
 		if (ret < 0) {
 			return ret;
@@ -191,7 +177,8 @@ static int update_device_shadow_version(struct mqtt_client *const client)
 }
 
 #define AWS_FOTA_STATUS_DETAILS_TEMPLATE "{\"nextState\":\"%s\"}"
-#define STATUS_DETAILS_MAX_LEN  (sizeof("{\"nextState\":\"\"}") + (sizeof("download_firmware") + 2))
+#define STATUS_DETAILS_MAX_LEN  (sizeof("{\"nextState\":\"\"}") \
+				+ (sizeof("download_firmware") + 2))
 
 static int update_job_execution(struct mqtt_client *const client,
 				const u8_t *job_id,
@@ -480,11 +467,11 @@ static void http_fota_handler(enum fota_download_evt_id evt)
 
 int aws_fota_init(struct mqtt_client *const client,
 		  const char *app_version,
-		  aws_fota_callback_t cb)
+		  aws_fota_callback_t evt_handler)
 {
 	int err;
 
-	if (client == NULL || app_version == NULL || cb == NULL) {
+	if (client == NULL || app_version == NULL || evt_handler == NULL) {
 		return -EINVAL;
 	}
 
@@ -492,15 +479,13 @@ int aws_fota_init(struct mqtt_client *const client,
 		return -EINVAL;
 	}
 
-	/* Client is only used to make the MQTT client available from the
-	 * http_fota_handler.
-	 */
+	/* Store client to make it available in event handlers. */
 	c = client;
-	callback = cb;
+	callback = evt_handler;
 
 	err = construct_notify_next_topic(client->client_id.utf8,
 					  notify_next_topic);
-	if (err) {
+	if (err != 0) {
 		LOG_ERR("construct_notify_next_topic error %d", err);
 		return err;
 	}
