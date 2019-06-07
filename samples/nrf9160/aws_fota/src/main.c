@@ -18,8 +18,8 @@
 #include "nrf_inbuilt_key.h"
 #endif
 
-#define CONFIG_NRF_CLOUD_SEC_TAG 16842753
-#define CONFIG_AWS_HOSTNAME "a25jld2wxwm7qs-ats.iot.eu-central-1.amazonaws.com"
+#define NRF_CLOUD_SEC_TAG 16842753
+#define AWS_HOSTNAME "a25jld2wxwm7qs-ats.iot.eu-central-1.amazonaws.com"
 
 #include "aws_cert/rootca_ec.h"
 #include "aws_cert/private_key.h"
@@ -239,7 +239,7 @@ static void broker_init(void)
 		.ai_socktype = SOCK_STREAM
 	};
 
-	err = getaddrinfo(CONFIG_AWS_HOSTNAME, NULL, &hints, &result);
+	err = getaddrinfo(AWS_HOSTNAME, NULL, &hints, &result);
 	if (err) {
 		printk("ERROR: getaddrinfo failed %d\n", err);
 
@@ -283,7 +283,7 @@ static int provision(void)
 {
 	int err;
 
-	err = tls_credential_add(CONFIG_NRF_CLOUD_SEC_TAG,
+	err = tls_credential_add(NRF_CLOUD_SEC_TAG,
 				 TLS_CREDENTIAL_CA_CERTIFICATE,
 					AmazonRootCA3_pem,
 					AmazonRootCA3_pem_len);
@@ -292,7 +292,7 @@ static int provision(void)
 		       err);
 		return err;
 	}
-	err = tls_credential_add(CONFIG_NRF_CLOUD_SEC_TAG,
+	err = tls_credential_add(NRF_CLOUD_SEC_TAG,
 				 TLS_CREDENTIAL_PRIVATE_KEY,
 				 private_pem_key,
 				 private_pem_key_len);
@@ -301,7 +301,7 @@ static int provision(void)
 		       err);
 		return err;
 	}
-	err = tls_credential_add(CONFIG_NRF_CLOUD_SEC_TAG,
+	err = tls_credential_add(NRF_CLOUD_SEC_TAG,
 				 TLS_CREDENTIAL_SERVER_CERTIFICATE,
 				 public_pem,
 				 public_pem_len);
@@ -316,14 +316,14 @@ static int provision(void)
 
 static int provision_modem_key(void)
 {
-	static sec_tag_t sec_tag_list[] = {CONFIG_NRF_CLOUD_SEC_TAG};
+	static sec_tag_t sec_tag_list[] = {NRF_CLOUD_SEC_TAG};
 
 #if defined(CONFIG_BSD_LIBRARY)
 	{
 		int err;
 
 		/* Delete certificates */
-		nrf_sec_tag_t sec_tag = CONFIG_NRF_CLOUD_SEC_TAG;
+		nrf_sec_tag_t sec_tag = NRF_CLOUD_SEC_TAG;
 
 		for (nrf_key_mgnt_cred_type_t type = 0; type < 3; type++) {
 			err = nrf_inbuilt_key_delete(sec_tag, type);
@@ -332,7 +332,7 @@ static int provision_modem_key(void)
 		}
 
 		/* Provision CA Certificate. */
-		err = nrf_inbuilt_key_write(CONFIG_NRF_CLOUD_SEC_TAG,
+		err = nrf_inbuilt_key_write(NRF_CLOUD_SEC_TAG,
 					NRF_KEY_MGMT_CRED_TYPE_CA_CHAIN,
 					AmazonRootCA3_pem,
 					AmazonRootCA3_pem_len);
@@ -343,7 +343,7 @@ static int provision_modem_key(void)
 
 		/* Provision Private Certificate. */
 		err = nrf_inbuilt_key_write(
-			CONFIG_NRF_CLOUD_SEC_TAG,
+			NRF_CLOUD_SEC_TAG,
 			NRF_KEY_MGMT_CRED_TYPE_PRIVATE_CERT,
 			private_pem_key,
 			private_pem_key_len);
@@ -354,7 +354,7 @@ static int provision_modem_key(void)
 
 		/* Provision Public Certificate. */
 		err = nrf_inbuilt_key_write(
-			CONFIG_NRF_CLOUD_SEC_TAG,
+			NRF_CLOUD_SEC_TAG,
 			NRF_KEY_MGMT_CRED_TYPE_PUBLIC_CERT,
 				 public_pem,
 				 public_pem_len);
@@ -435,7 +435,7 @@ static int client_init(struct mqtt_client *client)
 	/* MQTT transport configuration */
 	client->transport.type = MQTT_TRANSPORT_SECURE;
 
-	static sec_tag_t sec_tag_list[] = {CONFIG_NRF_CLOUD_SEC_TAG};
+	static sec_tag_t sec_tag_list[] = {NRF_CLOUD_SEC_TAG};
 	struct mqtt_sec_config *tls_config = &(client->transport).tls.config;
 
 	tls_config->peer_verify = 2;
@@ -443,7 +443,7 @@ static int client_init(struct mqtt_client *client)
 	tls_config->cipher_count = 0;
 	tls_config->sec_tag_count = ARRAY_SIZE(sec_tag_list);
 	tls_config->sec_tag_list = sec_tag_list;
-	tls_config->hostname = CONFIG_AWS_HOSTNAME;
+	tls_config->hostname = AWS_HOSTNAME;
 
 	return 0;
 

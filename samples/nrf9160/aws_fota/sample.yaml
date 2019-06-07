@@ -1,5 +1,5 @@
 sample:
-  name: mqtt simple sample
+  name: AWS IoT Jobs FOTA sample
 tests:
   test_build:
     build_only: true
