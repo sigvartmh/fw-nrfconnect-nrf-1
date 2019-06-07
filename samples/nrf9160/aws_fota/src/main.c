@@ -44,6 +44,8 @@ static struct sockaddr_storage broker;
 /* File descriptor */
 static struct pollfd fds;
 
+/* Set to true when application should teardown and reboot */
+static bool do_reboot;
 
 #if defined(CONFIG_BSD_LIBRARY)
 
@@ -491,9 +493,17 @@ static void modem_configure(void)
 
 static void aws_fota_cb_handler(enum aws_fota_evt_id evt)
 {
-	/* Notify application that FOTA is done and the application should
-	 * restart/the library is ready for the application to restart.
-	 */
+	switch(evt)
+	{
+	case AWS_FOTA_EVT_DONE:
+		printk("AWS_FOTA_EVT_DONE, rebooting to apply update.\n");
+		do_reboot = true;
+		break;
+
+	case AWS_FOTA_EVT_ERROR:
+		printk("AWS_FOTA_EVT_ERROR\n");
+		break;
+	}
 }
 
 void main(void)
@@ -556,6 +566,12 @@ void main(void)
 		if ((fds.revents & POLLNVAL) == POLLNVAL) {
 			printk("POLLNVAL\n");
 			break;
+		}
+
+		if (do_reboot) {
+			/* Teardown */
+			mqtt_disconnect(&client);
+			sys_reboot(0);
 		}
 	}
 

@@ -346,15 +346,13 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		} else if (execution_state == AWS_JOBS_SUCCEEDED &&
 			   fota_state == APPLY_FIRMWARE) {
 			printk("Done emmit");
-			/*TODO: callback_emit(AWS_FOTA_EVT_FINISHED); */
+			callback(AWS_FOTA_EVT_DONE);
 		}
 		return 1;
 	} else if (!strncmp(job_id_update_rejected_topic, topic,
 			    MIN(JOB_ID_UPDATE_TOPIC_MAX_LEN, topic_len))) {
 		printk("Update was rejected\n");
-		/*TODO: emit aws_fota failure our
-		 * update to the job document was rejected
-		 */
+		callback(AWS_FOTA_EVT_ERROR);
 	}
 	return 0;
 
@@ -468,7 +466,7 @@ static void http_fota_handler(enum fota_download_evt_id evt)
 		update_job_execution(c, job_id, AWS_JOBS_FAILED,
 				     fota_state, doc_version_number, "");
 		printk("Download error\n");
-		/* TODO: Emit AWS_FOTA_ERR */
+		callback(AWS_FOTA_EVT_ERROR);
 		break;
 	}
 
