@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <uart.h>
 #include <string.h>
+#include <misc/reboot.h>
 
 #include <net/mqtt.h>
 #include <net/socket.h>
@@ -114,6 +115,7 @@ static int publish_get_payload(struct mqtt_client *c, size_t length)
 
 	return 0;
 }
+
 
 /**@brief MQTT client event handler */
 void mqtt_evt_handler(struct mqtt_client * const c,
@@ -261,6 +263,7 @@ static void broker_init(void)
 	freeaddrinfo(result);
 }
 
+
 static int provision(void)
 {
 	int err;
@@ -386,6 +389,7 @@ static int client_id_get(char *id)
 	return 0;
 }
 
+
 /**@brief Initialize the MQTT client structure */
 static int client_init(struct mqtt_client *client)
 {
@@ -431,6 +435,7 @@ static int client_init(struct mqtt_client *client)
 
 }
 
+
 /**@brief Initialize the file descriptor structure used by poll. */
 static int fds_init(struct mqtt_client *c)
 {
@@ -448,6 +453,7 @@ static int fds_init(struct mqtt_client *c)
 
 	return 0;
 }
+
 
 /**@brief Configures modem to provide LTE link.
  *
@@ -471,6 +477,7 @@ static void modem_configure(void)
 #endif
 }
 
+
 static void aws_fota_cb_handler(enum aws_fota_evt_id evt)
 {
 	switch (evt) {
@@ -484,6 +491,7 @@ static void aws_fota_cb_handler(enum aws_fota_evt_id evt)
 		break;
 	}
 }
+
 
 void main(void)
 {
