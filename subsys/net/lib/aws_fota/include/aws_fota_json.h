@@ -4,8 +4,12 @@
  *SPDX-License-Identifier: LicenseRef-BSD-5-Clause-Nordic
  */
 
-/**@file
- *@brief AWS FOTA JSON helper functions.
+/**@file aws_fota_json.h
+ *
+ * @defgroup aws_fota_json
+ * @{
+ * @brief  Library for parsing AWS Jobs json payloads.
+ *
  */
 
 #ifndef AWS_FOTA_JSON_H__

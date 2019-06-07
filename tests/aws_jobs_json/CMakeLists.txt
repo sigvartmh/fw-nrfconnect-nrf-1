@@ -21,6 +21,8 @@ target_include_directories(app
   ${ZEPHYR_BASE}/../nrf/subsys/net/lib/aws_fota/include/
   )
 
+# Do this in a non-standard way as the Kconfig options of "aws_jobs/Kconfig"
+# is not executed. Hence these can not be set through prj.conf.
 target_compile_options(app
   PRIVATE
   -DCONFIG_AWS_IOT_FOTA_HOSTNAME_MAX_LEN=1024
