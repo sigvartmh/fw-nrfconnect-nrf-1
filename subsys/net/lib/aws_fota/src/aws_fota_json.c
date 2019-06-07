@@ -158,31 +158,22 @@ int aws_fota_parse_notify_next_document(char *job_document, u32_t payload_len,
 				 notify_next_obj_descr,
 				 ARRAY_SIZE(notify_next_obj_descr),
 				 &job);
-	if (ret < 0) {
-		return -EFAULT;
-	}
 
 	if (job.execution.job_id != 0) {
 		memcpy(job_id_buf, job.execution.job_id,
 			MIN(strlen(job.execution.job_id), JOB_ID_MAX_LEN));
-	} else {
-		return -EINVAL;
 	}
 
 	if (job.execution.job_document.location.host != 0) {
 		memcpy(hostname_buf, job.execution.job_document.location.host,
 			MIN(strlen(job.execution.job_document.location.host),
 				CONFIG_AWS_IOT_FOTA_HOSTNAME_MAX_LEN));
-	} else {
-		return -EINVAL;
 	}
 
 	if (job.execution.job_document.location.path != 0) {
 		memcpy(file_path_buf, job.execution.job_document.location.path,
 			MIN(strlen(job.execution.job_document.location.path),
 				CONFIG_AWS_IOT_FOTA_FILE_PATH_MAX_LEN));
-	} else {
-		return -EINVAL;
 	}
 
 	return ret;
