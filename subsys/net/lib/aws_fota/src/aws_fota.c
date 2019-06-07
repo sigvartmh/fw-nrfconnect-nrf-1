@@ -14,7 +14,7 @@
 
 #include "aws_fota_json.h"
 
-LOG_MODULE_REGISTER(aws_fota, CONFIG_AWS_JOBS_FOTA_LOG_LEVEL);
+LOG_MODULE_REGISTER(aws_fota, CONFIG_AWS_FOTA_LOG_LEVEL);
 
 /* Enum to keep the fota status */
 enum fota_status {
@@ -212,7 +212,7 @@ static int update_job_execution(struct mqtt_client *const client,
 
 		ret =  aws_jobs_update_job_execution(client,
 					      job_id,
-					      AWS_JOBS_IN_PROGRESS,
+					      state,
 					      status_details,
 					      version_number,
 					      client_token);
@@ -259,7 +259,6 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		/* Unsubscribe from notify_next_topic to not recive more jobs
 		 * while processing the current job.
 		 */
-		/* err = aws_jobs_unsubscribe_expected_topics(client, true); */
 		err = aws_jobs_unsubscribe_notify_next(client);
 		if (err) {
 			printk("Error when unsubscribing notify_next_topic:"
@@ -311,6 +310,13 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		if (err) {
 			return err;
 		}
+		doc_version_number++;
+		char rsp_status[STATUS_MAX_LEN + 1] = {0};
+		err = aws_fota_parse_update_job_exec_state_rsp(json_payload,
+							       payload_len,
+							       rsp_status);
+
+		//err = aws_fota_json_
 		/*
 		 * err = parse_accepted_topic_payload(json_payload, status,
 		 * &doc_version_number);
@@ -321,23 +327,25 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		if (fota_state == DOWNLOAD_FIRMWARE) {
 			/* TODO: Get this state from the update document */
 			execution_state = AWS_JOBS_IN_PROGRESS;
-			printk("Download firmware");
+			printk("Download firmware\n");
 			err = fota_download_start(hostname, file_path);
 			if (err) {
-				printk("Error when trying to start firmware"
-				       "download");
+				LOG_ERR("Error when trying to start firmware"
+				       "download: %d", err);
 				return err;
 			}
 		} else if (execution_state == AWS_JOBS_IN_PROGRESS &&
 		    fota_state == APPLY_FIRMWARE) {
+			LOG_DBG("Download completed");
 			/* clean up and report status
 			 * Maybe keep applying firmware as we haven't rebooted
 			 */
-			fota_state = NONE;
+			execution_state = AWS_JOBS_SUCCEEDED;
 			update_job_execution(client, job_id, AWS_JOBS_SUCCEEDED,
 					fota_state, doc_version_number, "");
 		} else if (execution_state == AWS_JOBS_SUCCEEDED &&
-		    fota_state == APPLY_FIRMWARE) {
+			   fota_state == APPLY_FIRMWARE) {
+			printk("Done emmit");
 			/*TODO: callback_emit(AWS_FOTA_EVT_FINISHED); */
 		}
 		return 1;
@@ -453,16 +461,12 @@ static void http_fota_handler(enum fota_download_evt_id evt)
 	switch (evt) {
 	case FOTA_DOWNLOAD_EVT_FINISHED:
 		fota_state = APPLY_FIRMWARE;
-		update_job_execution(c, job_id, AWS_JOBS_SUCCEEDED,
+		update_job_execution(c, job_id, AWS_JOBS_IN_PROGRESS,
 				     fota_state, doc_version_number, "");
-		/* TODO: Emit AWS_FOTA_DONE when update_job_execution is done*/
-
 		break;
 	case FOTA_DOWNLOAD_EVT_ERROR:
-		/*
-		update_job_execution(c, job_id, AWS_JOBS_FAILED, fota_state,
-				     doc_version_number, "");
-				     */
+		update_job_execution(c, job_id, AWS_JOBS_FAILED,
+				     fota_state, doc_version_number, "");
 		printk("Download error\n");
 		/* TODO: Emit AWS_FOTA_ERR */
 		break;
