@@ -36,6 +36,8 @@ static struct mqtt_client *c;
 /* Enum for tracking the job exectuion state */
 static enum execution_status execution_state = AWS_JOBS_QUEUED;
 static enum fota_status fota_state = NONE;
+
+/* Document version starts at 1 and is incremented with each accepted update */
 static u32_t doc_version_number = 1;
 
 /* Buffer for reporting the current application version */
@@ -80,7 +82,7 @@ static int publish_get_payload(struct mqtt_client *c, size_t length)
 	while (buf < end) {
 		int ret = mqtt_read_publish_payload_blocking(c, buf, end - buf);
 
-		if (ret < 0 && ret != -EAGAIN) {
+		if (ret < 0) {
 			return ret;
 		} else if (ret == 0) {
 			return -EIO;
@@ -162,7 +164,7 @@ static int update_device_shadow_version(struct mqtt_client *const client)
 	}
 
 	ret = snprintf(shadow_update_payload,
-		       CONFIG_DEVICE_SHADOW_PAYLOAD_SIZE,
+		       sizeof(shadow_update_payload),
 		       SHADOW_STATE_UPDATE,
 		       version);
 	u32_t shadow_update_payload_len = ret;
@@ -185,12 +187,8 @@ static int update_device_shadow_version(struct mqtt_client *const client)
 	return mqtt_publish(client, &param);
 }
 
-#define STATUS_DETAILS_TEMPLATE "{\"nextState\":\"%s\"}"
-/*
- * #define STATUS_DETAILS_MAX_LEN  ((sizeof("{\"nextState\":\"\"}") - 1) +\
- *  (sizeof("download_firmware") - 1))
- */
-#define STATUS_DETAILS_MAX_LEN 255
+#define AWS_FOTA_STATUS_DETAILS_TEMPLATE "{\"nextState\":\"%s\"}"
+#define STATUS_DETAILS_MAX_LEN  (sizeof("{\"nextState\":\"\"}") + (sizeof("download_firmware") + 2))
 
 static int update_job_execution(struct mqtt_client *const client,
 				const u8_t *job_id,
@@ -201,8 +199,8 @@ static int update_job_execution(struct mqtt_client *const client,
 {
 		char status_details[STATUS_DETAILS_MAX_LEN + 1];
 		int ret = snprintf(status_details,
-				   STATUS_DETAILS_MAX_LEN,
-				   STATUS_DETAILS_TEMPLATE,
+				   sizeof(status_details),
+				   AWS_FOTA_STATUS_DETAILS_TEMPLATE,
 				   fota_status_strings[next_state]);
 		if (ret >= STATUS_DETAILS_MAX_LEN) {
 			return -ENOMEM;
@@ -232,7 +230,7 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 				   u8_t *json_payload,
 				   u32_t payload_len)
 {
-	printk("fota_published_to_sub_topic_evt handler\n");
+	LOG_DBG("%s recived", __func__ );
 	int err;
 
 	/* If not processign job */
@@ -247,21 +245,21 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		 * Check if the current message recived on notify-next is a
 		 * job.
 		 */
-		printk("Parse document: %s", json_payload);
 		err = aws_fota_parse_notify_next_document(json_payload,
 							  payload_len, job_id,
 							  hostname, file_path);
 		if (err < 0) {
-			printk("Error when parsing the json %d\n", err);
+			LOG_ERR("Error when parsing the json %d\n", err);
 			return err;
 		}
+		printk("recived err: %d\n", err);
 
 		/* Unsubscribe from notify_next_topic to not recive more jobs
 		 * while processing the current job.
 		 */
 		err = aws_jobs_unsubscribe_notify_next(client);
 		if (err) {
-			printk("Error when unsubscribing notify_next_topic:"
+			LOG_ERR("Error when unsubscribing notify_next_topic:"
 				"%d\n", err);
 			return err;
 		}
@@ -271,7 +269,7 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		 */
 		err = aws_jobs_subscribe_job_id_update(client, job_id);
 		if (err) {
-			printk("Error when subscribing job_id_update:"
+			LOG_ERR("Error when subscribing job_id_update:"
 			       "%d\n", err);
 			return err;
 		}
@@ -282,7 +280,7 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		err = construct_job_id_update_topic(client->client_id.utf8,
 			job_id, "/accepted", job_id_update_accepted_topic);
 		if (err) {
-			printk("Error when constructing_job_id_update_accepted:"
+			LOG_ERR("Error when constructing_job_id_update_accepted:"
 				"%d\n", err);
 			return err;
 		}
@@ -290,7 +288,7 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		err = construct_job_id_update_topic(client->client_id.utf8,
 			job_id, "/rejected", job_id_update_rejected_topic);
 		if (err) {
-			printk("Error when constructing_job_id_update_rejected:"
+			LOG_ERR("Error when constructing_job_id_update_rejected:"
 			       "%d\n", err);
 			return err;
 		}
@@ -310,11 +308,13 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		if (err) {
 			return err;
 		}
+		/* Increment document version as the update was accepted */
 		doc_version_number++;
 		char rsp_status[STATUS_MAX_LEN + 1] = {0};
 		err = aws_fota_parse_update_job_exec_state_rsp(json_payload,
 							       payload_len,
 							       rsp_status);
+		printk("rsp_status: %s, err:%d\n", rsp_status, err);
 
 		//err = aws_fota_json_
 		/*
@@ -327,7 +327,8 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		if (fota_state == DOWNLOAD_FIRMWARE) {
 			/* TODO: Get this state from the update document */
 			execution_state = AWS_JOBS_IN_PROGRESS;
-			printk("Download firmware\n");
+			LOG_INF("Start downloading firmware from %s%s",
+				log_strdup(hostname), log_strdup(file_path));
 			err = fota_download_start(hostname, file_path);
 			if (err) {
 				LOG_ERR("Error when trying to start firmware"
@@ -336,22 +337,22 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 			}
 		} else if (execution_state == AWS_JOBS_IN_PROGRESS &&
 		    fota_state == APPLY_FIRMWARE) {
-			LOG_DBG("Download completed");
+			LOG_INF("Firmware download completed");
 			/* clean up and report status
 			 * Maybe keep applying firmware as we haven't rebooted
 			 */
 			execution_state = AWS_JOBS_SUCCEEDED;
-			update_job_execution(client, job_id, AWS_JOBS_SUCCEEDED,
+			update_job_execution(client, job_id, execution_state,
 					fota_state, doc_version_number, "");
 		} else if (execution_state == AWS_JOBS_SUCCEEDED &&
 			   fota_state == APPLY_FIRMWARE) {
-			printk("Done emmit");
+			LOG_INF("Job document updated ready to reboot");
 			callback(AWS_FOTA_EVT_DONE);
 		}
 		return 1;
 	} else if (!strncmp(job_id_update_rejected_topic, topic,
 			    MIN(JOB_ID_UPDATE_TOPIC_MAX_LEN, topic_len))) {
-		printk("Update was rejected\n");
+		LOG_ERR("Job document update was rejected\n");
 		callback(AWS_FOTA_EVT_ERROR);
 	}
 	return 0;
@@ -371,11 +372,13 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 
 		err = aws_jobs_subscribe_notify_next(client);
 		if (err) {
+			LOG_ERR("Unable to subscribe to notify next topic");
 			return err;
 		}
 
 		err = update_device_shadow_version(client);
 		if (err) {
+			LOG_ERR("Unable to update device shadow");
 			return err;
 		}
 
@@ -420,8 +423,6 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 			LOG_ERR("MQTT PUBACK error %d", evt->result);
 			return 0;
 		}
-		/* check evt->param.puback.message_id */
-		/* We expect that the client pubacks*/
 		return 0;
 
 	case MQTT_EVT_SUBACK:
@@ -437,7 +438,7 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 						   doc_version_number,
 						   "");
 			if (err) {
-				printk("Error when updating "
+				LOG_ERR("Error when updating "
 				       "job_execution_status : %d\n", err);
 			return err;
 			}
@@ -463,9 +464,9 @@ static void http_fota_handler(enum fota_download_evt_id evt)
 				     fota_state, doc_version_number, "");
 		break;
 	case FOTA_DOWNLOAD_EVT_ERROR:
+		LOG_ERR("FOTA download failed, report back");
 		update_job_execution(c, job_id, AWS_JOBS_FAILED,
 				     fota_state, doc_version_number, "");
-		printk("Download error\n");
 		callback(AWS_FOTA_EVT_ERROR);
 		break;
 	}
@@ -480,14 +481,6 @@ int aws_fota_init(struct mqtt_client *const client,
 
 	if (client == NULL || app_version == NULL || cb == NULL) {
 		return -EINVAL;
-	} else if (CONFIG_AWS_FOTA_PAYLOAD_SIZE > client->rx_buf_size) {
-		LOG_ERR("The expected message size is larger than the "
-			"allocated rx_buffer in the MQTT client");
-		return -EMSGSIZE;
-	} else if (client->tx_buf_size < CONFIG_DEVICE_SHADOW_PAYLOAD_SIZE) {
-		LOG_ERR("The expected update_payload size is larger than the"
-			"allocated tx_buffer");
-		return -EMSGSIZE;
 	}
 
 	/* Client is only used to make the MQTT client available from the
