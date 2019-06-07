@@ -197,30 +197,27 @@ static int update_job_execution(struct mqtt_client *const client,
 				int version_number,
 				const char *client_token)
 {
-		char status_details[STATUS_DETAILS_MAX_LEN + 1];
-		int ret = snprintf(status_details,
-				   sizeof(status_details),
-				   AWS_FOTA_STATUS_DETAILS_TEMPLATE,
-				   fota_status_strings[next_state]);
-		if (ret >= STATUS_DETAILS_MAX_LEN) {
-			return -ENOMEM;
-		} else if (ret < 0) {
-			return ret;
-		}
+	char status_details[STATUS_DETAILS_MAX_LEN + 1];
+	int ret = snprintf(status_details,
+			   sizeof(status_details),
+			   AWS_FOTA_STATUS_DETAILS_TEMPLATE,
+			   fota_status_strings[next_state]);
+	__ASSERT(ret >= 0, "snprintf returned error %d\n", ret);
+	__ASSERT(ret < STATUS_DETAILS_MAX_LEN,
+		"Not enough space for status, need %d bytes\n", ret+1);
 
-		ret =  aws_jobs_update_job_execution(client,
-					      job_id,
-					      state,
-					      status_details,
-					      version_number,
-					      client_token);
+	ret =  aws_jobs_update_job_execution(client,
+					     job_id,
+					     state,
+					     status_details,
+					     version_number,
+					     client_token);
 
-		if (ret < 0) {
-			LOG_ERR("aws_jobs_update_job_execution failed: %d",
-				ret);
-		}
+	if (ret < 0) {
+		LOG_ERR("aws_jobs_update_job_execution failed: %d", ret);
+	}
 
-		return ret;
+	return ret;
 }
 
 
@@ -233,23 +230,24 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 	LOG_DBG("%s recived", __func__ );
 	int err;
 
-	/* If not processign job */
-	/* Reciving an publish on notify_next_topic could be a job */
+	/* If not processing job */
+	/* Receiving a publish on notify_next_topic could be a job */
 	if (!strncmp(notify_next_topic, topic,
 		    MIN(NOTIFY_NEXT_TOPIC_MAX_LEN, topic_len))) {
 		err = publish_get_payload(client, payload_len);
 		if (err) {
+			LOG_ERR("Error when getting the payload: %d", err);
 			return err;
 		}
 		/*
-		 * Check if the current message recived on notify-next is a
+		 * Check if the current message received on notify-next is a
 		 * job.
 		 */
 		err = aws_fota_parse_notify_next_document(json_payload,
 							  payload_len, job_id,
 							  hostname, file_path);
 		if (err < 0) {
-			LOG_ERR("Error when parsing the json %d\n", err);
+			LOG_ERR("Error when parsing the json: %d", err);
 			return err;
 		}
 		printk("recived err: %d\n", err);
@@ -259,8 +257,8 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		 */
 		err = aws_jobs_unsubscribe_notify_next(client);
 		if (err) {
-			LOG_ERR("Error when unsubscribing notify_next_topic:"
-				"%d\n", err);
+			LOG_ERR("Error when unsubscribing notify_next_topic: %d",
+				err);
 			return err;
 		}
 
@@ -269,8 +267,7 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		 */
 		err = aws_jobs_subscribe_job_id_update(client, job_id);
 		if (err) {
-			LOG_ERR("Error when subscribing job_id_update:"
-			       "%d\n", err);
+			LOG_ERR("Error when subscribing job_id_update: %d", err);
 			return err;
 		}
 
@@ -280,16 +277,16 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		err = construct_job_id_update_topic(client->client_id.utf8,
 			job_id, "/accepted", job_id_update_accepted_topic);
 		if (err) {
-			LOG_ERR("Error when constructing_job_id_update_accepted:"
-				"%d\n", err);
+			LOG_ERR("Error when constructing_job_id_update_accepted: %d",
+				err);
 			return err;
 		}
 
 		err = construct_job_id_update_topic(client->client_id.utf8,
 			job_id, "/rejected", job_id_update_rejected_topic);
 		if (err) {
-			LOG_ERR("Error when constructing_job_id_update_rejected:"
-			       "%d\n", err);
+			LOG_ERR("Error when constructing_job_id_update_rejected: %d",
+				err);
 			return err;
 		}
 
@@ -342,8 +339,11 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 			 * Maybe keep applying firmware as we haven't rebooted
 			 */
 			execution_state = AWS_JOBS_SUCCEEDED;
-			update_job_execution(client, job_id, execution_state,
+			err = update_job_execution(client, job_id, execution_state,
 					fota_state, doc_version_number, "");
+			if (err) {
+				return err;
+			}
 		} else if (execution_state == AWS_JOBS_SUCCEEDED &&
 			   fota_state == APPLY_FIRMWARE) {
 			LOG_INF("Job document updated ready to reboot");
@@ -431,16 +431,13 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 		}
 		if ((fota_state == DOWNLOAD_FIRMWARE) &&
 		   (evt->param.suback.message_id == SUBSCRIBE_JOB_ID_UPDATE)) {
-			/* Client token are not used by this library */
 			err = update_job_execution(client, job_id,
 						   AWS_JOBS_IN_PROGRESS,
 						   fota_state,
 						   doc_version_number,
 						   "");
 			if (err) {
-				LOG_ERR("Error when updating "
-				       "job_execution_status : %d\n", err);
-			return err;
+				return err;
 			}
 		}
 
@@ -457,15 +454,20 @@ static void http_fota_handler(enum fota_download_evt_id evt)
 {
 	__ASSERT_NO_MSG(c != NULL);
 
+	int err = 0;
+
 	switch (evt) {
 	case FOTA_DOWNLOAD_EVT_FINISHED:
 		fota_state = APPLY_FIRMWARE;
-		update_job_execution(c, job_id, AWS_JOBS_IN_PROGRESS,
+		err = update_job_execution(c, job_id, AWS_JOBS_IN_PROGRESS,
 				     fota_state, doc_version_number, "");
+		if (err != 0) {
+			callback(AWS_FOTA_EVT_ERROR);
+		}
 		break;
 	case FOTA_DOWNLOAD_EVT_ERROR:
 		LOG_ERR("FOTA download failed, report back");
-		update_job_execution(c, job_id, AWS_JOBS_FAILED,
+		(void) update_job_execution(c, job_id, AWS_JOBS_FAILED,
 				     fota_state, doc_version_number, "");
 		callback(AWS_FOTA_EVT_ERROR);
 		break;
@@ -480,6 +482,10 @@ int aws_fota_init(struct mqtt_client *const client,
 	int err;
 
 	if (client == NULL || app_version == NULL || cb == NULL) {
+		return -EINVAL;
+	}
+
+	if (strlen(app_version) >= CONFIG_VERSION_STRING_MAX_LEN) {
 		return -EINVAL;
 	}
 
@@ -502,9 +508,7 @@ int aws_fota_init(struct mqtt_client *const client,
 		return err;
 	}
 
-	memcpy(version,
-	       app_version,
-	       MIN(strlen(app_version), CONFIG_VERSION_STRING_MAX_LEN));
+	strncpy(version, app_version, CONFIG_VERSION_STRING_MAX_LEN);
 
 	return 0;
 }
