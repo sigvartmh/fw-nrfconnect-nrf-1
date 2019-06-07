@@ -11,6 +11,12 @@
 #ifndef AWS_FOTA_H__
 #define AWS_FOTA_H__
 
+/**
+ * @defgroup aws_fota AWS FOTA library
+ * @{
+ * @brief Library for performing FOTA with MQTT and HTTP.
+ */
+
 #ifdef __cplusplus
 extern "C" {
 #endif
