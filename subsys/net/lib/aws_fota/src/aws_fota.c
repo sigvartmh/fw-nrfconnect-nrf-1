@@ -8,7 +8,7 @@
 
 #include "aws_fota_json.h"
 
-LOG_MODULE_REGISTER(aws_jobs_fota, CONFIG_AWS_JOBS_FOTA_LOG_LEVEL);
+LOG_MODULE_REGISTER(aws_fota, CONFIG_AWS_JOBS_FOTA_LOG_LEVEL);
 
 /* Enum to keep the fota status */
 enum fota_status {
@@ -212,7 +212,8 @@ static int update_job_execution(struct mqtt_client *const client,
 					      client_token);
 
 		if (ret < 0) {
-			printk("aws_jobs_update_job_execution failed: %d", ret);
+			LOG_ERR("aws_jobs_update_job_execution failed: %d",
+				ret);
 		}
 
 		return ret;
@@ -437,14 +438,19 @@ static void http_fota_handler(enum fota_download_evt_id evt)
 	switch (evt) {
 	case FOTA_DOWNLOAD_EVT_FINISHED:
 		fota_state = APPLY_FIRMWARE;
+		/*
 		update_job_execution(c, job_id, AWS_JOBS_SUCCEEDED,
 				     fota_state, doc_version_number, "");
+		*/
 		/* TODO: Emit AWS_FOTA_DONE when update_job_execution is done*/
+		printk("FOTA finished\n");
 
 		break;
 	case FOTA_DOWNLOAD_EVT_ERROR:
+		/*
 		update_job_execution(c, job_id, AWS_JOBS_FAILED, fota_state,
 				     doc_version_number, "");
+				     */
 		printk("Download error\n");
 		/* TODO: Emit AWS_FOTA_ERR */
 		break;
@@ -452,17 +458,6 @@ static void http_fota_handler(enum fota_download_evt_id evt)
 
 }
 
-
-/**@brief Initialize the AWS Firmware Over the Air library.
- *
- * @param app_version Current version number of the application as a \0
- *	terminated ASCII string.
- * @param callback Callback for events generated.
- *
- * @retval 0 If successfully initialized.
- * @retval -EINVAL If any of the input values are invalid.
- *           Otherwise, a negative value is returned.
- */
 int aws_fota_init(struct mqtt_client *const client,
 		  const char *app_version,
 		  aws_fota_callback_t cb)
@@ -481,6 +476,9 @@ int aws_fota_init(struct mqtt_client *const client,
 		return -EMSGSIZE;
 	}
 
+	/* Client is only used to make the MQTT client available from the
+	 * http_fota_handler.
+	 */
 	c = client;
 	callback = cb;
 
