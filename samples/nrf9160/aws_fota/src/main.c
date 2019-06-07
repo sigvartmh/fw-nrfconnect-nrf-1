@@ -63,8 +63,7 @@ void bsd_irrecoverable_error_handler(uint32_t err)
 
 #endif /* defined(CONFIG_BSD_LIBRARY) */
 
-/**@brief Function to print strings without null-termination
-*/
+/**@brief Function to print strings without null-termination. */
 static void data_print(u8_t *prefix, u8_t *data, size_t len)
 {
 	char buf[len + 1];
@@ -74,8 +73,7 @@ static void data_print(u8_t *prefix, u8_t *data, size_t len)
 	printk("%s%s\n", prefix, buf);
 }
 
-/**@brief Function to publish data on the configured topic
-*/
+/**@brief Function to publish data on the configured topic. */
 static int data_publish(struct mqtt_client *c, enum mqtt_qos qos,
 			u8_t *data, size_t len)
 {
@@ -96,8 +94,7 @@ static int data_publish(struct mqtt_client *c, enum mqtt_qos qos,
 
 
 
-/**@brief Function to read the published payload.
-*/
+/**@brief Function to read the published payload. */
 static int publish_get_payload(struct mqtt_client *c, size_t length)
 {
 	u8_t *buf = payload_buf;
@@ -136,8 +133,7 @@ static int publish_get_payload(struct mqtt_client *c, size_t length)
 	return 0;
 }
 
-/**@brief MQTT client event handler
-*/
+/**@brief MQTT client event handler */
 void mqtt_evt_handler(struct mqtt_client * const c,
 		      const struct mqtt_evt *evt)
 {
@@ -408,8 +404,7 @@ static int client_id_get(char *id)
 	return 0;
 }
 
-/**@brief Initialize the MQTT client structure
-*/
+/**@brief Initialize the MQTT client structure */
 static int client_init(struct mqtt_client *client)
 {
 	mqtt_client_init(client);
@@ -417,6 +412,7 @@ static int client_init(struct mqtt_client *client)
 	broker_init();
 
 	int ret = client_id_get(client_id_buf);
+
 	if (ret != 0) {
 		return ret;
 	}
@@ -453,8 +449,7 @@ static int client_init(struct mqtt_client *client)
 
 }
 
-/**@brief Initialize the file descriptor structure used by poll.
-*/
+/**@brief Initialize the file descriptor structure used by poll. */
 static int fds_init(struct mqtt_client *c)
 {
 	if (c->transport.type == MQTT_TRANSPORT_NON_SECURE) {

@@ -140,7 +140,7 @@ int aws_fota_parse_update_job_exec_state_rsp(char *update_rsp_document,
 			update_job_exec_stat_rsp_descr,
 			ARRAY_SIZE(update_job_exec_stat_rsp_descr), &rsp);
 
-	if(rsp.status != 0) {
+	if (rsp.status != 0) {
 		memcpy(status, rsp.status,
 			MIN(strlen(rsp.status), STATUS_MAX_LEN));
 	}

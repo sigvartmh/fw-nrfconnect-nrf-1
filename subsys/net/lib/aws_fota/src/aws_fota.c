@@ -18,7 +18,7 @@ enum fota_status {
 };
 
 /* Map of fota status to report back */
-static const char *fota_status_strings[] = {
+static const char * const fota_status_strings[] = {
 	[DOWNLOAD_FIRMWARE] = "download_firmware",
 	[APPLY_FIRMWARE] = "apply_update",
 	[NONE] = "none",
@@ -245,7 +245,7 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		err = aws_fota_parse_notify_next_document(json_payload,
 							  payload_len, job_id,
 							  hostname, file_path);
-		if (err < 0 ) {
+		if (err < 0) {
 			printk("Error when parsing the json %d\n", err);
 			return err;
 		}
@@ -256,7 +256,8 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		/* err = aws_jobs_unsubscribe_expected_topics(client, true); */
 		err = aws_jobs_unsubscribe_notify_next(client);
 		if (err) {
-			printk("Error when unsubscribing notify_next_topic: %d\n", err);
+			printk("Error when unsubscribing notify_next_topic:
+					%d\n", err);
 			return err;
 		}
 
@@ -265,23 +266,27 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		 */
 		err = aws_jobs_subscribe_job_id_update(client, job_id);
 		if (err) {
-			printk("Error when subscribing job_id_update: %d\n", err);
+			printk("Error when subscribing job_id_update:
+					%d\n", err);
 			return err;
 		}
 
 		/* Construct job_id topics to be used for filtering publish
-		 * messages */
+		 * messages.
+		 */
 		err = construct_job_id_update_topic(client->client_id.utf8,
 			job_id, "/accepted", job_id_update_accepted_topic);
 		if (err) {
-			printk("Error when constructing_job_id_update_accepted: %d\n", err);
+			printk("Error when constructing_job_id_update_accepted:
+					%d\n", err);
 			return err;
 		}
 
 		err = construct_job_id_update_topic(client->client_id.utf8,
 			job_id, "/rejected", job_id_update_rejected_topic);
 		if (err) {
-			printk("Error when constructing_job_id_update_rejected: %d\n", err);
+			printk("Error when constructing_job_id_update_rejected:
+					%d\n", err);
 			return err;
 		}
 
@@ -314,7 +319,8 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		    fota_state == DOWNLOAD_FIRMWARE) {
 			err = fota_download_start(hostname, file_path);
 			if (err) {
-				printk("Error when trying to start firmware download");
+				printk("Error when trying to start firmware
+						download");
 				return err;
 			}
 		} else if (execution_state == AWS_JOBS_IN_PROGRESS &&
@@ -333,7 +339,9 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 	} else if (!strncmp(job_id_update_rejected_topic, topic,
 			    MIN(JOB_ID_UPDATE_TOPIC_MAX_LEN, topic_len))) {
 		printk("Update was rejected\n");
-		/*TODO: emit aws_fota failure our update to the job document was rejected */
+		/*TODO: emit aws_fota failure our
+		 * update to the job document was rejected
+		 */
 	}
 	return 0;
 
@@ -371,6 +379,7 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 
 	case MQTT_EVT_PUBLISH: {
 		const struct mqtt_publish_param *p = &evt->param.publish;
+
 		err = aws_fota_on_publish_evt(client,
 					      p->message.topic.topic.utf8,
 					      p->message.topic.topic.size,
@@ -417,7 +426,8 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 						   doc_version_number,
 						   "");
 			if (err) {
-				printk("Error when updating job_execution_status: %d\n", err);
+				printk("Error when updating job_execution_status
+						: %d\n", err);
 			return err;
 			}
 		}
@@ -466,13 +476,13 @@ int aws_fota_init(struct mqtt_client *const client,
 
 	if (client == NULL || app_version == NULL || cb == NULL) {
 		return -EINVAL;
-	} else if (CONFIG_AWS_IOT_JOBS_MESSAGE_SIZE > client->rx_buf_size) {
-		LOG_ERR("The expected message size is larger than the "
-			"allocated rx_buffer in the MQTT client");
+	} else if (client->rx_buf_size < CONFIG_AWS_IOT_JOBS_MESSAGE_SIZE) {
+		LOG_ERR("The expected message size is larger than the
+				allocated rx_buffer in the MQTT client");
 		return -EMSGSIZE;
-	} else if (CONFIG_DEVICE_SHADOW_PAYLOAD_SIZE > client->tx_buf_size) {
-		LOG_ERR("The expected update_payload size is larger than the"
-			"allocated tx_buffer");
+	} else if (client->tx_buf_size < CONFIG_DEVICE_SHADOW_PAYLOAD_SIZE) {
+		LOG_ERR("The expected update_payload size is larger than the
+				allocated tx_buffer");
 		return -EMSGSIZE;
 	}
 
