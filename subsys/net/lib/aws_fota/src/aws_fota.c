@@ -262,8 +262,8 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		/* err = aws_jobs_unsubscribe_expected_topics(client, true); */
 		err = aws_jobs_unsubscribe_notify_next(client);
 		if (err) {
-			printk("Error when unsubscribing notify_next_topic:
-					%d\n", err);
+			printk("Error when unsubscribing notify_next_topic:"
+				"%d\n", err);
 			return err;
 		}
 
@@ -272,8 +272,8 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		 */
 		err = aws_jobs_subscribe_job_id_update(client, job_id);
 		if (err) {
-			printk("Error when subscribing job_id_update:
-					%d\n", err);
+			printk("Error when subscribing job_id_update:"
+			       "%d\n", err);
 			return err;
 		}
 
@@ -283,16 +283,16 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		err = construct_job_id_update_topic(client->client_id.utf8,
 			job_id, "/accepted", job_id_update_accepted_topic);
 		if (err) {
-			printk("Error when constructing_job_id_update_accepted:
-					%d\n", err);
+			printk("Error when constructing_job_id_update_accepted:"
+				"%d\n", err);
 			return err;
 		}
 
 		err = construct_job_id_update_topic(client->client_id.utf8,
 			job_id, "/rejected", job_id_update_rejected_topic);
 		if (err) {
-			printk("Error when constructing_job_id_update_rejected:
-					%d\n", err);
+			printk("Error when constructing_job_id_update_rejected:"
+			       "%d\n", err);
 			return err;
 		}
 
@@ -321,10 +321,11 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		if (fota_state == DOWNLOAD_FIRMWARE) {
 			/* TODO: Get this state from the update document */
 			execution_state = AWS_JOBS_IN_PROGRESS;
+			printk("Download firmware");
 			err = fota_download_start(hostname, file_path);
 			if (err) {
-				printk("Error when trying to start firmware
-						download");
+				printk("Error when trying to start firmware"
+				       "download");
 				return err;
 			}
 		} else if (execution_state == AWS_JOBS_IN_PROGRESS &&
@@ -430,8 +431,8 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 						   doc_version_number,
 						   "");
 			if (err) {
-				printk("Error when updating job_execution_status
-						: %d\n", err);
+				printk("Error when updating job_execution_status"
+				       ": %d\n", err);
 			return err;
 			}
 		}
@@ -482,8 +483,8 @@ int aws_fota_init(struct mqtt_client *const client,
 			"allocated rx_buffer in the MQTT client");
 		return -EMSGSIZE;
 	} else if (client->tx_buf_size < CONFIG_DEVICE_SHADOW_PAYLOAD_SIZE) {
-		LOG_ERR("The expected update_payload size is larger than the
-				allocated tx_buffer");
+		LOG_ERR("The expected update_payload size is larger than the"
+			"allocated tx_buffer");
 		return -EMSGSIZE;
 	}
 
