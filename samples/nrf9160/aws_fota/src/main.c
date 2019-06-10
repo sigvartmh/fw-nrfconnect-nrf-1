@@ -10,27 +10,24 @@
 #include <string.h>
 #include <misc/reboot.h>
 
+#include <at_cmd.h>
 #include <net/mqtt.h>
 #include <net/socket.h>
 #include <net/aws_fota.h>
 #include <lte_lc.h>
 #if defined(CONFIG_BSD_LIBRARY)
-
 #include "nrf_inbuilt_key.h"
 #endif
 
-#define NRF_CLOUD_SEC_TAG 16842753
-#define AWS_HOSTNAME "a25jld2wxwm7qs-ats.iot.eu-central-1.amazonaws.com"
+#if !defined(CONFIG_USE_PROVISIONED_CERTIFICATES)
+#include "certificates.h"
+#endif
 
-#include "aws_cert/rootca_ec.h"
-#include "aws_cert/private_key.h"
-#include "aws_cert/pubcert.h"
-
-#if !defined(CONFIG_CLIENT_ID)
+#if !defined(CONFIG_CLOUD_CLIENT_ID)
 #define IMEI_LEN 15
 #define CLIENT_ID_LEN (IMEI_LEN + 4)
 #else
-#define CLIENT_ID_LEN (sizeof(CLOUD_CLIENT_ID) - 1)
+#define CLIENT_ID_LEN (sizeof(CONFIG_CLOUD_CLIENT_ID) - 1)
 #endif
 static u8_t client_id_buf[CLIENT_ID_LEN+1];
 
@@ -40,7 +37,7 @@ static u8_t tx_buffer[CONFIG_MQTT_MESSAGE_BUFFER_SIZE];
 static u8_t payload_buf[CONFIG_MQTT_PAYLOAD_BUFFER_SIZE];
 
 /* MQTT Broker details. */
-static struct sockaddr_storage broker;
+static struct sockaddr_storage broker_storage;
 
 /* File descriptor */
 static struct pollfd fds;
@@ -49,7 +46,6 @@ static struct pollfd fds;
 static bool do_reboot;
 
 #if defined(CONFIG_BSD_LIBRARY)
-
 /**@brief Recoverable BSD library error. */
 void bsd_recoverable_error_handler(uint32_t err)
 {
@@ -207,7 +203,7 @@ void mqtt_evt_handler(struct mqtt_client * const c,
 /**@brief Resolves the configured hostname and
  * initializes the MQTT broker structure
  */
-static void broker_init(void)
+static void broker_init(const char *hostname)
 {
 	int err;
 	struct addrinfo *result;
@@ -217,7 +213,7 @@ static void broker_init(void)
 		.ai_socktype = SOCK_STREAM
 	};
 
-	err = getaddrinfo(AWS_HOSTNAME, NULL, &hints, &result);
+	err = getaddrinfo(hostname, NULL, &hints, &result);
 	if (err) {
 		printk("ERROR: getaddrinfo failed %d\n", err);
 
@@ -227,26 +223,39 @@ static void broker_init(void)
 	addr = result;
 	err = -ENOENT;
 
-	/* Look for address of the broker. */
 	while (addr != NULL) {
 		/* IPv4 Address. */
-		if (addr->ai_addrlen == sizeof(struct sockaddr_in)) {
-			struct sockaddr_in *broker4 =
-				((struct sockaddr_in *)&broker);
+		if ((addr->ai_addrlen == sizeof(struct sockaddr_in))){
+			struct sockaddr_in *broker =
+				((struct sockaddr_in *)&broker_storage);
 
-			broker4->sin_addr.s_addr =
+			broker->sin_addr.s_addr =
 				((struct sockaddr_in *)addr->ai_addr)
 				->sin_addr.s_addr;
-			broker4->sin_family = AF_INET;
-			broker4->sin_port = htons(8883);
-			printk("IPv4 Address found 0x%08x\n",
-			       broker4->sin_addr.s_addr);
+			broker->sin_family = AF_INET;
+			broker->sin_port = htons(CONFIG_MQTT_BROKER_PORT);
+
+			printk("IPv4 Address 0x%08x\n", broker->sin_addr.s_addr);
+			break;
+		} else if ((addr->ai_addrlen == sizeof(struct sockaddr_in6))) {
+			/* IPv6 Address. */
+			struct sockaddr_in6 *broker =
+				((struct sockaddr_in6 *)&broker_storage);
+
+			memcpy(broker->sin6_addr.s6_addr,
+				((struct sockaddr_in6 *)addr->ai_addr)
+				->sin6_addr.s6_addr,
+				sizeof(struct in6_addr));
+			broker->sin6_family = AF_INET6;
+			broker->sin6_port = htons(CONFIG_MQTT_BROKER_PORT);
+
+			printk("IPv6 Address");
 			break;
 		} else {
-			printk("ai_addrlen = %u should be %u or %u\n",
-			       (unsigned int)addr->ai_addrlen,
-			       (unsigned int)sizeof(struct sockaddr_in),
-			       (unsigned int)sizeof(struct sockaddr_in6));
+			printk("error: ai_addrlen = %u should be %u or %u\n",
+				(unsigned int)addr->ai_addrlen,
+				(unsigned int)sizeof(struct sockaddr_in),
+				(unsigned int)sizeof(struct sockaddr_in6));
 		}
 
 		addr = addr->ai_next;
@@ -257,32 +266,86 @@ static void broker_init(void)
 	freeaddrinfo(result);
 }
 
+#if !defined(CONFIG_USE_PROVISIONED_CERTIFICATES)
+#if defined(CONFIG_BSD_LIBRARY)
+static int provision(void)
+{
+	{
+		int err;
+
+		/* Delete certificates */
+		nrf_sec_tag_t sec_tag = CONFIG_CLOUD_CERT_SEC_TAG;
+
+		for (nrf_key_mgnt_cred_type_t type = 0; type < 3; type++) {
+			err = nrf_inbuilt_key_delete(sec_tag, type);
+			printk("nrf_inbuilt_key_delete(%lu, %d) => result=%d\n",
+				sec_tag, type, err);
+		}
+
+		/* Provision CA Certificate. */
+		err = nrf_inbuilt_key_write(CONFIG_CLOUD_CERT_SEC_TAG,
+					NRF_KEY_MGMT_CRED_TYPE_CA_CHAIN,
+					CLOUD_CA_CERTIFICATE,
+					strlen(CLOUD_CA_CERTIFICATE));
+		printk("nrf_inbuilt_key_write => result=%d\n", err);
+		if (err) {
+			printk("CLOUD_CA_CERTIFICATE err: %d", err);
+			return err;
+		}
+
+		/* Provision Private Certificate. */
+		err = nrf_inbuilt_key_write(
+			CONFIG_CLOUD_CERT_SEC_TAG,
+			NRF_KEY_MGMT_CRED_TYPE_PRIVATE_CERT,
+			CLOUD_CLIENT_PRIVATE_KEY,
+			strlen(CLOUD_CLIENT_PRIVATE_KEY));
+		printk("nrf_inbuilt_key_write => result=%d\n", err);
+		if (err) {
+			printk("NRF_CLOUD_CLIENT_PRIVATE_KEY err: %d", err);
+			return err;
+		}
+
+		/* Provision Public Certificate. */
+		err = nrf_inbuilt_key_write(
+			CONFIG_CLOUD_CERT_SEC_TAG,
+			NRF_KEY_MGMT_CRED_TYPE_PUBLIC_CERT,
+				 CLOUD_CLIENT_PUBLIC_CERTIFICATE,
+				 strlen(CLOUD_CLIENT_PUBLIC_CERTIFICATE));
+		printk("nrf_inbuilt_key_write => result=%d\n", err);
+		if (err) {
+			printk("CLOUD_CLIENT_PUBLIC_CERTIFICATE err: %d",
+				err);
+			return err;
+		}
+	}
+}
+#else
 static int provision(void)
 {
 	int err;
 
-	err = tls_credential_add(NRF_CLOUD_SEC_TAG,
+	err = tls_credential_add(CONFIG_CLOUD_CERT_SEC_TAG,
 				 TLS_CREDENTIAL_CA_CERTIFICATE,
-					AmazonRootCA3_pem,
-					AmazonRootCA3_pem_len);
+				 CLOUD_CA_CERTIFICATE,
+				 sizeof(CLOUD_CA_CERTIFICATE));
 	if (err < 0) {
 		printk("Failed to register ca certificate: %d",
 		       err);
 		return err;
 	}
-	err = tls_credential_add(NRF_CLOUD_SEC_TAG,
+	err = tls_credential_add(CONFIG_CLOUD_CERT_SEC_TAG,
 				 TLS_CREDENTIAL_PRIVATE_KEY,
-				 private_pem_key,
-				 private_pem_key_len);
+				 CLOUD_CLIENT_PRIVATE_KEY,
+				 sizeof(CLOUD_CLIENT_PRIVATE_KEY));
 	if (err < 0) {
 		printk("Failed to register private key: %d",
 		       err);
 		return err;
 	}
-	err = tls_credential_add(NRF_CLOUD_SEC_TAG,
+	err = tls_credential_add(CONFIG_CLOUD_CERT_SEC_TAG,
 				 TLS_CREDENTIAL_SERVER_CERTIFICATE,
-				 public_pem,
-				 public_pem_len);
+				 CLOUD_CLIENT_PUBLIC_CERTIFICATE,
+				 sizeof(CLOUD_CLIENT_PUBLIC_CERTIFICATE));
 	if (err < 0) {
 		printk("Failed to register public certificate: %d",
 		       err);
@@ -291,63 +354,9 @@ static int provision(void)
 
 	return 0;
 }
-
-static int provision_modem_key(void)
-{
-	static sec_tag_t sec_tag_list[] = {NRF_CLOUD_SEC_TAG};
-
-#if defined(CONFIG_BSD_LIBRARY)
-	{
-		int err;
-
-		/* Delete certificates */
-		nrf_sec_tag_t sec_tag = NRF_CLOUD_SEC_TAG;
-
-		for (nrf_key_mgnt_cred_type_t type = 0; type < 3; type++) {
-			err = nrf_inbuilt_key_delete(sec_tag, type);
-			printk("nrf_inbuilt_key_delete(%lu, %d) => result=%d",
-				sec_tag, type, err);
-		}
-
-		/* Provision CA Certificate. */
-		err = nrf_inbuilt_key_write(NRF_CLOUD_SEC_TAG,
-					NRF_KEY_MGMT_CRED_TYPE_CA_CHAIN,
-					AmazonRootCA3_pem,
-					AmazonRootCA3_pem_len);
-		if (err) {
-			printk("NRF_CLOUD_CA_CERTIFICATE err: %d", err);
-			return err;
-		}
-
-		/* Provision Private Certificate. */
-		err = nrf_inbuilt_key_write(
-			NRF_CLOUD_SEC_TAG,
-			NRF_KEY_MGMT_CRED_TYPE_PRIVATE_CERT,
-			private_pem_key,
-			private_pem_key_len);
-		if (err) {
-			printk("NRF_CLOUD_CLIENT_PRIVATE_KEY err: %d", err);
-			return err;
-		}
-
-		/* Provision Public Certificate. */
-		err = nrf_inbuilt_key_write(
-			NRF_CLOUD_SEC_TAG,
-			NRF_KEY_MGMT_CRED_TYPE_PUBLIC_CERT,
-				 public_pem,
-				 public_pem_len);
-		if (err) {
-			printk("NRF_CLOUD_CLIENT_PUBLIC_CERTIFICATE err: %d",
-				err);
-			return err;
-		}
-	}
-#else
-  #error "Missing CONFIG_BSD_LIB"
 #endif
-}
+#endif
 
-/* Function to get the client id */
 static int client_id_get(char *id)
 {
 #if !defined(CONFIG_CLOUD_CLIENT_ID)
@@ -383,11 +392,10 @@ static int client_id_get(char *id)
 }
 
 /**@brief Initialize the MQTT client structure */
-static int client_init(struct mqtt_client *client)
+static int client_init(struct mqtt_client *client, char *hostname)
 {
 	mqtt_client_init(client);
-	provision();
-	broker_init();
+	broker_init(hostname);
 
 	int ret = client_id_get(client_id_buf);
 
@@ -396,7 +404,7 @@ static int client_init(struct mqtt_client *client)
 	}
 
 	/* MQTT client configuration */
-	client->broker = &broker;
+	client->broker = &broker_storage;
 	client->evt_cb = mqtt_evt_handler;
 	client->client_id.utf8 = client_id_buf;
 	client->client_id.size = strlen(client_id_buf);
@@ -413,7 +421,7 @@ static int client_init(struct mqtt_client *client)
 	/* MQTT transport configuration */
 	client->transport.type = MQTT_TRANSPORT_SECURE;
 
-	static sec_tag_t sec_tag_list[] = {NRF_CLOUD_SEC_TAG};
+	static sec_tag_t sec_tag_list[] = {CONFIG_CLOUD_CERT_SEC_TAG};
 	struct mqtt_sec_config *tls_config = &(client->transport).tls.config;
 
 	tls_config->peer_verify = 2;
@@ -421,7 +429,7 @@ static int client_init(struct mqtt_client *client)
 	tls_config->cipher_count = 0;
 	tls_config->sec_tag_count = ARRAY_SIZE(sec_tag_list);
 	tls_config->sec_tag_list = sec_tag_list;
-	tls_config->hostname = AWS_HOSTNAME;
+	tls_config->hostname = hostname;
 
 	return 0;
 }
@@ -479,9 +487,12 @@ void main(void)
 
 	printk("The MQTT fota\n");
 
+#if !defined(CONFIG_USE_PROVISIONED_CERTIFICATES)
+	provision();
+#endif /* CONFIG_USE_PROVISIONED_CERTIFICATES  */
 	modem_configure();
 
-	client_init(&client);
+	client_init(&client, CONFIG_MQTT_BROKER_HOSTNAME);
 
 	err = aws_fota_init(&client, "v1.0.1", aws_fota_cb_handler);
 	if (err != 0) {
