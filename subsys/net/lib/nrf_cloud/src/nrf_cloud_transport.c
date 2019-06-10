@@ -461,6 +461,14 @@ static void nct_mqtt_evt_handler(struct mqtt_client *const mqtt_client,
 	struct nct_dc_data dc;
 	bool event_notify = false;
 
+#if defined(CONFIG_NRF_CLOUD_FOTA)
+	int ret = aws_fota_mqtt_evt_handler(mqtt_client,
+					    mqtt_evt);
+
+	if (ret) {
+		break;
+	}
+#endif
 	switch (_mqtt_evt->type) {
 	case MQTT_EVT_CONNACK: {
 		LOG_DBG("MQTT_EVT_CONNACK");
@@ -564,6 +572,10 @@ static void nct_mqtt_evt_handler(struct mqtt_client *const mqtt_client,
 	}
 }
 
+void nct_fota_evt_handler(void)
+{
+}
+
 int nct_init(void)
 {
 	int err;
@@ -579,6 +591,13 @@ int nct_init(void)
 	if (err) {
 		return err;
 	}
+
+#if defined(CONFIG_NRF_CLOUD_FOTA)
+	err = aws_fota_init(&nct.client, APP_VERSION, fota_cb_handler);
+	if (err) {
+		return err;
+	}
+#endif
 
 	return mqtt_init();
 }
