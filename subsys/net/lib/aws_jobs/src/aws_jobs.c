@@ -428,6 +428,7 @@ int aws_jobs_unsubscribe_expected_topics(struct mqtt_client *const client,
  */
 static int construct_job_id_get_topic(const u8_t *client_id,
 				      const u8_t *job_id,
+				      const u8_t *suffix,
 				      u8_t *topic_buf,
 				      struct mqtt_topic *topic)
 {
@@ -437,7 +438,7 @@ static int construct_job_id_get_topic(const u8_t *client_id,
 			  JOB_ID_GET_TOPIC_TEMPLATE,
 			  client_id,
 			  job_id,
-			  "#");
+			  suffix);
 	job_id_get_topic_len = ret;
 	ret = report_snprintf_err(ret,
 				  JOB_ID_GET_TOPIC_MAX_LEN,
@@ -464,6 +465,7 @@ int aws_jobs_subscribe_job_id_get_topic(struct mqtt_client *const client,
 	struct mqtt_topic subscribe_topic;
 	int err = construct_job_id_get_topic(client->client_id.utf8,
 					     job_id,
+					     "/#",
 					     job_id_get_topic,
 					     &subscribe_topic);
 	if (err) {
@@ -492,6 +494,7 @@ int aws_jobs_unsubscribe_job_id_get_topic(struct mqtt_client *const client,
 	struct mqtt_topic subscribe_topic;
 	int err = construct_job_id_get_topic(client->client_id.utf8,
 					     job_id,
+					     "/#",
 					     job_id_get_topic,
 					     &subscribe_topic);
 
@@ -556,7 +559,6 @@ int aws_jobs_subscribe_job_id_update(struct mqtt_client *const client,
 	if (client == NULL || job_id == NULL) {
 		return -EINVAL;
 	}
-
 	u8_t job_id_update_topic[JOB_ID_UPDATE_TOPIC_MAX_LEN + 1];
 	struct mqtt_topic subscribe_topic;
 	/* Subscribe to both update and rejected topic */
@@ -613,6 +615,7 @@ int aws_jobs_unsubscribe_job_id_update(struct mqtt_client *const client,
 			    \"statusDetails\": %s,\
 			    \"expectedVersion\": \"%d\",\
 			    \"clientToken\": \"%s\"}"
+
 int aws_jobs_update_job_execution(struct mqtt_client *const client,
 			     const u8_t *job_id,
 			     enum execution_status status,
@@ -666,6 +669,34 @@ int aws_jobs_update_job_execution(struct mqtt_client *const client,
 		.message.topic = job_id_update_topic,
 		.message.payload.data = update_job_payload,
 		.message.payload.len = update_job_payload_len,
+		.message_id = sys_rand32_get(),
+		.dup_flag = 0,
+		.retain_flag = 0,
+	};
+
+	return mqtt_publish(client, &param);
+}
+
+#define JOB_ID_GET_PAYLOAD "{\"clientToken\": \"\"}"
+int aws_jobs_get_job_execution(struct mqtt_client *const client,
+				const char *job_id)
+{
+	char job_id_get_topic_buf[JOB_ID_GET_TOPIC_MAX_LEN + 1];
+	struct mqtt_topic job_id_get_topic;
+
+	int err = construct_job_id_get_topic(client->client_id.utf8, job_id, "",
+				   job_id_get_topic_buf, &job_id_get_topic);
+	if (err) {
+		return err;
+	}
+
+	LOG_DBG("Topic: %s", log_strdup(job_id_get_topic.topic.utf8));
+	LOG_DBG("Payload: %s", log_strdup(JOB_ID_GET_PAYLOAD));
+
+	struct mqtt_publish_param param = {
+		.message.topic = job_id_get_topic,
+		.message.payload.data = JOB_ID_GET_PAYLOAD,
+		.message.payload.len = strlen(JOB_ID_GET_PAYLOAD),
 		.message_id = sys_rand32_get(),
 		.dup_flag = 0,
 		.retain_flag = 0,

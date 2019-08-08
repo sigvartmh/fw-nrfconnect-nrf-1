@@ -47,6 +47,10 @@ static char version[CONFIG_VERSION_STRING_MAX_LEN + 1];
 static u8_t notify_next_topic[NOTIFY_NEXT_TOPIC_MAX_LEN + 1];
 static u8_t job_id_update_accepted_topic[JOB_ID_UPDATE_TOPIC_MAX_LEN + 1];
 static u8_t job_id_update_rejected_topic[JOB_ID_UPDATE_TOPIC_MAX_LEN + 1];
+
+/* Allocated string for fetching job execution from queue topic */
+static u8_t get_next_job_execution_topic[JOB_ID_GET_TOPIC_MAX_LEN  + 1];
+
 /* Allocated buffers for keeping hostname, json payload and file_path */
 static u8_t payload_buf[CONFIG_AWS_FOTA_PAYLOAD_SIZE + 1];
 static u8_t hostname[CONFIG_AWS_FOTA_HOSTNAME_MAX_LEN + 1];
@@ -77,6 +81,33 @@ static int publish_get_payload(struct mqtt_client *client,
 		}
 		buf += ret;
 	}
+	return 0;
+}
+
+static int construct_job_id_get_topic(const u8_t *client_id,
+				      const u8_t *job_id,
+				      const u8_t *suffix,
+				      u8_t *topic_buf)
+{
+	__ASSERT_NO_MSG(client_id != NULL);
+	__ASSERT_NO_MSG(topic_buf != NULL);
+	u32_t job_id_get_topic_len;
+	int ret = snprintf(topic_buf,
+			  JOB_ID_GET_TOPIC_MAX_LEN,
+			  JOB_ID_GET_TOPIC_TEMPLATE,
+			  client_id,
+			  job_id,
+			  suffix);
+	job_id_get_topic_len = ret;
+	if (ret >= NOTIFY_NEXT_TOPIC_MAX_LEN) {
+		LOG_ERR("Unable to fit formated string into to allocate "
+			"memory for notify_next_topic");
+		return -ENOMEM;
+	} else if (ret < 0) {
+		LOG_ERR("Formatting error for notify_next_topic %d", ret);
+		return ret;
+	}
+
 	return 0;
 }
 
@@ -221,8 +252,10 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 
 	/* If not processing job */
 	/* Receiving a publish on notify_next_topic could be a job */
-	if (topic_len <= NOTIFY_NEXT_TOPIC_MAX_LEN &&
-	    !strncmp(notify_next_topic, topic, topic_len)) {
+	if (((topic_len <= NOTIFY_NEXT_TOPIC_MAX_LEN) &&
+	   !strncmp(notify_next_topic, topic, topic_len)) ||
+	   ((topic_len <= JOB_ID_GET_TOPIC_MAX_LEN) &&
+	   !strncmp(get_next_job_execution_topic, topic, topic_len))) {
 
 		err = publish_get_payload(client, payload_buf, payload_len);
 		if (err) {
@@ -361,8 +394,13 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 
 		err = aws_jobs_subscribe_notify_next(client);
 		if (err) {
-			LOG_ERR("Unable to subscribe to notify next topic");
+			LOG_ERR("Unable to subscribe to notify-next topic");
 			return err;
+		}
+
+		err = aws_jobs_subscribe_job_id_get_topic(client, "$next");
+		if (err) {
+			LOG_ERR("Unable to subscribe to jobs/$next/get");
 		}
 
 		err = update_device_shadow_version(client);
@@ -370,6 +408,7 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 			LOG_ERR("Unable to update device shadow");
 			return err;
 		}
+
 
 		return 0;
 		/* This expects that the application's mqtt handler will handle
@@ -416,6 +455,15 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 	case MQTT_EVT_SUBACK:
 		if (evt->result != 0) {
 			return 0;
+		}
+
+		if (evt->param.suback.message_id == SUBSCRIBE_NOTIFY_NEXT) {
+			printk("sub notify_next_topic\n");
+			err = aws_jobs_get_job_execution(client, "$next");
+			if (err) {
+				return err;
+			}
+			return 1;
 		}
 
 		if ((fota_state == DOWNLOAD_FIRMWARE) &&
@@ -488,6 +536,15 @@ int aws_fota_init(struct mqtt_client *const client,
 					  notify_next_topic);
 	if (err != 0) {
 		LOG_ERR("construct_notify_next_topic error %d", err);
+		return err;
+	}
+
+	err = construct_job_id_get_topic(client->client_id.utf8,
+					 "$next",
+					 "/accepted",
+					 get_next_job_execution_topic);
+	if (err != 0) {
+		LOG_ERR("construct_job_id_get_topic error %d", err);
 		return err;
 	}
 
