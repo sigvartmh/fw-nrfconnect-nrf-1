@@ -7,6 +7,7 @@
 add_subdirectory(c_runtime_setup)
 add_subdirectory(provision)
 add_subdirectory(fprotect)
+add_subdirectory(mcuboot_image_header_parser)
 add_subdirectory_ifdef(CONFIG_SECURE_BOOT_CRYPTO bl_crypto)
 add_subdirectory_ifdef(CONFIG_SECURE_BOOT_DEBUG debug)
 
