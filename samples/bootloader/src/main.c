@@ -16,8 +16,8 @@
 #include "fw_metadata.h"
 
 #include <fprotect.h>
-
 #include <provision.h>
+#include <mcuboot_image_header_parser.h>
 
 void *memcpy32(void *restrict d, const void *restrict s, size_t n)
 {
@@ -189,6 +189,21 @@ void main(void)
 	}
 #endif /* CONFIG_SOC_NRF9160 */
 
-	boot_from((u32_t *)s0_address_read());
+	u32_t s0_version_number = mcuboot_read_version_number((u32_t *)PM_S0_PAD_ADDRESS);
+	u32_t s1_version_number = mcuboot_read_version_number((u32_t *)PM_S1_PAD_ADDRESS);
+	if (s0_version_number == __UINT32_MAX__
+	&&  s1_version_number == __UINT32_MAX__) {
+		printk("No valid image header found aborting boot.\n\r");
+		return;
+	}
+
+	if (s0_version_number > s1_version_number
+	    && s0_version_number != __UINT32_MAX__) {
+	   //boot_from((u32_t *) PM_S0_MCUBOOT_ADDRESS);
+	   boot_from((u32_t *)s0_address_read());
+	} else if (s1_version_number > s0_version_number) {
+	   boot_from((u32_t *) PM_S1_MCUBOOT_ADDRESS);
+	}
+
 	CODE_UNREACHABLE;
 }
