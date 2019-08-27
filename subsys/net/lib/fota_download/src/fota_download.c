@@ -20,9 +20,18 @@ static		fota_download_callback_t callback;
 static struct	flash_img_context flash_img;
 static struct	download_client dfu;
 
+enum image_type {
+	S0 = 0,
+	S1 = 1,
+	APP = 2
+}
+
+static enum image_type img_type;
+
 static int download_client_callback(const struct download_client_evt *event)
 {
 	int err;
+	bool first_fragment;
 
 	if (event == NULL) {
 		return -EINVAL;
@@ -43,6 +52,31 @@ static int download_client_callback(const struct download_client_evt *event)
 			callback(FOTA_DOWNLOAD_EVT_ERROR);
 			return -EFBIG;
 		}
+
+#if IS_ENABLED(CONFIG_BOOTLOADER_MCUBOOT) && IS_ENABLED(CONFIG_SECURE_BOOT)
+		if ((u8_t *)event->fragment.len > IMAGE_HEADER_SIZE
+		    && first_fragment) {
+			struct mcuboot_img_header img_hdr;
+			memcpy((u8_t *)event->fragment.buf, &img_hdr, sizeof(struct mcuboot_img_header));
+			u32_t img_addr = img_hdr.load_addr;
+			switch (img_addr)
+			{
+				case PM_S0_ADDRESS:
+					img_type = S0;
+					break;
+				case PM_S0_ADDRESS:
+					img_type = S1;
+					break;
+				case PM_APP_ADDRESS:
+					img_type = APP;
+					break;
+				default:
+					LOG_ERR("File does not contain an MCUBoot header.\n");
+					callback(FOTA_DOWNLOAD_EVT_ERROR);
+					return -ENOTSUP;
+			}
+		}
+#endif
 
 		err = flash_img_buffered_write(&flash_img,
 				(u8_t *)event->fragment.buf,
@@ -78,6 +112,9 @@ static int download_client_callback(const struct download_client_evt *event)
 			callback(FOTA_DOWNLOAD_EVT_ERROR);
 			return err;
 		}
+#if IS_ENABLED(CONFIG_BOOTLOADER_MCUBOOT) && IS_ENABLED(CONFIG_SECURE_BOOT)
+		//swap_info_set_image_destination(img_type);
+#endif
 		callback(FOTA_DOWNLOAD_EVT_FINISHED);
 		break;
 
