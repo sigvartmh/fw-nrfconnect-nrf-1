@@ -213,6 +213,27 @@ int download_client_file_size_get(struct download_client *client, size_t *size);
  */
 int download_client_disconnect(struct download_client *client);
 
+/**
+ * @brief Download part of a file.
+ *
+ * The download is carried out in fragments of @c
+ * CONFIG_DOWNLOAD_CLIENT_MAX_FRAGMENT_SIZE bytes,
+ * which are delivered to the application
+ * via @ref DOWNLOAD_CLIENT_EVT_FRAGMENT events.
+ *
+ * @param[in] client	Client instance.
+ * @param[in] file	File to download, null-terminated.
+ * @param[in] start	Offset from where to resume the download,
+ *			or zero to download from the beginning.
+ * @param[in] end	Offset from where to stop the download,
+ *
+ * @retval int Zero on success, a negative error code otherwise.
+ */
+int download_client_get_range(struct download_client *client,
+			      const char *file,
+			      size_t start,
+			      size_t end)
+
 #ifdef __cplusplus
 }
 #endif

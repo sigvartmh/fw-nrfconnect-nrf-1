@@ -33,6 +33,34 @@ BUILD_ASSERT_MSG(IS_ENABLED(CONFIG_DOWNLOAD_CLIENT_LOG_HEADERS) ?
 		 "Please increase log buffer sizer");
 #endif
 
+int download_client_get_range(struct download_client *client,
+			      const char *file,
+			      size_t start,
+			      size_t end)
+{
+	int err;
+
+	if (client == NULL || client->fd < 0) {
+		return -EINVAL;
+	}
+
+	client->file = file;
+	client->file_size = end;
+	client->progress = start;
+	client->offset = end;
+	client->has_header = false;
+
+	err = get_request_send(client);
+	if (err) {
+		return err;
+	}
+
+	/* Let the thread run */
+	k_thread_resume(client->tid);
+
+	return 0;
+}
+
 static int socket_timeout_set(int fd)
 {
 	int err;

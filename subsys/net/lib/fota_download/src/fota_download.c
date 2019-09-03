@@ -13,6 +13,7 @@
 #include <pm_config.h>
 #include <logging/log.h>
 #include <net/fota_download.h>
+#include <dfu/mcuboot.h>
 
 LOG_MODULE_REGISTER(fota_download, CONFIG_FOTA_DOWNLOAD_LOG_LEVEL);
 
@@ -91,6 +92,88 @@ static int download_client_callback(const struct download_client_evt *event)
 		break;
 	}
 
+	return 0;
+}
+#define IMAGE_MAGIC                 0x96f3b83d
+
+static int partial_download_client_callback(const struct download_client_evt *event,
+					    mcuboot_img_header *img_hdr)
+{
+	int err;
+
+	if (event == NULL) {
+		return -EINVAL;
+	}
+	switch (event->id) {
+	case DOWNLOAD_CLIENT_EVT_FRAGMENT: {
+
+		if (err != 0) {
+			LOG_ERR("download_client_file_size_get error %d", err);
+			return err;
+		}
+
+		if (event->fragment.len >= 64) {
+			img_hdr = (mcuboot_img_header *)event->fragment.buf;
+			if(img_hdr.magic != IMAGE_MAGIC) return -ENODATA;
+		}
+
+		if (err != 0) {
+			return err;
+		}
+		break;
+	}
+
+	case DOWNLOAD_CLIENT_EVT_DONE:
+
+		err = download_client_disconnect(&dfu);
+		if (err != 0) {
+			LOG_ERR("download_client_disconncet error %d", err);
+			//callback(FOTA_DOWNLOAD_EVT_ERROR);
+			return err;
+		}
+		//callback(FOTA_DOWNLOAD_EVT_FINISHED);
+		break;
+
+	case DOWNLOAD_CLIENT_EVT_ERROR: {
+		download_client_disconnect(&dfu);
+		LOG_ERR("Download client error");
+		//callback(FOTA_DOWNLOAD_EVT_ERROR);
+		return event->error;
+	}
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+int fota_download_partial_file(char *host, char *file, size_t start, size_t end)
+{
+	struct download_client_cfg config = {
+		.sec_tag = -1, /* HTTP */
+	};
+
+	if (host == NULL || file == NULL || callback == NULL) {
+		return -EINVAL;
+	}
+
+	/* Verify that a download is not already ongoing */
+	if (dfu.fd != -1) {
+		return -EALREADY;
+	}
+
+	err = download_client_connect(&dfu, host, &config, start, end);
+
+	if (err != 0) {
+		LOG_ERR("download_client_connect error %d", err);
+		return err;
+	}
+	err = download_client_get_range(&dfu, file, 0);
+	if (err != 0) {
+		LOG_ERR("download_client_start error %d", err);
+		download_client_disconnect(&dfu);
+		return err;
+	}
 	return 0;
 }
 
