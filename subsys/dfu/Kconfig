@@ -1,0 +1,40 @@
+#
+# Copyright (c) 2019 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: LicenseRef-BSD-5-Clause-Nordic
+#
+
+menuconfig DFU_CTX
+	bool "Device Firmware Update Handler"
+
+if (DFU_CTX)
+
+config DFU_CTX_MCUBOOT_SUPPORT
+	bool "MCUBoot Update support"
+	default y
+	select FLASH
+	select FLASH_PAGE_LAYOUT
+	select IMG_MANAGER
+	select MPU_ALLOW_FLASH_WRITE
+	select IMG_ERASE_PROGRESSIVELY
+
+config DFU_CTX_MODEM_UPDATE_SUPPORT
+	bool "Modem Update support"
+	default y
+
+if (DFU_CTX_MODEM_UPDATE_SUPPORT)
+config MODEM_DFU_OFFLOAD_WORKQUEUE_PRIORITY
+	int "Offload work queue priority"
+	default 7
+
+config MODEM_DFU_OFFLOAD_WORKQUEUE_STACK_SIZE
+	int "Offload work queue stack size"
+	default 1024
+endif # MODEM_DFU_SUPPORT
+
+module=DFU_CTX
+module-dep=LOG
+module-str=Device Firmware Upgrade
+source "${ZEPHYR_BASE}/subsys/logging/Kconfig.template.log_config"
+
+endif # DFU_CTX
