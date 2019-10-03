@@ -3,8 +3,8 @@
  *
  * SPDX-License-Identifier: LicenseRef-BSD-5-Clause-Nordic
  */
-#ifndef	_DFU_CTX_MODEM_H_
-#define _DFU_CTX_MODEM_H_
+#ifndef	_DFU_CTX_MCUBOOT_H_
+#define _DFU_CTX_MCUBOOT_H_
 
 #include <zephyr/types.h>
 
@@ -14,7 +14,7 @@
  *
  * @retval 0 If successful, negative errno otherwise.
  */
-int dfu_ctx_modem_init(void);
+int dfu_ctx_app_init(void);
 
 /**
  * @brief Write firmware data.
@@ -24,13 +24,13 @@ int dfu_ctx_modem_init(void);
  *
  * @return 0 on success, negative errno otherwise.
  */
-int dfu_ctx_modem_write(const void *const buf, size_t len);
+int dfu_ctx_app_write(const void *const buf, size_t len);
 
 /**
  * @brief Finalize firmware transfer.
  *
  * @return 0 on success, negative errno otherwise.
  */
-int dfu_ctx_modem_done(void);
+int dfu_ctx_app_done(void);
 
-#endif /* _DFU_CTX_MODEM_H_ */
+#endif /* _DFU_CTX_MCUBOOT_H_ */
