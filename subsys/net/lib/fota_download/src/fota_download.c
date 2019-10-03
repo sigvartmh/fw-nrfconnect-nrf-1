@@ -14,8 +14,7 @@
 LOG_MODULE_REGISTER(fota_download, CONFIG_FOTA_DOWNLOAD_LOG_LEVEL);
 
 static fota_download_callback_t callback;
-static struct download_client	dlc;
-
+static struct download_client   dlc;
 
 static int download_client_callback(const struct download_client_evt *event)
 {
@@ -44,20 +43,21 @@ static int download_client_callback(const struct download_client_evt *event)
 		}
 
 		if (first_fragment) {
-			first_fragment = false;
-			int img_type = dfu_ctx_find_img_type(
-						event->fragment.buf,
-						event->fragment.len);
+			int img_type = dfu_ctx_img_type(event->fragment.buf,
+						        event->fragment.len);
+
 			err = dfu_ctx_init(img_type);
 			if (err != 0) {
 				LOG_ERR("dfu_ctx_init error %d", err);
 				return err;
 			}
+
+			first_fragment = false;
 		}
 
 		err = dfu_ctx_write(event->fragment.buf, event->fragment.len);
 		if (err != 0) {
-			LOG_ERR("write error %d", err);
+			LOG_ERR("dfu_ctx_write error %d", err);
 			err = download_client_disconnect(&dlc);
 			callback(FOTA_DOWNLOAD_EVT_ERROR);
 			return err;
@@ -66,10 +66,9 @@ static int download_client_callback(const struct download_client_evt *event)
 	}
 
 	case DOWNLOAD_CLIENT_EVT_DONE:
-
 		err = dfu_ctx_done();
 		if (err != 0) {
-			LOG_ERR("some error %d", err);
+			LOG_ERR("dfu_ctx_done error: %d", err);
 			callback(FOTA_DOWNLOAD_EVT_ERROR);
 			return err;
 		}
