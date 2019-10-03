@@ -16,10 +16,10 @@ LOG_MODULE_REGISTER(fota_download, CONFIG_FOTA_DOWNLOAD_LOG_LEVEL);
 static fota_download_callback_t callback;
 static struct download_client	dlc;
 
-static bool first_fragment = true;
 
 static int download_client_callback(const struct download_client_evt *event)
 {
+	static bool first_fragment = true;
 	int err;
 
 	if (event == NULL) {
