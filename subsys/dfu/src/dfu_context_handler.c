@@ -7,7 +7,7 @@
 #include <zephyr.h>
 #include <logging/log.h>
 #include <dfu/mcuboot.h>
-#include <dfu_ctx_mcuboot.h>
+#include <dfu_ctx_app.h>
 #ifdef CONFIG_DFU_CTX_MODEM_UPDATE_SUPPORT
 #include <dfu_ctx_modem.h>
 #endif
@@ -19,10 +19,10 @@
 
 LOG_MODULE_REGISTER(dfu_context_handler, CONFIG_DFU_CTX_LOG_LEVEL);
 
-static struct dfu_ctx dfu_ctx_mcuboot = {
-	.init  = dfu_ctx_mcuboot_init,
-	.write = dfu_ctx_mcuboot_write,
-	.done  = dfu_ctx_mcuboot_done,
+static struct dfu_ctx dfu_ctx_app = {
+	.init  = dfu_ctx_app_init,
+	.write = dfu_ctx_app_write,
+	.done  = dfu_ctx_app_done,
 };
 
 static struct dfu_ctx dfu_ctx_modem = {
@@ -50,7 +50,7 @@ static inline void log_img_hdr(struct mcuboot_img_header_v2 *img_hdr)
 int dfu_ctx_init(int img_type)
 {
 	if (img_type == MCUBOOT_IMAGE) {
-		ctx = &dfu_ctx_mcuboot;
+		ctx = &dfu_ctx_app;
 	}
 #ifdef CONFIG_DFU_CTX_MODEM_UPDATE_SUPPORT
 	if (img_type == MODEM_DELTA_IMAGE) {

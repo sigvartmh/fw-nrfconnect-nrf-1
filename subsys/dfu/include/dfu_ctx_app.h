@@ -14,7 +14,7 @@
  *
  * @retval 0 If successful, negative errno otherwise.
  */
-int dfu_ctx_mcuboot_init(void);
+int dfu_ctx_app_init(void);
 
 /**
  * @brief Write firmware data.
@@ -24,13 +24,13 @@ int dfu_ctx_mcuboot_init(void);
  *
  * @return 0 on success, negative errno otherwise.
  */
-int dfu_ctx_mcuboot_write(const void *const buf, size_t len);
+int dfu_ctx_app_write(const void *const buf, size_t len);
 
 /**
  * @brief Finalize firmware transfer.
  *
  * @return 0 on success, negative errno otherwise.
  */
-int dfu_ctx_mcuboot_done(void);
+int dfu_ctx_app_done(void);
 
 #endif /* _DFU_CTX_MCUBOOT_H_ */

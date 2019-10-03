@@ -14,5 +14,5 @@ zephyr_library_sources_ifdef(CONFIG_DFU_CTX_MODEM_UPDATE_SUPPORT
   src/dfu_ctx_modem.c
   )
 zephyr_library_sources_ifdef(CONFIG_DFU_CTX_MCUBOOT_SUPPORT
-  src/dfu_ctx_mcuboot.c
+  src/dfu_ctx_app.c
   )
