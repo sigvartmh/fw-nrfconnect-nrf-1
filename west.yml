@@ -23,6 +23,8 @@ manifest:
       # nRF Connect SDK base URL.
     - name: ncs
       url-base: https://github.com/NordicPlayground
+    - name: sigvartmh 
+      url-base: https://github.com/sigvartmh
     - name: zephyrproject
       url-base: https://github.com/zephyrproject-rtos
     - name: throwtheswitch
@@ -38,7 +40,8 @@ manifest:
     - name: zephyr
       repo-path: fw-nrfconnect-zephyr
       west-commands: scripts/west-commands.yml
-      revision: d6e67554cfeb28df5525e53c073f61a00836f283
+      revision: fix/mcuboot-header 
+      remote: sigvartmh
     - name: nffs
       revision: bc62a2fa9d98ddb5d633c932ea199bc68e10f194
       path: modules/fs/nffs
