@@ -15,6 +15,15 @@
 
 #define MCUBOOT_IMAGE 1
 #define MODEM_DELTA_IMAGE 2
+#define MODEM_MAGIC1 0xcb01
+#define MODEM_MAGIC2 0x7544656d
+
+struct modem_delta_header
+{
+	u16_t magic1;
+	u16_t reserved;
+	u32_t magic2;
+};
 
 LOG_MODULE_REGISTER(dfu_context_handler, CONFIG_DFU_CTX_LOG_LEVEL);
 typedef int init_function(void);
@@ -28,7 +37,6 @@ struct dfu_ctx {
 	/** Implement done function */
 	done_function *done;
 };
-
 
 static struct dfu_ctx dfu_ctx_mcuboot = {
 	.init  = dfu_ctx_mcuboot_init,
@@ -116,7 +124,8 @@ int dfu_ctx_img_type(const void *const buf, size_t len)
 		return MCUBOOT_IMAGE;
 	}
 #if defined(CONFIG_DFU_CTX_MODEM_UPDATE_SUPPORT)
-	else {
+	struct modem_delta_header *md_hdr = (struct modem_delta_header *) buf;
+	if (md_hdr->magic2 == MODEM_MAGIC2){
 		return MODEM_DELTA_IMAGE;
 	}
 #endif /* CONFIG_DFU_CTX_MODEM_UPDATE_SUPPORT */
