@@ -9,10 +9,6 @@ LOG_MODULE_REGISTER(dfu_ctx_modem_ctx, CONFIG_DFU_CTX_LOG_LEVEL);
 static int			fd;
 static struct k_sem		modem_fw_delete_sem;
 static struct k_delayed_work	modem_fw_delete_dwork;
-static struct k_work_q		modem_fw_delete_offload_work_q;
-static K_THREAD_STACK_DEFINE(modem_fw_delete_offload_work_q_stack,
-			     CONFIG_MODEM_DFU_OFFLOAD_WORKQUEUE_STACK_SIZE);
-
 
 static nrf_dfu_err_t get_modem_error(void)
 {
@@ -57,8 +53,7 @@ static int delete_old_modem_fw(void)
 		return 0;
 	}
 
-	k_delayed_work_submit_to_queue(&modem_fw_delete_offload_work_q,
-				       &modem_fw_delete_dwork, K_SECONDS(1));
+	k_delayed_work_submit(&modem_fw_delete_dwork, K_SECONDS(1));
 
 	return 0;
 }
@@ -80,9 +75,8 @@ static void delete_old_modem_fw_task(struct k_work *w)
 		if (errno == ENOEXEC) {
 			err = get_modem_error();
 			if (err  == DFU_ERASE_PENDING) {
-				k_delayed_work_submit_to_queue(
-					&modem_fw_delete_offload_work_q,
-					&modem_fw_delete_dwork, K_MSEC(500));
+				k_delayed_work_submit(&modem_fw_delete_dwork,
+						K_MSEC(500));
 			} else {
 				LOG_ERR("Unexpected modem error");
 			}
@@ -156,11 +150,6 @@ int dfu_ctx_modem_init(void)
 		return err;
 	}
 
-	k_work_q_start(&modem_fw_delete_offload_work_q,
-		       modem_fw_delete_offload_work_q_stack,
-		       K_THREAD_STACK_SIZEOF(
-			       modem_fw_delete_offload_work_q_stack),
-		       CONFIG_MODEM_DFU_OFFLOAD_WORKQUEUE_PRIORITY);
 	k_sem_init(&modem_fw_delete_sem, 0, 1);
 	k_delayed_work_init(&modem_fw_delete_dwork, delete_old_modem_fw_task);
 

@@ -22,16 +22,6 @@ config DFU_CTX_MODEM_UPDATE_SUPPORT
 	bool "Modem Update support"
 	default y
 
-if (DFU_CTX_MODEM_UPDATE_SUPPORT)
-config MODEM_DFU_OFFLOAD_WORKQUEUE_PRIORITY
-	int "Offload work queue priority"
-	default 7
-
-config MODEM_DFU_OFFLOAD_WORKQUEUE_STACK_SIZE
-	int "Offload work queue stack size"
-	default 1024
-endif # MODEM_DFU_SUPPORT
-
 module=DFU_CTX
 module-dep=LOG
 module-str=Device Firmware Upgrade
