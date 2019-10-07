@@ -33,4 +33,10 @@ int dfu_ctx_mcuboot_write(const void *const buf, size_t len);
  */
 int dfu_ctx_mcuboot_done(void);
 
+/**
+ * @brief Get offset of firmware
+ *
+ * @return Offset of firmware
+ */
+int dfu_ctx_mcuboot_offset(void);
 #endif /* _DFU_CTX_MCUBOOT_H_ */

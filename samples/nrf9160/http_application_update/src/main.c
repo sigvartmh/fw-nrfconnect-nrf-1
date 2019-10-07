@@ -42,6 +42,9 @@ static void app_dfu_transfer_start(struct k_work *unused)
 	retval = fota_download_start(CONFIG_DOWNLOAD_HOST,
 				     CONFIG_DOWNLOAD_FILE);
 	if (retval != 0) {
+		/* Re-enable button callback */
+		gpio_pin_enable_callback(gpiob, DT_ALIAS_SW0_GPIOS_PIN);
+
 		printk("fota_download_start() failed, err %d\n",
 			retval);
 	}
@@ -109,12 +112,12 @@ static int dfu_button_init(void)
 void fota_dl_handler(enum fota_download_evt_id evt_id)
 {
 	switch (evt_id) {
+	case FOTA_DOWNLOAD_EVT_ERROR:
+		printk("Received error from fota_download\n");
+		/* Fallthrough */
 	case FOTA_DOWNLOAD_EVT_FINISHED:
 		/* Re-enable button callback */
 		gpio_pin_enable_callback(gpiob, DT_ALIAS_SW0_GPIOS_PIN);
-		break;
-	case FOTA_DOWNLOAD_EVT_ERROR:
-		printk("Received error from fota_download\n");
 		break;
 
 	default:
