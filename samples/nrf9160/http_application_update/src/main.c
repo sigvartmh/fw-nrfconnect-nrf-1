@@ -6,12 +6,15 @@
 #include <stdint.h>
 #include <zephyr.h>
 #include <flash.h>
+#include <bsd.h>
 #include <nrf_socket.h>
 #include <logging/log.h>
 #include <gpio.h>
 #include <net/fota_download.h>
+#include <net/bsdlib.h>
 #include <dfu/mcuboot.h>
 #include <lte_lc.h>
+#include <at_cmd.h>
 
 #define LED_PORT	DT_ALIAS_LED0_GPIOS_CONTROLLER
 
@@ -139,6 +142,8 @@ static void modem_configure(void)
 	} else {
 		int err;
 
+		err = at_cmd_init();
+		__ASSERT(err == 0, "AT CMD  could not be established.");
 		printk("LTE Link Connecting ...\n");
 		err = lte_lc_init_and_connect();
 		__ASSERT(err == 0, "LTE link could not be established.");
@@ -174,6 +179,28 @@ static int application_init(void)
 void main(void)
 {
 	int err;
+	printk("Initializing bsdlib, please wait..\n");
+	err = bsdlib_init();
+	switch (err) {
+	case MODEM_DFU_RESULT_OK:
+		printk("Modem firmware update successful!\n");
+		printk("Modem will run the new firmware after reboot\n");
+		k_thread_suspend(k_current_get());
+		break;
+	case MODEM_DFU_RESULT_UUID_ERROR:
+	case MODEM_DFU_RESULT_AUTH_ERROR:
+		printk("Modem firmware update failed\n");
+		printk("Modem will run non-updated firmware on reboot.\n");
+		break;
+	case MODEM_DFU_RESULT_HARDWARE_ERROR:
+	case MODEM_DFU_RESULT_INTERNAL_ERROR:
+		printk("Modem firmware update failed\n");
+		printk("Fatal error.\n");
+		break;
+
+	default:
+		break;
+	}
 
 	modem_configure();
 
