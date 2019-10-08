@@ -67,10 +67,10 @@ static int download_client_callback(const struct download_client_evt *event)
 				 */
 				k_delayed_work_submit(&restart_dlc_work,
 						K_SECONDS(1));
+				LOG_INF("Refuse fragment, restart with offset");
 
 				return -1;
 			}
-
 		}
 
 		err = dfu_ctx_write(event->fragment.buf, event->fragment.len);
@@ -116,7 +116,7 @@ static int download_client_callback(const struct download_client_evt *event)
 
 static void download_with_offset(struct k_work *unused)
 {
-	LOG_INF("Downloading from offset: 0x%d", offset);
+	LOG_INF("Downloading from offset: 0x%x", offset);
 	int err = download_client_start(&dlc, dlc.file, offset);
 	if (err != 0) {
 		LOG_ERR("download_client_start error %d", err);

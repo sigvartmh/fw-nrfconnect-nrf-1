@@ -33,4 +33,11 @@ int dfu_ctx_modem_write(const void *const buf, size_t len);
  */
 int dfu_ctx_modem_done(void);
 
+/**
+ * @brief Get offset of firmware
+ *
+ * @return Offset of firmware
+ */
+int dfu_ctx_modem_offset(void);
+
 #endif /* _DFU_CTX_MODEM_H_ */

@@ -26,36 +26,32 @@ struct modem_delta_header
 };
 
 LOG_MODULE_REGISTER(dfu_context_handler, CONFIG_DFU_CTX_LOG_LEVEL);
-typedef int init_function(void);
-typedef int done_function(void);
+
 typedef int offset_function(void);
-typedef int write_function(const void *const buf, size_t len);
 
 struct dfu_ctx {
-	/** Implement init function */
-	init_function *init;
-	/** Implement write function */
-	write_function *write;
-	/** Implement done function */
-	done_function *done;
-	/** Implement offset functiot */
-	offset_function *offset;
+	int (*init)(void);
+	int (*offset)(void);
+	int (*write)(const void *const buf, size_t len);
+	int (*done)(void);
 };
 
 static struct dfu_ctx dfu_ctx_mcuboot = {
 	.init  = dfu_ctx_mcuboot_init,
+	.offset = dfu_ctx_mcuboot_offset,
 	.write = dfu_ctx_mcuboot_write,
 	.done  = dfu_ctx_mcuboot_done,
-	.offset = dfu_ctx_mcuboot_offset,
 };
 
 static struct dfu_ctx dfu_ctx_modem = {
 	.init = dfu_ctx_modem_init,
+	.offset = dfu_ctx_modem_offset,
 	.write = dfu_ctx_modem_write,
 	.done = dfu_ctx_modem_done,
 };
 
 static struct dfu_ctx *ctx;
+static bool   initialized = false;
 
 static inline void log_img_hdr(struct mcuboot_img_header_v2 *img_hdr)
 {
@@ -73,24 +69,32 @@ static inline void log_img_hdr(struct mcuboot_img_header_v2 *img_hdr)
 
 int dfu_ctx_init(int img_type)
 {
-	if (img_type == MCUBOOT_IMAGE) {
-		ctx = &dfu_ctx_mcuboot;
-	}
+	if (!initialized) {
+		if (img_type == MCUBOOT_IMAGE) {
+			ctx = &dfu_ctx_mcuboot;
+		}
 #ifdef CONFIG_DFU_CTX_MODEM_UPDATE_SUPPORT
-	if (img_type == MODEM_DELTA_IMAGE) {
-		ctx = &dfu_ctx_modem;
-	}
+		if (img_type == MODEM_DELTA_IMAGE) {
+			ctx = &dfu_ctx_modem;
+		}
 #endif /* CONFIG_DFU_CTX_LOG_LEVEL */
-	if (ctx != NULL) {
+		if (ctx == NULL) {
+			LOG_ERR("Unknown image type");
+			return -ENOTSUP;
+		}
+
+		initialized = true;
+
 		return ctx->init();
 	}
-	LOG_ERR("Unknown image type");
-	return -ENOTSUP;
-}
 
+	return 0;
+}
 
 int dfu_ctx_write(const void *const buf, size_t len)
 {
+	__ASSERT_NO_MSG(initialized);
+
 	if (ctx == NULL) {
 		return -ESRCH;
 	}
@@ -101,6 +105,8 @@ int dfu_ctx_write(const void *const buf, size_t len)
 
 int dfu_ctx_done(void)
 {
+	__ASSERT_NO_MSG(initialized);
+
 	if (ctx == NULL) {
 		return -ESRCH;
 	}
@@ -113,11 +119,16 @@ int dfu_ctx_done(void)
 		return err;
 	}
 	ctx = NULL;
+
+	initialized = false;
+
 	return 0;
 }
 
 int dfu_ctx_offset(void)
 {
+	__ASSERT_NO_MSG(initialized);
+
 	if (ctx == NULL) {
 		return -ESRCH;
 	}
