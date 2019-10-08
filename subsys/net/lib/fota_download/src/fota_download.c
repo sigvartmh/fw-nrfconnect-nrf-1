@@ -15,6 +15,8 @@ LOG_MODULE_REGISTER(fota_download, CONFIG_FOTA_DOWNLOAD_LOG_LEVEL);
 
 static fota_download_callback_t callback;
 static struct download_client   dlc;
+static struct k_delayed_work    restart_dlc_work;
+static int                      offset;
 
 static int download_client_callback(const struct download_client_evt *event)
 {
@@ -43,6 +45,7 @@ static int download_client_callback(const struct download_client_evt *event)
 		}
 
 		if (first_fragment) {
+			first_fragment = false;
 			int img_type = dfu_ctx_img_type(event->fragment.buf,
 						        event->fragment.len);
 
@@ -52,7 +55,22 @@ static int download_client_callback(const struct download_client_evt *event)
 				return err;
 			}
 
-			first_fragment = false;
+			/* Should offset be static in this file, or should we
+			 * require that dfu_ctx_offset is idempotent?
+			 */
+			offset = dfu_ctx_offset();
+			LOG_INF("Offset: 0x%x", offset);
+
+			if (offset != 0) {
+				/* Abort current download procedure, and
+				 * schedule new download from offset.
+				 */
+				k_delayed_work_submit(&restart_dlc_work,
+						K_SECONDS(1));
+
+				return -1;
+			}
+
 		}
 
 		err = dfu_ctx_write(event->fragment.buf, event->fragment.len);
@@ -94,6 +112,15 @@ static int download_client_callback(const struct download_client_evt *event)
 	}
 
 	return 0;
+}
+
+static void download_with_offset(struct k_work *unused)
+{
+	LOG_INF("Downloading from offset: 0x%d", offset);
+	int err = download_client_start(&dlc, dlc.file, offset);
+	if (err != 0) {
+		LOG_ERR("download_client_start error %d", err);
+	}
 }
 
 int fota_download_start(char *host, char *file)
@@ -141,7 +168,11 @@ int fota_download_init(fota_download_callback_t client_callback)
 		return -EINVAL;
 	}
 
+	offset = 0;
+
 	callback = client_callback;
+
+	k_delayed_work_init(&restart_dlc_work, download_with_offset);
 
 	int err = download_client_init(&dlc, download_client_callback);
 

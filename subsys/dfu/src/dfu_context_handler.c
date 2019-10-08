@@ -28,7 +28,9 @@ struct modem_delta_header
 LOG_MODULE_REGISTER(dfu_context_handler, CONFIG_DFU_CTX_LOG_LEVEL);
 typedef int init_function(void);
 typedef int done_function(void);
+typedef int offset_function(void);
 typedef int write_function(const void *const buf, size_t len);
+
 struct dfu_ctx {
 	/** Implement init function */
 	init_function *init;
@@ -36,12 +38,15 @@ struct dfu_ctx {
 	write_function *write;
 	/** Implement done function */
 	done_function *done;
+	/** Implement offset functiot */
+	offset_function *offset;
 };
 
 static struct dfu_ctx dfu_ctx_mcuboot = {
 	.init  = dfu_ctx_mcuboot_init,
 	.write = dfu_ctx_mcuboot_write,
 	.done  = dfu_ctx_mcuboot_done,
+	.offset = dfu_ctx_mcuboot_offset,
 };
 
 static struct dfu_ctx dfu_ctx_modem = {
@@ -111,6 +116,14 @@ int dfu_ctx_done(void)
 	return 0;
 }
 
+int dfu_ctx_offset(void)
+{
+	if (ctx == NULL) {
+		return -ESRCH;
+	}
+
+	return ctx->offset();
+}
 
 int dfu_ctx_img_type(const void *const buf, size_t len)
 {

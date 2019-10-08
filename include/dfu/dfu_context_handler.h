@@ -68,6 +68,13 @@ int dfu_ctx_write(const void *const buf, size_t len);
  **/
 int dfu_ctx_done(void);
 
+/**
+ * @brief Get offset of firmware
+ *
+ * @return Offset of firmware
+ */
+int dfu_ctx_offset(void);
+
 #ifdef __cplusplus
 }
 #endif
