@@ -7,6 +7,14 @@
 LOG_MODULE_REGISTER(dfu_ctx_modem_ctx, CONFIG_DFU_CTX_LOG_LEVEL);
 
 #define DIRTY_IMAGE 2621440
+#define MODEM_MAGIC 0x7544656d
+
+struct modem_delta_header
+{
+	u16_t r1;
+	u16_t r2;
+	u32_t magic;
+};
 
 static int  fd;
 static int  offset;
@@ -42,15 +50,33 @@ static int apply_modem_update(void)
 	return 0;
 }
 
-static int delete_old_modem_fw(void)
+static int delete_banked_modem_fw(void)
 {
 	int err;
+	socklen_t len = sizeof(offset);
 
-	LOG_INF("Deleting firmware image, this could take a while...");
+	LOG_INF("Deleting firmware image, this can take several minutes");
 	err = setsockopt(fd, SOL_DFU, SO_DFU_BACKUP_DELETE, NULL, 0);
 	if (err < 0) {
-		LOG_ERR("Failed to delete backup, errno %d\n", errno);
+		LOG_ERR("Failed to delete backup, errno %d", errno);
 		return -EFAULT;
+	}
+
+	while (true) {
+		err = getsockopt(fd, SOL_DFU, SO_DFU_OFFSET, &offset, &len);
+		if (err != 0) {
+			if (err == ENOEXEC) {
+				err = get_modem_error();
+				if (err != DFU_ERASE_PENDING) {
+					LOG_ERR("DFU error: %d", err);
+				}
+			} else {
+				k_sleep(K_MSEC(500));
+			}
+		} else {
+			LOG_INF("Modem FW delete complete");
+			break;
+		}
 	}
 
 	return 0;
@@ -87,27 +113,10 @@ static int modem_dfu_socket_init(void)
 	return err;
 }
 
-static void wait_for_delete(void)
+bool dfu_ctx_modem_identify(const void *const buf)
 {
-	int err;
-	socklen_t len = sizeof(offset);
+	return ((struct modem_delta_header *)buf)->magic == MODEM_MAGIC;
 
-	while (true) {
-		err = getsockopt(fd, SOL_DFU, SO_DFU_OFFSET, &offset, &len);
-		if (err != 0) {
-			if (err == ENOEXEC) {
-				err = get_modem_error();
-				if (err != DFU_ERASE_PENDING) {
-					LOG_ERR("DFU error: %d", err);
-				}
-			} else {
-				k_sleep(K_MSEC(500));
-			}
-		} else {
-			/* Delete completed */
-			break;
-		}
-	}
 }
 
 int dfu_ctx_modem_init(void)
@@ -130,12 +139,8 @@ int dfu_ctx_modem_init(void)
 		}
 	}
 
-	LOG_INF("Modem offset: 0x%x", offset);
 	if (offset == DIRTY_IMAGE) {
-		LOG_INF("Offset indicates dirty image, delete fw in bank");
-		delete_old_modem_fw();
-		wait_for_delete();
-		LOG_INF("Modem fw deleted, offset now: 0x%x", offset);
+		delete_banked_modem_fw();
 	} else if (offset != 0) {
 		LOG_INF("Setting offset to 0x%x", offset);
 		err = setsockopt(fd, SOL_DFU, SO_DFU_OFFSET, &offset, 4);

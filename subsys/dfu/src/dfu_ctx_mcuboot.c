@@ -10,8 +10,17 @@
 #include <dfu/flash_img.h>
 
 LOG_MODULE_REGISTER(dfu_ctx_mcuboot, CONFIG_DFU_CTX_LOG_LEVEL);
+
+#define MCUBOOT_HEADER_MAGIC 0x96f3b83d
+
 static struct flash_img_context flash_img;
 static size_t offset;
+
+bool dfu_ctx_mcuboot_identify(const void *const buf)
+{
+	/* MCUBoot headers starts with 4 byte magic word */
+	return *((u32_t *)buf) == MCUBOOT_HEADER_MAGIC;
+}
 
 int dfu_ctx_mcuboot_init(void)
 {
