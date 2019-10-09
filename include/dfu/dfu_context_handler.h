@@ -24,6 +24,16 @@
 extern "C" {
 #endif
 
+/** @brief Interface which needs to be supported by all DFU contexts.
+ */
+struct dfu_ctx {
+	bool (*identify)(const void * const buf);
+	int (*init)(void);
+	int (*offset)(void);
+	int (*write)(const void *const buf, size_t len);
+	int (*done)(void);
+};
+
 /**
  * @brief Find the image type for the buffer of bytes recived. Used to determine
  *	  what dfu context to initialize.
