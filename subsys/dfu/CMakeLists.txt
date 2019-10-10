@@ -10,9 +10,9 @@ zephyr_library_include_directories(include)
 zephyr_library_sources(
   src/dfu_context_handler.c
   )
-zephyr_library_sources_ifdef(CONFIG_DFU_CTX_MODEM_UPDATE_SUPPORT
+zephyr_library_sources_ifdef(CONFIG_DFU_CTX_MODEM_UPDATE
   src/dfu_ctx_modem.c
   )
-zephyr_library_sources_ifdef(CONFIG_DFU_CTX_MCUBOOT_SUPPORT
+zephyr_library_sources_ifdef(CONFIG_DFU_CTX_MCUBOOT
   src/dfu_ctx_mcuboot.c
   )
