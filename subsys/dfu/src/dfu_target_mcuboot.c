@@ -9,7 +9,7 @@
 #include <dfu/mcuboot.h>
 #include <dfu/flash_img.h>
 
-LOG_MODULE_REGISTER(dfu_target_mcuboot, CONFIG_DFU_CTX_LOG_LEVEL);
+LOG_MODULE_REGISTER(dfu_target_mcuboot, CONFIG_DFU_TARGET_LOG_LEVEL);
 
 #define MCUBOOT_HEADER_MAGIC 0x96f3b83d
 

@@ -15,7 +15,7 @@
 #define MCUBOOT_IMAGE 1
 #define MODEM_DELTA_IMAGE 2
 
-LOG_MODULE_REGISTER(dfu_target, CONFIG_DFU_CTX_LOG_LEVEL);
+LOG_MODULE_REGISTER(dfu_target, CONFIG_DFU_TARGET_LOG_LEVEL);
 
 static struct dfu_target *ctx;
 static bool   initialized;
@@ -30,7 +30,7 @@ int dfu_target_img_type(const void *const buf, size_t len)
 		return MCUBOOT_IMAGE;
 	}
 
-	if (IS_ENABLED(CONFIG_DFU_CTX_MODEM_UPDATE) &&
+	if (IS_ENABLED(CONFIG_DFU_TARGET_MODEM) &&
 	    dfu_target_modem_identify(buf)) {
 		return MODEM_DELTA_IMAGE;
 	}
@@ -48,7 +48,7 @@ int dfu_target_init(int img_type)
 	if (IS_ENABLED(CONFIG_BOOTLOADER_MCUBOOT) &&
 			img_type == MCUBOOT_IMAGE) {
 		ctx = &dfu_target_mcuboot;
-	} else if (IS_ENABLED(CONFIG_DFU_CTX_MODEM_UPDATE) &&
+	} else if (IS_ENABLED(CONFIG_DFU_TARGET_MODEM) &&
 			img_type == MODEM_DELTA_IMAGE) {
 		ctx = &dfu_target_modem;
 	}

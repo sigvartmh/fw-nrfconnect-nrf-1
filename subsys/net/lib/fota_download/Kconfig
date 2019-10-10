@@ -7,7 +7,7 @@
 menuconfig FOTA_DOWNLOAD
 	bool "FOTA Download"
 	select DOWNLOAD_CLIENT
-	select DFU_CTX
+	select DFU_TARGET
 
 if (FOTA_DOWNLOAD)
 

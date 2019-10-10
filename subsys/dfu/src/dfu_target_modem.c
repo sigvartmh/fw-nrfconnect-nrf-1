@@ -4,7 +4,7 @@
 #include <net/socket.h>
 #include <logging/log.h>
 
-LOG_MODULE_REGISTER(dfu_target_modem_ctx, CONFIG_DFU_CTX_LOG_LEVEL);
+LOG_MODULE_REGISTER(dfu_target_modem, CONFIG_DFU_TARGET_LOG_LEVEL);
 
 #define DIRTY_IMAGE 2621440
 #define MODEM_MAGIC 0x7544656d
@@ -36,15 +36,17 @@ static int get_modem_error(void)
 static int apply_modem_update(void)
 {
 	int err;
-	int modem_error;
 
 	LOG_INF("Scheduling modem firmware update at next boot");
 
 	err = setsockopt(fd, SOL_DFU, SO_DFU_APPLY, NULL, 0);
 	if (err < 0) {
-		modem_error = get_modem_error();
-		LOG_ERR("Failed to schedule modem firmware update, errno %d, "
-			"modem_error:%d", errno, modem_error);
+		if (err == ENOEXEC) {
+			LOG_ERR("SO_DFU_APPLY failed, modem error %d",
+				get_modem_error());
+		} else {
+			LOG_ERR("SO_DFU_APPLY failed, modem error %d", err);
+		}
 	}
 	return 0;
 }
@@ -166,11 +168,16 @@ int dfu_target_modem_write(const void *const buf, size_t len)
 		return 0;
 	}
 
-	modem_error = get_modem_error();
-	LOG_ERR("send failed, modem errno %d, dfu err %d", errno, modem_error);
+	if (sent == ENOEXEC) {
+		modem_error = get_modem_error();
+		LOG_ERR("send failed, modem errno %d, dfu err %d",
+			errno, modem_error);
 
-	if (modem_error == DFU_INVALID_UUID) {
-		return -EINVAL;
+		if (modem_error == DFU_INVALID_UUID) {
+			return -EINVAL;
+		}
+	} else {
+		LOG_ERR("send failed, errno %d", sent);
 	}
 
 	return -EFAULT;

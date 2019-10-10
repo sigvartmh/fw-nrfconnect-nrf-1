@@ -4,12 +4,12 @@
 # SPDX-License-Identifier: LicenseRef-BSD-5-Clause-Nordic
 #
 
-menuconfig DFU_CTX
+menuconfig DFU_TARGET
 	bool "Device Firmware Update Handler"
 
-if (DFU_CTX)
+if (DFU_TARGET)
 
-config DFU_CTX_MCUBOOT
+config DFU_TARGET_MCUBOOT
 	bool "MCUBoot Update support"
 	default y if BOOTLOADER_MCUBOOT
 	select FLASH
@@ -21,15 +21,15 @@ config DFU_CTX_MCUBOOT
 	  Support updates which are performed by MCUBoot.
 
 
-config DFU_CTX_MODEM_UPDATE
+config DFU_TARGET_MODEM
 	bool "Modem Update support"
 	default y if SOC_NRF9160_SICA
 	help
 	  Support updates to the modem firmware.
 
-module=DFU_CTX
+module=DFU_TARGET
 module-dep=LOG
 module-str=Device Firmware Upgrade
 source "${ZEPHYR_BASE}/subsys/logging/Kconfig.template.log_config"
 
-endif # DFU_CTX
+endif # DFU_TARGET
