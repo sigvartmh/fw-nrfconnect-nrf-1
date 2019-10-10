@@ -41,33 +41,32 @@ int dfu_target_img_type(const void *const buf, size_t len)
 
 int dfu_target_init(int img_type)
 {
-	if (!initialized) {
-		if (IS_ENABLED(CONFIG_BOOTLOADER_MCUBOOT) &&
-		    img_type == MCUBOOT_IMAGE) {
-			ctx = &dfu_target_mcuboot;
-		} else if (IS_ENABLED(CONFIG_DFU_CTX_MODEM_UPDATE) &&
-			   img_type == MODEM_DELTA_IMAGE) {
-			ctx = &dfu_target_modem;
-		}
-
-		if (ctx == NULL) {
-			LOG_ERR("Unknown image type");
-			return -ENOTSUP;
-		}
-
-		initialized = true;
-
-		return ctx->init();
+	if (initialized) {
+		return 0;
 	}
 
-	return 0;
+	if (IS_ENABLED(CONFIG_BOOTLOADER_MCUBOOT) &&
+			img_type == MCUBOOT_IMAGE) {
+		ctx = &dfu_target_mcuboot;
+	} else if (IS_ENABLED(CONFIG_DFU_CTX_MODEM_UPDATE) &&
+			img_type == MODEM_DELTA_IMAGE) {
+		ctx = &dfu_target_modem;
+	}
+
+	if (ctx == NULL) {
+		LOG_ERR("Unknown image type");
+		return -ENOTSUP;
+	}
+
+	initialized = true;
+
+	return ctx->init();
 }
 
 int dfu_target_offset(void)
 {
-
-	if (ctx == NULL) {
-		return -ESRCH;
+	if (!initialized || ctx == NULL) {
+		return -EACCES;
 	}
 
 	return ctx->offset();
@@ -76,9 +75,8 @@ int dfu_target_offset(void)
 
 int dfu_target_write(const void *const buf, size_t len)
 {
-
-	if (ctx == NULL) {
-		return -ESRCH;
+	if (!initialized || ctx == NULL) {
+		return -EACCES;
 	}
 
 	return ctx->write(buf, len);
@@ -89,8 +87,8 @@ int dfu_target_done(void)
 {
 	int err;
 
-	if (ctx == NULL) {
-		return -ESRCH;
+	if (!initialized || ctx == NULL) {
+		return -EACCES;
 	}
 
 	err = ctx->done();
