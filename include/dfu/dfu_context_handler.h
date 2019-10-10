@@ -8,8 +8,8 @@
  * @brief header.
  */
 
-#ifndef _DFU_CONTEXT_MANAGER_H_
-#define _DFU_CONTEXT_MANAGER_H_
+#ifndef DFU_CONTEXT_HANDLER_H__
+#define DFU_CONTEXT_HANDLER_H__
 
 /**
  * @defgroup event_manager Event Manager
@@ -41,7 +41,7 @@ struct dfu_ctx {
  * @param buf A buffer of bytes which are the start of an binary firmware image.
  * @param len The length of the provided buffer.
  *
- * @return Positive identifier for an supported image type or a negative error
+ * @return Positive identifier for a supported image type or a negative error
  *	   code identicating reason of failure.
  **/
 int dfu_ctx_img_type(const void *const buf, size_t len);
@@ -52,11 +52,19 @@ int dfu_ctx_img_type(const void *const buf, size_t len);
  *
  * @param img_type Image type identifier.
  *
- * @return 0 for an supported image type or a negative error
+ * @return 0 for a supported image type or a negative error
  *	   code identicating reason of failure.
  *
  **/
 int dfu_ctx_init(int img_type);
+
+/**
+ * @brief Get offset of firmware
+ *
+ * @return Offset of firmware
+ */
+int dfu_ctx_offset(void);
+
 
 /**
  * @brief Write the given buffer to the initialized DFU context.
@@ -64,7 +72,7 @@ int dfu_ctx_init(int img_type);
  * @param buf A buffer of bytes which contains part of an binary firmware image.
  * @param len The length of the provided buffer.
  *
- * @return Positive identifier for an supported image type or a negative error
+ * @return Positive identifier for a supported image type or a negative error
  *	   code identicating reason of failure.
  **/
 int dfu_ctx_write(const void *const buf, size_t len);
@@ -78,15 +86,8 @@ int dfu_ctx_write(const void *const buf, size_t len);
  **/
 int dfu_ctx_done(void);
 
-/**
- * @brief Get offset of firmware
- *
- * @return Offset of firmware
- */
-int dfu_ctx_offset(void);
-
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* _DFU_CONTEXT_MANAGER_H_ */
+#endif /* DFU_CONTEXT_HANDLER_H__ */

@@ -58,7 +58,8 @@ int dfu_ctx_mcuboot_write(const void *const buf, size_t len);
  */
 int dfu_ctx_mcuboot_done(void);
 
-/** @brief Structure used by dfu_context_handler.
+/** @brief Expose API compatible with dfu_ctx. This is used by
+ *	   dfu_context_handler.c.
  */
 struct dfu_ctx dfu_ctx_mcuboot = {
 	.identify = dfu_ctx_mcuboot_identify,

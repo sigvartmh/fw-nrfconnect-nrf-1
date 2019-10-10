@@ -17,6 +17,8 @@ config DFU_CTX_MCUBOOT_SUPPORT
 	select IMG_MANAGER
 	select MPU_ALLOW_FLASH_WRITE
 	select IMG_ERASE_PROGRESSIVELY
+	help
+
 
 config DFU_CTX_MODEM_UPDATE_SUPPORT
 	bool "Modem Update support"

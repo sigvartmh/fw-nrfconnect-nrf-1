@@ -52,7 +52,8 @@ int dfu_ctx_modem_write(const void *const buf, size_t len);
  */
 int dfu_ctx_modem_done(void);
 
-/** @brief Structure used by dfu_context_handler.
+/** @brief Expose API compatible with dfu_ctx. This is used by
+ *	   dfu_context_handler.c.
  */
 static struct dfu_ctx dfu_ctx_modem = {
 	.identify = dfu_ctx_modem_identify,

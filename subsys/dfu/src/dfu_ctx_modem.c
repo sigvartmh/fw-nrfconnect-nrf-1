@@ -11,8 +11,8 @@ LOG_MODULE_REGISTER(dfu_ctx_modem_ctx, CONFIG_DFU_CTX_LOG_LEVEL);
 
 struct modem_delta_header
 {
-	u16_t r1;
-	u16_t r2;
+	u16_t pad1;
+	u16_t pad2;
 	u32_t magic;
 };
 
@@ -168,7 +168,7 @@ int dfu_ctx_modem_write(const void *const buf, size_t len)
 	}
 
 	modem_error = get_modem_error();
-	LOG_ERR("Modem refused fragment, errno %d, dfu err %d", errno, modem_error);
+	LOG_ERR("send failed, modem errno %d, dfu err %d", errno, modem_error);
 
 	if (modem_error == DFU_INVALID_UUID) {
 		return -EINVAL;
