@@ -9,8 +9,7 @@ LOG_MODULE_REGISTER(dfu_ctx_modem_ctx, CONFIG_DFU_CTX_LOG_LEVEL);
 #define DIRTY_IMAGE 2621440
 #define MODEM_MAGIC 0x7544656d
 
-struct modem_delta_header
-{
+struct modem_delta_header {
 	u16_t pad1;
 	u16_t pad2;
 	u32_t magic;

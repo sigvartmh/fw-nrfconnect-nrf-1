@@ -51,9 +51,8 @@ static void app_dfu_transfer_start(struct k_work *unused)
 		printk("fota_download_start() failed, err %d\n",
 			retval);
 	}
-
-	return;
 }
+
 /**@brief Turn on LED0 and LED1 if CONFIG_APPLICATION_VERSION
  * is 2 and LED0 otherwise.
  */
@@ -179,6 +178,7 @@ static int application_init(void)
 void main(void)
 {
 	int err;
+
 	printk("Initializing bsdlib, please wait..\n");
 	err = bsdlib_init();
 	switch (err) {
@@ -212,6 +212,4 @@ void main(void)
 	}
 
 	printk("Press Button 1 to start the FOTA download\n");
-
-	return;
 }

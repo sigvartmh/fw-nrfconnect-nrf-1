@@ -19,7 +19,7 @@
 LOG_MODULE_REGISTER(dfu_context_handler, CONFIG_DFU_CTX_LOG_LEVEL);
 
 static struct dfu_ctx *ctx;
-static bool   initialized = false;
+static bool   initialized;
 
 int dfu_ctx_img_type(const void *const buf, size_t len)
 {
@@ -32,7 +32,7 @@ int dfu_ctx_img_type(const void *const buf, size_t len)
 	}
 
 	if (IS_ENABLED(CONFIG_DFU_CTX_MODEM_UPDATE) &&
-	    dfu_ctx_modem_identify(buf)){
+	    dfu_ctx_modem_identify(buf)) {
 		return MODEM_DELTA_IMAGE;
 	}
 
@@ -47,7 +47,7 @@ int dfu_ctx_init(int img_type)
 		    img_type == MCUBOOT_IMAGE) {
 			ctx = &dfu_ctx_mcuboot;
 		} else if (IS_ENABLED(CONFIG_DFU_CTX_MODEM_UPDATE) &&
-		           img_type == MODEM_DELTA_IMAGE) {
+			   img_type == MODEM_DELTA_IMAGE) {
 			ctx = &dfu_ctx_modem;
 		}
 

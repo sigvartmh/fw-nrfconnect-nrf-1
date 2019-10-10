@@ -58,6 +58,7 @@ int dfu_ctx_mcuboot_write(const void *const buf, size_t len)
 int dfu_ctx_mcuboot_done(void)
 {
 	int err = flash_img_buffered_write(&flash_img, NULL, 0, true);
+
 	if (err != 0) {
 		LOG_ERR("flash_img_buffered_write error %d", err);
 		return err;

@@ -47,7 +47,7 @@ static int download_client_callback(const struct download_client_evt *event)
 		if (first_fragment) {
 			first_fragment = false;
 			int img_type = dfu_ctx_img_type(event->fragment.buf,
-						        event->fragment.len);
+							event->fragment.len);
 
 			err = dfu_ctx_init(img_type);
 			if (err != 0) {
