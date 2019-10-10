@@ -408,6 +408,8 @@ static void modem_configure(void)
 	} else {
 		int err;
 
+		err = at_cmd_init();
+		__ASSERT(err == 0, "AT CMD could not be established.");
 		printk("LTE Link Connecting ...\n");
 		err = lte_lc_init_and_connect();
 		__ASSERT(err == 0, "LTE link could not be established.");
@@ -438,6 +440,29 @@ void main(void)
 	struct mqtt_client client;
 
 	printk("MQTT AWS Jobs FOTA Sample, version: %s\n", CONFIG_APP_VERSION);
+	printk("Initializing bsdlib\n");
+	err = bsd_init();
+	switch (err) {
+	case MODEM_DFU_RESULT_OK:
+		printk("Modem firmware update successful!\n");
+		printk("Modem will run the new firmware after reboot\n");
+		k_thread_suspend(k_current_get());
+		break;
+	case MODEM_DFU_RESULT_UUID_ERROR:
+	case MODEM_DFU_RESULT_AUTH_ERROR:
+		printk("Modem firmware update failed\n");
+		printk("Modem will run non-updated firmware on reboot.\n");
+		break;
+	case MODEM_DFU_RESULT_HARDWARE_ERROR:
+	case MODEM_DFU_RESULT_INTERNAL_ERROR:
+		printk("Modem firmware update failed\n");
+		printk("Fatal error.\n");
+		break;
+
+	default:
+		break;
+	}
+	printk("Initialized bsdlib\n");
 
 #if !defined(CONFIG_USE_PROVISIONED_CERTIFICATES)
 	provision_certificates();
