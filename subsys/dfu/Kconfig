@@ -9,18 +9,23 @@ menuconfig DFU_CTX
 
 if (DFU_CTX)
 
-config DFU_CTX_MCUBOOT_SUPPORT
+config DFU_CTX_MCUBOOT
 	bool "MCUBoot Update support"
-	default y
+	default y if BOOTLOADER_MCUBOOT
 	select FLASH
 	select FLASH_PAGE_LAYOUT
 	select IMG_MANAGER
 	select MPU_ALLOW_FLASH_WRITE
 	select IMG_ERASE_PROGRESSIVELY
+	help
+	  Support updates which are performed by MCUBoot.
 
-config DFU_CTX_MODEM_UPDATE_SUPPORT
+
+config DFU_CTX_MODEM_UPDATE
 	bool "Modem Update support"
-	default y
+	default y if BOARD_NRF9160_PCA1090
+	help
+	  Support updates to the modem firmware.
 
 module=DFU_CTX
 module-dep=LOG

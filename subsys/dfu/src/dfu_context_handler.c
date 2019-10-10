@@ -31,7 +31,7 @@ int dfu_ctx_img_type(const void *const buf, size_t len)
 		return MCUBOOT_IMAGE;
 	}
 
-	if (IS_ENABLED(CONFIG_DFU_CTX_MODEM_UPDATE_SUPPORT) &&
+	if (IS_ENABLED(CONFIG_DFU_CTX_MODEM_UPDATE) &&
 	    dfu_ctx_modem_identify(buf)){
 		return MODEM_DELTA_IMAGE;
 	}
@@ -46,7 +46,7 @@ int dfu_ctx_init(int img_type)
 		if (IS_ENABLED(CONFIG_BOOTLOADER_MCUBOOT) &&
 		    img_type == MCUBOOT_IMAGE) {
 			ctx = &dfu_ctx_mcuboot;
-		} else if (IS_ENABLED(CONFIG_DFU_CTX_MODEM_UPDATE_SUPPORT) &&
+		} else if (IS_ENABLED(CONFIG_DFU_CTX_MODEM_UPDATE) &&
 		           img_type == MODEM_DELTA_IMAGE) {
 			ctx = &dfu_ctx_modem;
 		}

@@ -16,11 +16,11 @@ LOG_MODULE_REGISTER(fota_download, CONFIG_FOTA_DOWNLOAD_LOG_LEVEL);
 static fota_download_callback_t callback;
 static struct download_client   dlc;
 static struct k_delayed_work    restart_dlc_work;
-static int                      offset;
 
 static int download_client_callback(const struct download_client_evt *event)
 {
 	static bool first_fragment = true;
+	int offset;
 	int err;
 
 	if (event == NULL) {
@@ -55,9 +55,6 @@ static int download_client_callback(const struct download_client_evt *event)
 				return err;
 			}
 
-			/* Should offset be static in this file, or should we
-			 * require that dfu_ctx_offset is idempotent?
-			 */
 			offset = dfu_ctx_offset();
 			LOG_INF("Offset: 0x%x", offset);
 
@@ -116,8 +113,10 @@ static int download_client_callback(const struct download_client_evt *event)
 
 static void download_with_offset(struct k_work *unused)
 {
-	LOG_INF("Downloading from offset: 0x%x", offset);
+	int offset = dfu_ctx_offset();
 	int err = download_client_start(&dlc, dlc.file, offset);
+
+	LOG_INF("Downloading from offset: 0x%x", offset);
 	if (err != 0) {
 		LOG_ERR("download_client_start error %d", err);
 	}
@@ -127,7 +126,6 @@ int fota_download_start(char *host, char *file)
 {
 	int err = -1;
 
-	/* TODO: add configurability of the .sec_tag for TLS certificates */
 	struct download_client_cfg config = {
 		.sec_tag = -1, /* HTTP */
 	};
@@ -135,10 +133,6 @@ int fota_download_start(char *host, char *file)
 	if (host == NULL || file == NULL || callback == NULL) {
 		return -EINVAL;
 	}
-
-	/* TODO: Is it possible to download modem fw with a threaded model from
-	 * a host while downloading firmware that's written to flash?
-	 */
 
 	/* Verify that a download is not already ongoing */
 	if (dlc.fd != -1) {
@@ -167,8 +161,6 @@ int fota_download_init(fota_download_callback_t client_callback)
 	if (client_callback == NULL) {
 		return -EINVAL;
 	}
-
-	offset = 0;
 
 	callback = client_callback;
 
