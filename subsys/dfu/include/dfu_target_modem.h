@@ -3,8 +3,8 @@
  *
  * SPDX-License-Identifier: LicenseRef-BSD-5-Clause-Nordic
  */
-#ifndef _DFU_CTX_MODEM_H_
-#define _DFU_CTX_MODEM_H_
+#ifndef DFU_TARGET_MODEM_H__
+#define DFU_TARGET_MODEM_H__
 
 #include <zephyr/types.h>
 
@@ -12,28 +12,28 @@
 extern "C" {
 #endif
 
-#include <dfu/dfu_context_handler.h>
+#include <dfu/dfu_target.h>
 
 /**
  * @brief See if data in buf indicates modem upgrade.
  *
  * @retval true if data matches, false otherwise.
  */
-bool dfu_ctx_modem_identify(const void *const buf);
+bool dfu_target_modem_identify(const void *const buf);
 
 /**
- * @brief Initialize dfu context, perform steps necessary to receive firmware.
+ * @brief Initialize dfu target, perform steps necessary to receive firmware.
  *
  * @retval 0 If successful, negative errno otherwise.
  */
-int dfu_ctx_modem_init(void);
+int dfu_target_modem_init(void);
 
 /**
  * @brief Get offset of firmware
  *
  * @return Offset of firmware
  */
-int dfu_ctx_modem_offset(void);
+int dfu_target_modem_offset(void);
 
 /**
  * @brief Write firmware data.
@@ -43,26 +43,26 @@ int dfu_ctx_modem_offset(void);
  *
  * @return 0 on success, negative errno otherwise.
  */
-int dfu_ctx_modem_write(const void *const buf, size_t len);
+int dfu_target_modem_write(const void *const buf, size_t len);
 
 /**
  * @brief Finalize firmware transfer.
  *
  * @return 0 on success, negative errno otherwise.
  */
-int dfu_ctx_modem_done(void);
+int dfu_target_modem_done(void);
 
-/** @brief Expose API compatible with dfu_ctx. This is used by
- *	   dfu_context_handler.c.
+/** @brief Expose API compatible with dfu_target. This is used by
+ *	   dfu_target.c.
  */
-static struct dfu_ctx dfu_ctx_modem = {
-	.identify = dfu_ctx_modem_identify,
-	.init = dfu_ctx_modem_init,
-	.offset = dfu_ctx_modem_offset,
-	.write = dfu_ctx_modem_write,
-	.done = dfu_ctx_modem_done,
+static struct dfu_target dfu_target_modem = {
+	.identify = dfu_target_modem_identify,
+	.init = dfu_target_modem_init,
+	.offset = dfu_target_modem_offset,
+	.write = dfu_target_modem_write,
+	.done = dfu_target_modem_done,
 };
 
-#endif /* _DFU_CTX_MODEM_H_ */
+#endif /* DFU_TARGET_MODEM_H__ */
 
 /**@} */

@@ -4,7 +4,7 @@
 #include <net/socket.h>
 #include <logging/log.h>
 
-LOG_MODULE_REGISTER(dfu_ctx_modem_ctx, CONFIG_DFU_CTX_LOG_LEVEL);
+LOG_MODULE_REGISTER(dfu_target_modem_ctx, CONFIG_DFU_CTX_LOG_LEVEL);
 
 #define DIRTY_IMAGE 2621440
 #define MODEM_MAGIC 0x7544656d
@@ -112,13 +112,13 @@ static int modem_dfu_socket_init(void)
 	return err;
 }
 
-bool dfu_ctx_modem_identify(const void *const buf)
+bool dfu_target_modem_identify(const void *const buf)
 {
 	return ((struct modem_delta_header *)buf)->magic == MODEM_MAGIC;
 
 }
 
-int dfu_ctx_modem_init(void)
+int dfu_target_modem_init(void)
 {
 	int err;
 	socklen_t len = sizeof(offset);
@@ -151,12 +151,12 @@ int dfu_ctx_modem_init(void)
 	return 0;
 }
 
-int dfu_ctx_modem_offset(void)
+int dfu_target_modem_offset(void)
 {
 	return offset;
 }
 
-int dfu_ctx_modem_write(const void *const buf, size_t len)
+int dfu_target_modem_write(const void *const buf, size_t len)
 {
 	int sent = 0;
 	int modem_error = 0;
@@ -176,7 +176,7 @@ int dfu_ctx_modem_write(const void *const buf, size_t len)
 	return -EFAULT;
 }
 
-int dfu_ctx_modem_done(void)
+int dfu_target_modem_done(void)
 {
 	int err = apply_modem_update();
 

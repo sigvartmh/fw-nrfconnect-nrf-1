@@ -7,32 +7,32 @@
 #include <zephyr.h>
 #include <logging/log.h>
 #include <dfu/mcuboot.h>
-#include <dfu/dfu_context_handler.h>
-#include <dfu_ctx_mcuboot.h>
-#include <dfu_ctx_modem.h>
+#include <dfu/dfu_target.h>
+#include <dfu_target_mcuboot.h>
+#include <dfu_target_modem.h>
 
 #define MIN_SIZE_IDENTIFY_BUF 32
 
 #define MCUBOOT_IMAGE 1
 #define MODEM_DELTA_IMAGE 2
 
-LOG_MODULE_REGISTER(dfu_context_handler, CONFIG_DFU_CTX_LOG_LEVEL);
+LOG_MODULE_REGISTER(dfu_target, CONFIG_DFU_CTX_LOG_LEVEL);
 
-static struct dfu_ctx *ctx;
+static struct dfu_target *ctx;
 static bool   initialized;
 
-int dfu_ctx_img_type(const void *const buf, size_t len)
+int dfu_target_img_type(const void *const buf, size_t len)
 {
 	if (len < MIN_SIZE_IDENTIFY_BUF) {
 		return -EAGAIN;
 	}
 
-	if (dfu_ctx_mcuboot_identify(buf)) {
+	if (dfu_target_mcuboot_identify(buf)) {
 		return MCUBOOT_IMAGE;
 	}
 
 	if (IS_ENABLED(CONFIG_DFU_CTX_MODEM_UPDATE) &&
-	    dfu_ctx_modem_identify(buf)) {
+	    dfu_target_modem_identify(buf)) {
 		return MODEM_DELTA_IMAGE;
 	}
 
@@ -40,15 +40,15 @@ int dfu_ctx_img_type(const void *const buf, size_t len)
 	return -ENOTSUP;
 }
 
-int dfu_ctx_init(int img_type)
+int dfu_target_init(int img_type)
 {
 	if (!initialized) {
 		if (IS_ENABLED(CONFIG_BOOTLOADER_MCUBOOT) &&
 		    img_type == MCUBOOT_IMAGE) {
-			ctx = &dfu_ctx_mcuboot;
+			ctx = &dfu_target_mcuboot;
 		} else if (IS_ENABLED(CONFIG_DFU_CTX_MODEM_UPDATE) &&
 			   img_type == MODEM_DELTA_IMAGE) {
-			ctx = &dfu_ctx_modem;
+			ctx = &dfu_target_modem;
 		}
 
 		if (ctx == NULL) {
@@ -64,7 +64,7 @@ int dfu_ctx_init(int img_type)
 	return 0;
 }
 
-int dfu_ctx_offset(void)
+int dfu_target_offset(void)
 {
 	__ASSERT_NO_MSG(initialized);
 
@@ -76,7 +76,7 @@ int dfu_ctx_offset(void)
 }
 
 
-int dfu_ctx_write(const void *const buf, size_t len)
+int dfu_target_write(const void *const buf, size_t len)
 {
 	__ASSERT_NO_MSG(initialized);
 
@@ -88,7 +88,7 @@ int dfu_ctx_write(const void *const buf, size_t len)
 }
 
 
-int dfu_ctx_done(void)
+int dfu_target_done(void)
 {
 	__ASSERT_NO_MSG(initialized);
 	int err;
@@ -99,7 +99,7 @@ int dfu_ctx_done(void)
 
 	err = ctx->done();
 	if (err < 0) {
-		LOG_ERR("Unable to clean up dfu_ctx");
+		LOG_ERR("Unable to clean up dfu_target");
 		return err;
 	}
 

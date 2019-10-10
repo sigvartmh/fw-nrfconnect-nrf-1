@@ -9,7 +9,7 @@
 #include <logging/log.h>
 #include <net/fota_download.h>
 #include <net/download_client.h>
-#include <dfu/dfu_context_handler.h>
+#include <dfu/dfu_target.h>
 
 LOG_MODULE_REGISTER(fota_download, CONFIG_FOTA_DOWNLOAD_LOG_LEVEL);
 
@@ -46,16 +46,16 @@ static int download_client_callback(const struct download_client_evt *event)
 
 		if (first_fragment) {
 			first_fragment = false;
-			int img_type = dfu_ctx_img_type(event->fragment.buf,
+			int img_type = dfu_target_img_type(event->fragment.buf,
 							event->fragment.len);
 
-			err = dfu_ctx_init(img_type);
+			err = dfu_target_init(img_type);
 			if (err != 0) {
-				LOG_ERR("dfu_ctx_init error %d", err);
+				LOG_ERR("dfu_target_init error %d", err);
 				return err;
 			}
 
-			offset = dfu_ctx_offset();
+			offset = dfu_target_offset();
 			LOG_INF("Offset: 0x%x", offset);
 
 			if (offset != 0) {
@@ -70,9 +70,10 @@ static int download_client_callback(const struct download_client_evt *event)
 			}
 		}
 
-		err = dfu_ctx_write(event->fragment.buf, event->fragment.len);
+		err = dfu_target_write(event->fragment.buf,
+				       event->fragment.len);
 		if (err != 0) {
-			LOG_ERR("dfu_ctx_write error %d", err);
+			LOG_ERR("dfu_target_write error %d", err);
 			err = download_client_disconnect(&dlc);
 			callback(FOTA_DOWNLOAD_EVT_ERROR);
 			return err;
@@ -81,9 +82,9 @@ static int download_client_callback(const struct download_client_evt *event)
 	}
 
 	case DOWNLOAD_CLIENT_EVT_DONE:
-		err = dfu_ctx_done();
+		err = dfu_target_done();
 		if (err != 0) {
-			LOG_ERR("dfu_ctx_done error: %d", err);
+			LOG_ERR("dfu_target_done error: %d", err);
 			callback(FOTA_DOWNLOAD_EVT_ERROR);
 			return err;
 		}
@@ -113,7 +114,7 @@ static int download_client_callback(const struct download_client_evt *event)
 
 static void download_with_offset(struct k_work *unused)
 {
-	int offset = dfu_ctx_offset();
+	int offset = dfu_target_offset();
 	int err = download_client_start(&dlc, dlc.file, offset);
 
 	LOG_INF("Downloading from offset: 0x%x", offset);
