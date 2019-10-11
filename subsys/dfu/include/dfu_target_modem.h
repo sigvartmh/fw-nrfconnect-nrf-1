@@ -12,8 +12,6 @@
 extern "C" {
 #endif
 
-#include <dfu/dfu_target.h>
-
 /**
  * @brief See if data in buf indicates modem upgrade.
  *
@@ -51,17 +49,6 @@ int dfu_target_modem_write(const void *const buf, size_t len);
  * @return 0 on success, negative errno otherwise.
  */
 int dfu_target_modem_done(void);
-
-/** @brief Expose API compatible with dfu_target. This is used by
- *	   dfu_target.c.
- */
-static struct dfu_target dfu_target_modem = {
-	.identify = dfu_target_modem_identify,
-	.init = dfu_target_modem_init,
-	.offset = dfu_target_modem_offset,
-	.write = dfu_target_modem_write,
-	.done = dfu_target_modem_done,
-};
 
 #endif /* DFU_TARGET_MODEM_H__ */
 

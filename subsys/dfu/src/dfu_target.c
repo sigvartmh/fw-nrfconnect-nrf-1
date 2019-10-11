@@ -10,6 +10,13 @@
 #include "dfu_target_mcuboot.h"
 #include "dfu_target_modem.h"
 
+#ifdef CONFIG_DFU_TARGET_MODEM
+extern struct dfu_target dfu_target_modem;
+#endif
+#ifdef CONFIG_DFU_TARGET_MCUBOOT
+extern struct dfu_target dfu_target_mcuboot;
+#endif
+
 #define MIN_SIZE_IDENTIFY_BUF 32
 
 #define MCUBOOT_IMAGE 1
@@ -63,13 +70,13 @@ int dfu_target_init(int img_type)
 	return ctx->init();
 }
 
-int dfu_target_offset(void)
+int dfu_target_offset(size_t *offset)
 {
 	if (!initialized || ctx == NULL) {
 		return -EACCES;
 	}
 
-	return ctx->offset();
+	return ctx->offset(offset);
 }
 
 
