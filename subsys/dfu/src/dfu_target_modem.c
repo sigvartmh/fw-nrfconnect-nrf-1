@@ -41,7 +41,7 @@ static int apply_modem_update(void)
 
 	err = setsockopt(fd, SOL_DFU, SO_DFU_APPLY, NULL, 0);
 	if (err < 0) {
-		if (err == ENOEXEC) {
+		if (errno == ENOEXEC) {
 			LOG_ERR("SO_DFU_APPLY failed, modem error %d",
 				get_modem_error());
 		} else {
@@ -65,13 +65,12 @@ static int delete_banked_modem_fw(void)
 
 	while (true) {
 		err = getsockopt(fd, SOL_DFU, SO_DFU_OFFSET, &offset, &len);
-		if (err != 0) {
-			if (err == ENOEXEC) {
+		if (err < 0) {
+			if (errno == ENOEXEC) {
 				err = get_modem_error();
 				if (err != DFU_ERASE_PENDING) {
 					LOG_ERR("DFU error: %d", err);
 				}
-			} else {
 				k_sleep(K_MSEC(500));
 			}
 		} else {
@@ -144,7 +143,8 @@ int dfu_target_modem_init(void)
 		delete_banked_modem_fw();
 	} else if (offset != 0) {
 		LOG_INF("Setting offset to 0x%x", offset);
-		err = setsockopt(fd, SOL_DFU, SO_DFU_OFFSET, &offset, 4);
+		len = sizeof(offset);
+		err = setsockopt(fd, SOL_DFU, SO_DFU_OFFSET, &offset, len);
 		if (err != 0) {
 			LOG_INF("Error while setting offset: %d", offset);
 		}
@@ -160,6 +160,7 @@ int dfu_target_modem_offset(void)
 
 int dfu_target_modem_write(const void *const buf, size_t len)
 {
+	int err = 0;
 	int sent = 0;
 	int modem_error = 0;
 
@@ -168,16 +169,27 @@ int dfu_target_modem_write(const void *const buf, size_t len)
 		return 0;
 	}
 
-	if (sent == ENOEXEC) {
+	if (errno == ENOEXEC) {
 		modem_error = get_modem_error();
-		LOG_ERR("send failed, modem errno %d, dfu err %d",
-			errno, modem_error);
+		LOG_ERR("send failed, modem errno %d, dfu err %d", errno,
+			modem_error);
 
-		if (modem_error == DFU_INVALID_UUID) {
-			return -EINVAL;
+		switch (modem_error)
+		{
+			case DFU_INVALID_UUID:
+				return -EINVAL;
+			case DFU_INVALID_FILE_OFFSET:
+				delete_banked_modem_fw();
+				err = dfu_target_modem_write(buf, len);
+				if (err < 0) {
+					return -EINVAL;
+				} else {
+					return 0;
+				}
 		}
+
 	} else {
-		LOG_ERR("send failed, errno %d", sent);
+		LOG_ERR("send failed, errno %d", errno);
 	}
 
 	return -EFAULT;

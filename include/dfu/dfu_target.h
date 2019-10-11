@@ -4,16 +4,12 @@
  * SPDX-License-Identifier: LicenseRef-BSD-5-Clause-Nordic
  */
 
-/** @file
- * @brief header.
- */
-
 #ifndef DFU_TARGET_H__
 #define DFU_TARGET_H__
 
 /**
- * @defgroup event_manager Event Manager
- * @brief Event Manager
+ * @defgroup dfu_target DFU Target 
+ * @brief DFU Target 
  *
  * @{
  */

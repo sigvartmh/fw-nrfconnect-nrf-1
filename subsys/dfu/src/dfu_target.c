@@ -7,8 +7,8 @@
 #include <logging/log.h>
 #include <dfu/mcuboot.h>
 #include <dfu/dfu_target.h>
-#include <dfu_target_mcuboot.h>
-#include <dfu_target_modem.h>
+#include "dfu_target_mcuboot.h"
+#include "dfu_target_modem.h"
 
 #define MIN_SIZE_IDENTIFY_BUF 32
 
