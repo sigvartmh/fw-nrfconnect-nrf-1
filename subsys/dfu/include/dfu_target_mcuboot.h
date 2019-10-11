@@ -8,7 +8,7 @@
  *
  * @defgroup dfu_target_mcuboot MCUBoot DFU Target
  * @{
- * @brief DFU Target for updates performed by MCUBoot
+ * @brief DFU Target for upgrades performed by MCUBoot
  */
 
 #ifndef DFU_TARGET_MCUBOOT_H__
@@ -17,8 +17,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include <dfu/dfu_target.h>
 
 /**
  * @brief See if data in buf indicates MCUBoot style upgrade.
@@ -39,7 +37,7 @@ int dfu_target_mcuboot_init(void);
  *
  * @return Offset of firmware
  */
-int dfu_target_mcuboot_offset(void);
+int dfu_target_mcuboot_offset(size_t *offset);
 
 /**
  * @brief Write firmware data.
@@ -57,17 +55,6 @@ int dfu_target_mcuboot_write(const void *const buf, size_t len);
  * @return 0 on success, negative errno otherwise.
  */
 int dfu_target_mcuboot_done(void);
-
-/** @brief Expose API compatible with dfu_target. This is used by
- *	   dfu_target.c.
- */
-struct dfu_target dfu_target_mcuboot = {
-	.identify = dfu_target_mcuboot_identify,
-	.init  = dfu_target_mcuboot_init,
-	.offset = dfu_target_mcuboot_offset,
-	.write = dfu_target_mcuboot_write,
-	.done  = dfu_target_mcuboot_done,
-};
 
 #endif /* DFU_TARGET_MCUBOOT_H__ */
 

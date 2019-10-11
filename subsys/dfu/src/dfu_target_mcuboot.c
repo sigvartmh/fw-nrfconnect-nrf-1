@@ -7,11 +7,22 @@
 #include <flash.h>
 #include <logging/log.h>
 #include <dfu/mcuboot.h>
+#include <dfu/dfu_target.h>
 #include <dfu/flash_img.h>
+#include "dfu_target_mcuboot.h"
 
 LOG_MODULE_REGISTER(dfu_target_mcuboot, CONFIG_DFU_TARGET_LOG_LEVEL);
 
 #define MCUBOOT_HEADER_MAGIC 0x96f3b83d
+
+/* Expose API compatible with dfu_target. This is used by dfu_target.c. */
+struct dfu_target dfu_target_mcuboot = {
+	.identify = dfu_target_mcuboot_identify,
+	.init  = dfu_target_mcuboot_init,
+	.offset = dfu_target_mcuboot_offset,
+	.write = dfu_target_mcuboot_write,
+	.done  = dfu_target_mcuboot_done,
+};
 
 static struct flash_img_context flash_img;
 static size_t offset;
@@ -36,9 +47,10 @@ int dfu_target_mcuboot_init(void)
 	return 0;
 }
 
-int dfu_target_mcuboot_offset(void)
-{
-	return offset;
+int dfu_target_mcuboot_offset(size_t *out)
+{	
+	*out=offset;
+	return 0;
 }
 
 int dfu_target_mcuboot_write(const void *const buf, size_t len)
@@ -74,4 +86,3 @@ int dfu_target_mcuboot_done(void)
 
 	return 0;
 }
-

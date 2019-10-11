@@ -1,13 +1,24 @@
 #include <zephyr.h>
 #include <flash.h>
-#include <nrf_socket.h>
+#include <dfu/dfu_target.h>
 #include <net/socket.h>
+#include <nrf_socket.h>
 #include <logging/log.h>
+#include "dfu_target_modem.h"
 
 LOG_MODULE_REGISTER(dfu_target_modem, CONFIG_DFU_TARGET_LOG_LEVEL);
 
 #define DIRTY_IMAGE 2621440
 #define MODEM_MAGIC 0x7544656d
+
+/* Expose API compatible with dfu_target. This is used by dfu_target.c. */
+struct dfu_target dfu_target_modem = {
+	.identify = dfu_target_modem_identify,
+	.init = dfu_target_modem_init,
+	.offset = dfu_target_modem_offset,
+	.write = dfu_target_modem_write,
+	.done = dfu_target_modem_done,
+};
 
 struct modem_delta_header {
 	u16_t pad1;
@@ -153,9 +164,10 @@ int dfu_target_modem_init(void)
 	return 0;
 }
 
-int dfu_target_modem_offset(void)
+int dfu_target_modem_offset(size_t *out)
 {
-	return offset;
+	*out = offset;
+	return 0;
 }
 
 int dfu_target_modem_write(const void *const buf, size_t len)
@@ -169,27 +181,24 @@ int dfu_target_modem_write(const void *const buf, size_t len)
 		return 0;
 	}
 
-	if (errno == ENOEXEC) {
-		modem_error = get_modem_error();
-		LOG_ERR("send failed, modem errno %d, dfu err %d", errno,
-			modem_error);
+	if (errno != ENOEXEC) {
+		return -EFAULT;
+	}
 
-		switch (modem_error)
-		{
-			case DFU_INVALID_UUID:
-				return -EINVAL;
-			case DFU_INVALID_FILE_OFFSET:
-				delete_banked_modem_fw();
-				err = dfu_target_modem_write(buf, len);
-				if (err < 0) {
-					return -EINVAL;
-				} else {
-					return 0;
-				}
+	modem_error = get_modem_error();
+	LOG_ERR("send failed, modem errno %d, dfu err %d", errno, modem_error);
+	switch (modem_error)
+	{
+	case DFU_INVALID_UUID:
+		return -EINVAL;
+	case DFU_INVALID_FILE_OFFSET:
+		delete_banked_modem_fw();
+		err = dfu_target_modem_write(buf, len);
+		if (err < 0) {
+			return -EINVAL;
+		} else {
+			return 0;
 		}
-
-	} else {
-		LOG_ERR("send failed, errno %d", errno);
 	}
 
 	return -EFAULT;
@@ -213,3 +222,4 @@ int dfu_target_modem_done(void)
 
 	return 0;
 }
+

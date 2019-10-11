@@ -33,7 +33,7 @@ static int download_client_callback(const struct download_client_evt *event)
 
 		err = download_client_file_size_get(&dlc, &file_size);
 		if (err != 0) {
-			LOG_ERR("download_client_file_size_get error %d", err);
+			LOG_DBG("download_client_file_size_get err: %d", err);
 			callback(FOTA_DOWNLOAD_EVT_ERROR);
 			return err;
 		}
@@ -55,7 +55,7 @@ static int download_client_callback(const struct download_client_evt *event)
 				return err;
 			}
 
-			offset = dfu_target_offset();
+			err = dfu_target_offset(&offset);
 			LOG_INF("Offset: 0x%x", offset);
 
 			if (offset != 0) {
@@ -91,7 +91,6 @@ static int download_client_callback(const struct download_client_evt *event)
 
 		err = download_client_disconnect(&dlc);
 		if (err != 0) {
-			LOG_ERR("download_client_disconncet error %d", err);
 			callback(FOTA_DOWNLOAD_EVT_ERROR);
 			return err;
 		}
@@ -114,12 +113,13 @@ static int download_client_callback(const struct download_client_evt *event)
 
 static void download_with_offset(struct k_work *unused)
 {
-	int offset = dfu_target_offset();
-	int err = download_client_start(&dlc, dlc.file, offset);
+	int offset;
+	int err = dfu_target_offset(&offset);
+	err = download_client_start(&dlc, dlc.file, offset);
 
 	LOG_INF("Downloading from offset: 0x%x", offset);
 	if (err != 0) {
-		LOG_ERR("download_client_start error %d", err);
+		LOG_ERR("%s failed with error %d", __func__, err);
 	}
 }
 
@@ -135,22 +135,14 @@ int fota_download_start(char *host, char *file)
 		return -EINVAL;
 	}
 
-	/* Verify that a download is not already ongoing */
-	if (dlc.fd != -1) {
-		return -EALREADY;
-	}
-
 	err = download_client_connect(&dlc, host, &config);
-
 	if (err != 0) {
-		LOG_ERR("download_client_connect error %d", err);
 		return err;
 	}
 
 
 	err = download_client_start(&dlc, file, 0);
 	if (err != 0) {
-		LOG_ERR("download_client_start error %d", err);
 		download_client_disconnect(&dlc);
 		return err;
 	}
@@ -170,7 +162,6 @@ int fota_download_init(fota_download_callback_t client_callback)
 	int err = download_client_init(&dlc, download_client_callback);
 
 	if (err != 0) {
-		LOG_ERR("download_client_init error %d", err);
 		return err;
 	}
 

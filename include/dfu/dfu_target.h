@@ -25,7 +25,7 @@ extern "C" {
 struct dfu_target {
 	bool (*identify)(const void * const buf);
 	int (*init)(void);
-	int (*offset)(void);
+	int (*offset)(size_t *offset);
 	int (*write)(const void *const buf, size_t len);
 	int (*done)(void);
 };
@@ -55,11 +55,13 @@ int dfu_target_img_type(const void *const buf, size_t len);
 int dfu_target_init(int img_type);
 
 /**
- * @brief Get offset of firmware
+ * @brief Get offset of the firmware upgrade
  *
- * @return Offset of firmware
+ * @param[out] offset Returns the offset of the firmware upgrade.
+ *
+ * @return 0 if success, otherwise negative value if unable to set offset
  */
-int dfu_target_offset(void);
+int dfu_target_offset(size_t *offset);
 
 
 /**
