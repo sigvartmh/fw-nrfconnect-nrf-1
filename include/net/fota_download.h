@@ -34,6 +34,8 @@ enum fota_download_evt_id {
 	FOTA_DOWNLOAD_EVT_FINISHED,
 	/** FOTA download error. */
 	FOTA_DOWNLOAD_EVT_ERROR,
+	/** FOTA download progress counter. */
+	FOTA_DOWNLOAD_EVT_PROGRESS,
 };
 
 /**

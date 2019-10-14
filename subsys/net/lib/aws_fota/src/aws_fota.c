@@ -185,7 +185,7 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 			return err;
 		} else  if (err == 1) {
 			LOG_INF("Got only one field: %s",
-				log_strdup(payload_buf));
+					log_strdup(payload_buf));
 			return 1;
 		}
 
@@ -221,8 +221,8 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		return 1;
 
 	} else if (aws_jobs_cmp(update_topic, topic, topic_len, "accepted")) {
-		LOG_DBG("Job document update was accepted");
 		err = get_published_payload(client, payload_buf, payload_len);
+		LOG_DBG("payload: %s", log_strdup(payload_buf));
 		if (err) {
 			return err;
 		}
@@ -243,7 +243,7 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 				return err;
 			}
 		} else if (execution_state == AWS_JOBS_IN_PROGRESS &&
-		    fota_state == APPLY_UPDATE) {
+			   fota_state == APPLY_UPDATE) {
 			LOG_INF("Firmware download completed");
 			execution_state = AWS_JOBS_SUCCEEDED;
 			err = update_job_execution(client, job_id,
@@ -254,9 +254,20 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 			}
 		} else if (execution_state == AWS_JOBS_SUCCEEDED &&
 			   fota_state == APPLY_UPDATE) {
-			LOG_INF("Job document updated with SUCCEDED");
+			LOG_INF("Job document updated with SUCCEEDED");
 			LOG_INF("Ready to reboot");
 			callback(AWS_FOTA_EVT_DONE);
+		} else if (execution_state == AWS_JOBS_FAILED) {
+			/* Re-subscribe to notify-next */
+			err = aws_jobs_subscribe_topic_notify_next(client,
+							   notify_next_topic);
+			if (err) {
+				LOG_ERR("Unable to subscribe to notify-next "
+					"topic");
+				return err;
+			}
+			LOG_INF("Job document updated with FAILED");
+			LOG_INF("Ready to recive a new job");
 		}
 		return 1;
 	} else if (aws_jobs_cmp(update_topic, topic, topic_len, "rejected")) {
@@ -406,9 +417,17 @@ static void http_fota_handler(enum fota_download_evt_id evt)
 		break;
 	case FOTA_DOWNLOAD_EVT_ERROR:
 		LOG_ERR("FOTA download failed, report back");
-		(void) update_job_execution(c, job_id, AWS_JOBS_FAILED,
-				     fota_state, doc_version_number, "");
+		if (execution_state != AWS_JOBS_FAILED) {
+			(void) update_job_execution(c, job_id, AWS_JOBS_FAILED,
+					fota_state, doc_version_number, "");
+		}
 		callback(AWS_FOTA_EVT_ERROR);
+		execution_state = AWS_JOBS_FAILED;
+		fota_state = NONE;
+		doc_version_number = 1;
+		break;
+	case FOTA_DOWNLOAD_EVT_PROGRESS:
+		LOG_INF("Download progress");
 		break;
 	}
 
