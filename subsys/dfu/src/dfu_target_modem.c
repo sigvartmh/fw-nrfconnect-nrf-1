@@ -13,7 +13,6 @@ LOG_MODULE_REGISTER(dfu_target_modem, CONFIG_DFU_TARGET_LOG_LEVEL);
 
 /* Expose API compatible with dfu_target. This is used by dfu_target.c. */
 struct dfu_target dfu_target_modem = {
-	.identify = dfu_target_modem_identify,
 	.init = dfu_target_modem_init,
 	.offset_get = dfu_target_modem_offset_get,
 	.write = dfu_target_modem_write,

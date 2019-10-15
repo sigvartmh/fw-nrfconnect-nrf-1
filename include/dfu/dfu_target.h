@@ -23,7 +23,6 @@ extern "C" {
 /** @brief Functions which needs to be supported by all DFU targets.
  */
 struct dfu_target {
-	bool (*identify)(const void * const buf);
 	int (*init)(void);
 	int (*offset_get)(size_t *offset);
 	int (*write)(const void *const buf, size_t len);
