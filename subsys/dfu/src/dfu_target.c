@@ -10,12 +10,8 @@
 #include "dfu_target_mcuboot.h"
 #include "dfu_target_modem.h"
 
-#ifdef CONFIG_DFU_TARGET_MODEM
 extern struct dfu_target dfu_target_modem;
-#endif
-#ifdef CONFIG_DFU_TARGET_MCUBOOT
 extern struct dfu_target dfu_target_mcuboot;
-#endif
 
 #define MIN_SIZE_IDENTIFY_BUF 32
 
@@ -28,11 +24,7 @@ static struct dfu_target *ctx;
 
 int dfu_target_img_type(const void *const buf, size_t len)
 {
-	if (len < MIN_SIZE_IDENTIFY_BUF) {
-		return -EAGAIN;
-	}
-
-	if (IS_ENABLED(CONFIG_BOOTLOADER_MCUBOOT) &&
+	if (IS_ENABLED(CONFIG_DFU_TARGET_MCUBOOT) &&
 	    dfu_target_mcuboot_identify(buf)) {
 		return MCUBOOT_IMAGE;
 	}
@@ -40,6 +32,10 @@ int dfu_target_img_type(const void *const buf, size_t len)
 	if (IS_ENABLED(CONFIG_DFU_TARGET_MODEM) &&
 	    dfu_target_modem_identify(buf)) {
 		return MODEM_DELTA_IMAGE;
+	}
+
+	if (len < MIN_SIZE_IDENTIFY_BUF) {
+		return -EAGAIN;
 	}
 
 	LOG_ERR("No supported image type found");
@@ -52,7 +48,7 @@ int dfu_target_init(int img_type)
 		return -EBUSY;
 	}
 
-	if (IS_ENABLED(CONFIG_BOOTLOADER_MCUBOOT) &&
+	if (IS_ENABLED(CONFIG_DFU_TARGET_MCUBOOT) &&
 			img_type == MCUBOOT_IMAGE) {
 		ctx = &dfu_target_mcuboot;
 	} else if (IS_ENABLED(CONFIG_DFU_TARGET_MODEM) &&
@@ -79,7 +75,7 @@ int dfu_target_offset_get(size_t *offset)
 
 int dfu_target_write(const void *const buf, size_t len)
 {
-	if (ctx == NULL) {
+	if (ctx == NULL || buf == NULL) {
 		return -EACCES;
 	}
 
@@ -95,12 +91,11 @@ int dfu_target_done(void)
 	}
 
 	err = ctx->done();
-	if (err < 0) {
+	ctx = NULL;
+	if (err != 0) {
 		LOG_ERR("Unable to clean up dfu_target");
 		return err;
 	}
-
-	ctx = NULL;
 
 	return 0;
 }

@@ -11,19 +11,18 @@ if (DFU_TARGET)
 
 config DFU_TARGET_MCUBOOT
 	bool "MCUBoot Update support"
-	default y if BOOTLOADER_MCUBOOT
-	select FLASH
-	select FLASH_PAGE_LAYOUT
-	select IMG_MANAGER
-	select MPU_ALLOW_FLASH_WRITE
-	select IMG_ERASE_PROGRESSIVELY
+	default y
+	depends on IMG_MANAGER
+	imply FLASH_ERASE_PROGRESSIVE
+	imply BOOTLOADER_MCUBOOT
 	help
 	  Support updates which are performed by MCUBoot.
 
 
 config DFU_TARGET_MODEM
 	bool "Modem Update support"
-	default y if SOC_NRF9160_SICA
+	default y
+	depends on SOC_NRF9160_SICA
 	help
 	  Support updates to the modem firmware.
 
