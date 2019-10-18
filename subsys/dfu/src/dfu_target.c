@@ -52,22 +52,30 @@ int dfu_target_img_type(const void *const buf, size_t len)
 
 int dfu_target_init(int img_type, size_t file_size)
 {
-	if (current_target != NULL) {
-		return -EBUSY;
-	}
+	const struct dfu_target *new_target = NULL;
 
 	if (IS_ENABLED(CONFIG_BOOTLOADER_MCUBOOT) &&
 	    img_type == DFU_TARGET_IMAGE_TYPE_MCUBOOT) {
-		current_target = &dfu_target_mcuboot;
+		new_target = &dfu_target_mcuboot;
 	} else if (IS_ENABLED(CONFIG_DFU_TARGET_MODEM) &&
 		   img_type == DFU_TARGET_IMAGE_TYPE_MODEM_DELTA) {
-		current_target = &dfu_target_modem;
+		new_target = &dfu_target_modem;
 	}
 
-	if (current_target == NULL) {
+	if (new_target == NULL) {
 		LOG_ERR("Unknown image type");
 		return -ENOTSUP;
 	}
+
+	/* The user is re-initializing with an previously aborted target.
+	 * Avoid re-initializing to ensure that the download can continue where
+	 * it left off.
+	 */
+	if (new_target == current_target) {
+		return 0;
+	}
+
+	current_target = new_target;
 
 	return current_target->init(file_size);
 }
@@ -99,7 +107,11 @@ int dfu_target_done(bool successful)
 	}
 
 	err = current_target->done(successful);
-	current_target = NULL;
+
+	if (successful) {
+		current_target = NULL;
+	}
+
 	if (err != 0) {
 		LOG_ERR("Unable to clean up dfu_target");
 		return err;

@@ -49,6 +49,13 @@ int dfu_target_img_type(const void *const buf, size_t len);
  * @brief Initialize the resources needed for the specific image type DFU
  *	  target.
  *
+ *	  If a target update is in progress, and the same target is
+ *	  given as input, then calling the 'init()' function of that target is
+ *	  skipped.
+ *
+ *	  To allow continuation of an aborted DFU procedure, call the
+ *	  'dfu_target_offset_get' function after invoking this function.
+ *
  * @param img_type[in] Image type identifier.
  * @param file_size[in] Size of the current file being downloaded.
  *

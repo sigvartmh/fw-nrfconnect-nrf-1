@@ -12,6 +12,13 @@ This function can identify all supported firmware upgrade types.
 The result of this call can then be given as input to the :cpp:func:`dfu_target_init` function.
 
 
+.. note::
+   After starting a DFU procedure for a given target, it is not supported to
+   initialize a new DFU procedure with a different firmware file for the same
+   target until either the DFU procedure has completed successfully, or the
+   device has been restarted.
+
+
 Supported DFU targets
 *********************
 
