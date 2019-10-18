@@ -9,7 +9,6 @@
 #include <json.h>
 #include <misc/util.h>
 #include <net/aws_jobs.h>
-
 #include "aws_fota_json.h"
 
 struct location_obj {

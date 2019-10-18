@@ -11,7 +11,7 @@ config APP_VERSION
 	default "v1.0.0"
 
 config USE_NRF_CLOUD
-	bool "Use nRF Cloud certificates"
+	bool "Use nRF Cloud"
 	default n
 
 if !USE_NRF_CLOUD
@@ -42,7 +42,6 @@ config CLOUD_CLIENT_ID
 	string "Client ID"
 	default "your_client_id"
 endif
-endif
 
 config MQTT_BROKER_HOSTNAME
 	string "AWS IoT MQTT broker hostname"
@@ -51,9 +50,19 @@ config MQTT_BROKER_HOSTNAME
 	  Default is set to be the nRF Cloud MQTT broker.
 
 config MQTT_BROKER_PORT
-	int "AWS IoT MQTT broker port"
+	int "MQTT Broker hostname"
 	default 8883
+endif
 
+config MQTT_BROKER_HOSTNAME
+	string
+	default "a2n7tk1kp18wix-ats.iot.us-east-1.amazonaws.com"
+	help
+	  Default is set to be the nRF Cloud MQTT broker.
+
+config MQTT_BROKER_PORT
+	int
+	default 8883
 
 config MQTT_MESSAGE_BUFFER_SIZE
 	int "MQTT message buffer size"
