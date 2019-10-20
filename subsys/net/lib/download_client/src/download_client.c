@@ -14,6 +14,8 @@
 #include <net/download_client.h>
 #include <logging/log.h>
 
+#include <uzlib.h>
+
 LOG_MODULE_REGISTER(download_client, CONFIG_DOWNLOAD_CLIENT_LOG_LEVEL);
 
 #define GET_TEMPLATE                                                           \
@@ -21,6 +23,7 @@ LOG_MODULE_REGISTER(download_client, CONFIG_DOWNLOAD_CLIENT_LOG_LEVEL);
 	"Host: %s\r\n"                                                         \
 	"Connection: keep-alive\r\n"                                           \
 	"Range: bytes=%u-%u\r\n"                                               \
+	"Accept-Encoding: gzip, deflate: \r\n"                                 \
 	"\r\n"
 
 BUILD_ASSERT_MSG(CONFIG_DOWNLOAD_CLIENT_MAX_FRAGMENT_SIZE <=
@@ -385,6 +388,8 @@ void download_thread(void *client, void *a, void *b)
 	int rc;
 	size_t len;
 	struct download_client *const dl = client;
+	struct uzlib_uncomp decompressor;
+	uzlib_uncompress_init(&decompressor, NULL, 0);
 
 restart_and_suspend:
 	k_thread_suspend(dl->tid);
@@ -453,6 +458,7 @@ restart_and_suspend:
 
 		LOG_INF("Downloaded %u/%u bytes (%d%%)", dl->progress,
 			dl->file_size, (dl->progress * 100) / dl->file_size);
+
 
 		/* Send fragment to application.
 		 * If the application callback returns non-zero, stop.
