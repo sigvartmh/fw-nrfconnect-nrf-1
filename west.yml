@@ -31,6 +31,8 @@ manifest:
       url-base: https://github.com/ARMmbed
     - name: civetweb
       url-base: https://github.com/civetweb
+    - name: pfalcon
+      url-base: https://github.com/pfalcon
 
   # The list of external projects for the nRF Connect SDK.
   #
@@ -128,6 +130,10 @@ manifest:
       path: modules/fs/littlefs
       remote: zephyrproject
       revision: fe9572dd5a9fcf93a249daa4233012692bd2881d
+    - name: uzlib
+      path: uzlib
+      repo-path: uzlib
+      revision: e70ceb476bbf1c68c1869ee4b8930d2565d9a9cd  
 
   self:
     path: nrf
