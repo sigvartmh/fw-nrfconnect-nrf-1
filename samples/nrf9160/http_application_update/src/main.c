@@ -101,15 +101,19 @@ static int dfu_button_init(void)
 }
 
 
-void fota_dl_handler(enum fota_download_evt_id evt_id)
+void fota_dl_handler(const struct fota_download_evt *evt)
 {
-	switch (evt_id) {
+	switch (evt->id) {
 	case FOTA_DOWNLOAD_EVT_ERROR:
 		printk("Received error from fota_download\n");
 		/* Fallthrough */
 	case FOTA_DOWNLOAD_EVT_FINISHED:
 		/* Re-enable button callback */
 		gpio_pin_enable_callback(gpiob, DT_ALIAS_SW0_GPIOS_PIN);
+		break;
+	case FOTA_DOWNLOAD_EVT_PROGRESS:
+		/* Print out progress */
+		printk("Downloaded: %d%% \n", (100*evt->progress.offset)/evt->progress.file_size);
 		break;
 
 	default:

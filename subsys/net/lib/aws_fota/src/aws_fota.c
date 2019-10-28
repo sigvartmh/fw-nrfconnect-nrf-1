@@ -78,7 +78,8 @@ static int get_published_payload(struct mqtt_client *client, u8_t *write_buf,
 }
 
 
-#define AWS_FOTA_STATUS_DETAILS_TEMPLATE "{\"nextState\":\"%s\"}"
+#define AWS_FOTA_STATUS_DETAILS_TEMPLATE "{\"nextState\":\"%s\","\
+					 "\"progress\":%d}"
 #define STATUS_DETAILS_MAX_LEN  (sizeof("{\"nextState\":\"\"}") \
 				+ (sizeof("download_firmware") + 2))
 
@@ -86,6 +87,7 @@ static int update_job_execution(struct mqtt_client *const client,
 				const u8_t *job_id,
 				enum execution_status state,
 				enum fota_status next_state,
+				int progress,
 				int version_number,
 				const char *client_token)
 {
@@ -93,7 +95,8 @@ static int update_job_execution(struct mqtt_client *const client,
 	int ret = snprintf(status_details,
 			   sizeof(status_details),
 			   AWS_FOTA_STATUS_DETAILS_TEMPLATE,
-			   fota_status_strings[next_state]);
+			   fota_status_strings[next_state],
+			   progress);
 	__ASSERT(ret >= 0, "snprintf returned error %d\n", ret);
 	__ASSERT(ret < STATUS_DETAILS_MAX_LEN,
 		"Not enough space for status, need %d bytes\n", ret+1);
@@ -336,13 +339,13 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 	return 0;
 }
 
-static void http_fota_handler(enum fota_download_evt_id evt)
+static void http_fota_handler(struct fota_download_evt evt)
 {
 	__ASSERT_NO_MSG(c != NULL);
 
 	int err = 0;
 
-	switch (evt) {
+	switch (evt->id) {
 	case FOTA_DOWNLOAD_EVT_FINISHED:
 		LOG_INF("FOTA download completed evt recived");
 		fota_state = APPLY_UPDATE;
@@ -357,6 +360,11 @@ static void http_fota_handler(enum fota_download_evt_id evt)
 		(void) update_job_execution(c, job_id, AWS_JOBS_FAILED,
 				     fota_state, doc_version_number, "");
 		callback(AWS_FOTA_EVT_ERROR);
+		break;
+	case FOTA_DOWNLOAD_EVT_PROGRESS:
+		//err = update_job_execution_progress
+		//if(err != 0) {
+		//LOG_ERR("Unable to report progress");
 		break;
 	}
 
