@@ -64,7 +64,18 @@ void bsd_recoverable_error_handler(uint32_t err)
 #define AWS "$aws/things/"
 #define UPDATE_DELTA_TOPIC AWS "%s/shadow/update"
 #define SHADOW_STATE_UPDATE \
-"{\"state\":{\"reported\":{\"nrfcloud__dfu_v1__app_v\":\"%s\"}}}"
+"{\"state\":{" \
+	"\"reported\":{" \
+	    "\"serviceInfo\":[\"dfu\"]" \
+"}}}"
+	/*
+	    "\"serviceInfo\":{" \
+	      "\"fota_v1\": [\"app\", \"modem\", \"boot\"]," \
+	    "},"\
+	    "\"app_version\":\"%s\","\
+	"}"\
+"}}"
+*/
 
 static int update_device_shadow_version(struct mqtt_client *const client)
 {
@@ -72,6 +83,8 @@ static int update_device_shadow_version(struct mqtt_client *const client)
 	char update_delta_topic[strlen(AWS) + strlen("/shadow/update") +
 				CLIENT_ID_LEN];
 	u8_t shadow_update_payload[CONFIG_DEVICE_SHADOW_PAYLOAD_SIZE];
+	printk("Device shadow size: %d\n", CONFIG_DEVICE_SHADOW_PAYLOAD_SIZE);
+	printk("shadow topic size: %d\n", sizeof(update_delta_topic));
 
 	int ret = snprintf(update_delta_topic,
 			   sizeof(update_delta_topic),
@@ -79,7 +92,8 @@ static int update_device_shadow_version(struct mqtt_client *const client)
 			   client->client_id.utf8);
 	u32_t update_delta_topic_len = ret;
 
-	if (ret >= sizeof(update_delta_topic)) {
+	if (ret > sizeof(update_delta_topic)) {
+		printk("Ret value: %d\n", ret);
 		return -ENOMEM;
 	} else if (ret < 0) {
 		return ret;
@@ -89,9 +103,10 @@ static int update_device_shadow_version(struct mqtt_client *const client)
 		       sizeof(shadow_update_payload),
 		       SHADOW_STATE_UPDATE,
 		       CONFIG_APP_VERSION);
+	printk("Shadow update payload: %s", shadow_update_payload);
 	u32_t shadow_update_payload_len = ret;
 
-	if (ret >= sizeof(shadow_update_payload)) {
+	if (ret > sizeof(shadow_update_payload)) {
 		return -ENOMEM;
 	} else if (ret < 0) {
 		return ret;
@@ -166,12 +181,10 @@ void mqtt_evt_handler(struct mqtt_client * const c,
 		}
 
 		printk("[%s:%d] MQTT client connected!\n", __func__, __LINE__);
-#if !defined(CONFIG_USE_NRF_CLOUD)
 		err = update_device_shadow_version(c);
 		if (err) {
 			printk("Unable to update device shadow err: %d\n", err);
 		}
-#endif
 		break;
 
 	case MQTT_EVT_DISCONNECT:

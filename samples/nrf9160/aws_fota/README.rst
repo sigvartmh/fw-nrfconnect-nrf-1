@@ -65,6 +65,39 @@ To create a thing for your board:
 #. Click **Attach a policy** to continue to the next step.
 #. Select the policy that you created in step 3 and click **Register Thing**.
 
+AWS S3 server
+=============
+
+The firmware files for download must be stored in a bucket on an AWS S3 server.
+To do this you need to set up your own bucket.
+
+When setting up your own bucket, make sure to configure the permissions as shown in the following screenshot:
+
+.. figure:: /images/aws_s3_bucket_permissions.png
+   :alt: Bucket permissions in AWS S3
+
+To update the permissions for an existing bucket, select your bucket and navigate to **Permissions** > **Block public access**.
+
+In addition to the permissions, you must configure a bucket policy.
+To determine a suitable security scheme for your application, see `AWS S3 Developer Guide: Using Bucket Policies and User Policies`_ and `AWS S3 Developer Guide: Bucket Policy Examples`_.
+To configure the policy, select your bucket and navigate to **Permissions** > **Bucket Policy**.
+
+For testing purposes, you can use the following, very permissive, bucket policy (replace *bucket_name* with the name of your bucket):
+
+.. parsed-literal::
+   :class: highlight
+
+   {    "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Principal": "*",
+                "Action": "s3:GetObject",
+                "Resource": "arn:aws:s3:::*bucket_name*/\*"
+            }
+         ]
+    }
+
 Updating the certificates
 =========================
 
@@ -78,8 +111,6 @@ Add the certificates to the sample code:
 
    .. warning::
       * The sample will overwrite the certificates stored with the configured :option:`security tag <CLOUD_CERT_SEC_TAG>`.
-        By default, these are the preprogrammed certificates for nRF Cloud.
-        Make sure to update the security tag to prevent overwriting the nRF Cloud certificates.
       * You should provision the certificates only once and then update the sample configuration to use the existing certificates.
         When provisioning the certificates, they are stored in the application binary and visible in the modem trace information, which is a security risk.
 
@@ -110,7 +141,7 @@ Requirements
 
 * An `AWS account`_ with access to Simple Storage Service (S3) and the IoT Core service
 
-* An `nRF Cloud`_ account
+* Or an `nRF Cloud`_ account
 
 * .. include:: /includes/spm.txt
 
