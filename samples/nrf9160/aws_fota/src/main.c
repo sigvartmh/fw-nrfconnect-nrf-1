@@ -79,7 +79,7 @@ static int update_device_shadow_version(struct mqtt_client *const client)
 		printk("Failed to get fw version.\n");
 	} 
 	int len = strlen(fw_version);
-	fw_version[len] = '\0';
+	fw_version[18] = '\0';
 
 	int ret = snprintf(update_delta_topic,
 			   sizeof(update_delta_topic),
@@ -105,7 +105,7 @@ static int update_device_shadow_version(struct mqtt_client *const client)
 	} else if (ret < 0) {
 		return ret;
 	}
-	printk("%s", shadow_update_payload);
+	printk("%s\n", shadow_update_payload);
 
 	param.message.topic.qos = MQTT_QOS_1_AT_LEAST_ONCE;
 	param.message.topic.topic.utf8 = update_delta_topic;
