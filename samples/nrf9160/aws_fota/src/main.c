@@ -70,7 +70,7 @@ static int update_device_shadow_version(struct mqtt_client *const client)
 	struct mqtt_publish_param param;
 	char update_delta_topic[strlen(AWS) + strlen("/shadow/update") +
 				CLIENT_ID_LEN+2];
-	char fw_version[36];
+	char fw_version[36] = {'\0'};
 	u8_t shadow_update_payload[CONFIG_DEVICE_SHADOW_PAYLOAD_SIZE];
 	
 	int err = at_cmd_write(AT_CMD_FW_VERSION, fw_version, sizeof(fw_version),
@@ -78,8 +78,6 @@ static int update_device_shadow_version(struct mqtt_client *const client)
 	if (err != 0) {
 		printk("Failed to get fw version.\n");
 	} 
-	int len = strlen(fw_version);
-	fw_version[18] = '\0';
 
 	int ret = snprintf(update_delta_topic,
 			   sizeof(update_delta_topic),

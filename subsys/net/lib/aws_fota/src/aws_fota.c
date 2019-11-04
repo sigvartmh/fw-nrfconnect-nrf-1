@@ -188,7 +188,7 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 			 * the firmware.
 			 */
 			execution_state = AWS_JOBS_IN_PROGRESS;
-			LOG_INF("Start downloading firmware from %s%s",
+			LOG_INF("Start downloading firmware from %s/%s",
 				log_strdup(hostname), log_strdup(file_path));
 			err = fota_download_start(hostname, file_path);
 			if (err) {
