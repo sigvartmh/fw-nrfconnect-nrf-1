@@ -59,19 +59,27 @@ void bsd_recoverable_error_handler(uint32_t err)
 }
 
 #endif /* defined(CONFIG_BSD_LIBRARY) */
+#define AT_CMD_FW_VERSION	"AT+CGMR"
 
 /* Topic for updating shadow topic with version number */
 #define AWS "$aws/things/"
 #define UPDATE_DELTA_TOPIC AWS "%s/shadow/update"
-#define SHADOW_STATE_UPDATE \
-"{\"state\":{\"reported\":{\"nrfcloud__dfu_v1__app_v\":\"%s\"}}}"
-
+#define SHADOW_STATE_UPDATE "{{\"reported\":{\"app_version\":\"%s\",\"modem_version\":\"%s\"}}}"
 static int update_device_shadow_version(struct mqtt_client *const client)
 {
 	struct mqtt_publish_param param;
 	char update_delta_topic[strlen(AWS) + strlen("/shadow/update") +
-				CLIENT_ID_LEN];
+				CLIENT_ID_LEN+2];
+	char fw_version[36];
 	u8_t shadow_update_payload[CONFIG_DEVICE_SHADOW_PAYLOAD_SIZE];
+	
+	int err = at_cmd_write(AT_CMD_FW_VERSION, fw_version, sizeof(fw_version),
+			   NULL);
+	if (err != 0) {
+		printk("Failed to get fw version.\n");
+	} 
+	int len = strlen(fw_version);
+	fw_version[len] = '\0';
 
 	int ret = snprintf(update_delta_topic,
 			   sizeof(update_delta_topic),
@@ -79,7 +87,7 @@ static int update_device_shadow_version(struct mqtt_client *const client)
 			   client->client_id.utf8);
 	u32_t update_delta_topic_len = ret;
 
-	if (ret >= sizeof(update_delta_topic)) {
+	if (ret > sizeof(update_delta_topic)) {
 		return -ENOMEM;
 	} else if (ret < 0) {
 		return ret;
@@ -88,14 +96,16 @@ static int update_device_shadow_version(struct mqtt_client *const client)
 	ret = snprintf(shadow_update_payload,
 		       sizeof(shadow_update_payload),
 		       SHADOW_STATE_UPDATE,
-		       CONFIG_APP_VERSION);
+		       CONFIG_APP_VERSION,
+		       fw_version);
 	u32_t shadow_update_payload_len = ret;
 
-	if (ret >= sizeof(shadow_update_payload)) {
+	if (ret > sizeof(shadow_update_payload)) {
 		return -ENOMEM;
 	} else if (ret < 0) {
 		return ret;
 	}
+	printk("%s", shadow_update_payload);
 
 	param.message.topic.qos = MQTT_QOS_1_AT_LEAST_ONCE;
 	param.message.topic.topic.utf8 = update_delta_topic;
@@ -464,8 +474,6 @@ static void aws_fota_cb_handler(enum aws_fota_evt_id evt)
 		break;
 	}
 }
-
-#define AT_CMD_FW_VERSION	"AT+CGMR"
 
 void get_modem_version(void)
 {
