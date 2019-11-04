@@ -465,6 +465,52 @@ static void aws_fota_cb_handler(enum aws_fota_evt_id evt)
 	}
 }
 
+#define AT_CMD_FW_VERSION	"AT+CGMR"
+
+void get_modem_version(void)
+{
+	int err;
+	int fd;
+	socklen_t len;
+	u8_t uuid[36];
+	char uuid_string[37];
+	char fw_version[36];
+
+	/* Create a socket for firmware upgrade*/
+	fd = socket(AF_LOCAL, SOCK_STREAM, NPROTO_DFU);
+	if (fd < 0) {
+		printk("Failed to open Modem DFU socket.");
+		return;
+	}
+
+	len = sizeof(uuid);
+	err = getsockopt(fd, SOL_DFU, SO_DFU_FW_VERSION, &uuid,
+			    &len);
+	if (err < 0) {
+		printk("Firmware version request failed, errno %d", errno);
+		return;
+	}
+
+	snprintf(uuid_string, sizeof(uuid_string), "%.*s",
+		 sizeof(uuid), uuid);
+
+	printk("Modem firmware uuid: %s\n", uuid_string);
+	err = close(fd);
+	if (err < 0) {
+		printk("Failed to close modem DFU socket.");
+	}
+
+	err = at_cmd_write(AT_CMD_FW_VERSION, fw_version, sizeof(fw_version),
+			   NULL);
+	if (err != 0) {
+		printk("Failed to get fw version.\n");
+	}else {
+		printk("Modem firmware: %s", fw_version);
+	}
+
+	return;
+}
+
 void main(void)
 {
 	int err;
@@ -504,6 +550,7 @@ void main(void)
 	provision_certificates();
 #endif /* CONFIG_PROVISION_CERTIFICATES */
 	modem_configure();
+	get_modem_version();
 
 	client_init(&client, CONFIG_MQTT_BROKER_HOSTNAME);
 

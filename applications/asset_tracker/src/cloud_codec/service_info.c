@@ -65,6 +65,11 @@ int service_info_json_object_encode(
 		return -ENOMEM;
 	}
 
+	const char *dfu_str[1] = {"dfu"};
+	cJSON *dfu = cJSON_CreateStringArray(dfu_str, 1);
+
+
+	/*
 	if (!err) {
 		err = add_array_obj(ui, ui_count, UI_JSON_NAME,
 				    service_info_obj);
@@ -76,10 +81,11 @@ int service_info_json_object_encode(
 		err = add_array_obj(fota, fota_count, fota_name,
 				    service_info_obj);
 	}
+	*/
 
 	if (!err) {
 		cJSON_AddItemToObject(obj_out, SERVICE_INFO_JSON_NAME,
-				      service_info_obj);
+				      dfu);
 	} else {
 		cJSON_Delete(service_info_obj);
 	}
