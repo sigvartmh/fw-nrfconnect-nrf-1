@@ -19,9 +19,8 @@ See :ref:`lib_aws_fota` for information about the download procedure.
 The `AWS IoT Developer Guide`_ contains all required information about the Amazon Web Services IoT service.
 
 .. note::
-   For simplicity, the testing instructions for this sample use `nRF Cloud`_ as the AWS S3 server instance that hosts the new firmware image.
-   You can set up and use your own AWS S3 server bucket instead.
-   See the documentation for the :ref:`lib_aws_fota` library for more information.
+   An file server instance that hosts the new firmware image is required for this sample.
+   You can set up and use your own AWS S3 server bucket to host the firmware described in the :ref:`AWS S3 server_` section.
 
 Creating a thing in AWS IoT
 ===========================
@@ -65,6 +64,8 @@ To create a thing for your board:
 #. Click **Attach a policy** to continue to the next step.
 #. Select the policy that you created in step 3 and click **Register Thing**.
 
+.. include:: /includes/aws_s3_bucket.txt
+
 Updating the certificates
 =========================
 
@@ -78,8 +79,6 @@ Add the certificates to the sample code:
 
    .. warning::
       * The sample will overwrite the certificates stored with the configured :option:`security tag <CLOUD_CERT_SEC_TAG>`.
-        By default, these are the preprogrammed certificates for nRF Cloud.
-        Make sure to update the security tag to prevent overwriting the nRF Cloud certificates.
       * You should provision the certificates only once and then update the sample configuration to use the existing certificates.
         When provisioning the certificates, they are stored in the application binary and visible in the modem trace information, which is a security risk.
 
@@ -110,7 +109,7 @@ Requirements
 
 * An `AWS account`_ with access to Simple Storage Service (S3) and the IoT Core service
 
-* An `nRF Cloud`_ account
+* Or an `nRF Cloud`_ account
 
 * .. include:: /includes/spm.txt
 
@@ -198,13 +197,11 @@ After programming the sample to the board, test it by performing the following s
 #. Go to **Shadow** and confirm that the application version (``nrfcloud__dfu_v1__app_v``) is the one that you configured for the sample.
 #. In the :ref:`configuring`, change the application version.
    Then rebuild the application, but do not program it.
-#. Go to `firmware.nrfcloud.com`_ and sign in.
-   If you already have an nRF Cloud account, you can use the same credentials.
-   Otherwise, create an account and sign in.
-#. In the menu on the left-hand side, select **Firmware**.
-#. Click **Generate new** to create a URL for the firmware image.
-#. Click **Upload** for the URL that you created and select the file ``app_update.bin`` (located in the ``zephyr`` subfolder of your build directory).
-#. Create a job document (a text file) with the following content, replacing *host_url* with the server part of the URL that you created (for example, ``s3.amazonaws.com``) and *file_path* with the path and file name (for example, ``nordic-firmware-files/XXXXXXXXX``):
+#. Go to `s3.console.aws.amazon.com`_ and sign in.
+#. Go to the bucket you have created.
+#. Click **Upload** and select the file ``app_update.bin`` (located in the ``zephyr`` subfolder of your build directory).
+#. Click the file you uploaded in the bucket and find the download URL to the file through the *Object URL* field.
+#. Create a job document (a text file) with the following content, replacing *host_url* with the server part of the URL that you created (for example, ``s3.amazonaws.com``) and *file_path* with the path and file name (for example, ``nordic-firmware-files/app_update.bin``):
 
    .. parsed-literal::
       :class: highlight
@@ -222,7 +219,6 @@ After programming the sample to the board, test it by performing the following s
 
    See `AWS IoT Developer Guide: Jobs`_ for more information about AWS jobs.
 #. Log on to the `AWS S3 console`_.
-#. If you do not have a bucket yet, create one with the default settings.
 #. Select the bucket, click **Upload**, and select your job document.
    Use the default settings when uploading the file.
 #. Log on to the `AWS IoT console`_, go to **Manage** > **Jobs**, and select **Create a job**.
@@ -261,8 +257,8 @@ ERROR: mqtt_connect -45:
    Certificates must be formatted correctly, without extra whitespace.
 
 Content range is not defined:
-   If you host the firmware image on a different server than nRF Cloud, this error indicates that the Content-Range field is missing in the HTTP GET header.
-   To fix this problem, configure the host server to provide this field.
+   If you host the firmware image on a different server than in an S3 bucket, this error indicates that the Content-Range field is missing in the HTTP GET header.
+   To fix this problem, configure the host server to provide this field. Also it could be that you have not configured the S3 bucket correctly. Please check that your file is available from the browser withouth being logged in to your AWS account.
 
 
 Dependencies
