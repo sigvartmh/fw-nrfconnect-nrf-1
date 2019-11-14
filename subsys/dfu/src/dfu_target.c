@@ -72,6 +72,9 @@ int dfu_target_init(int img_type, size_t file_size)
 	 * it left off.
 	 */
 	if (new_target == current_target) {
+		if (img_type == DFU_TARGET_IMAGE_TYPE_MODEM_DELTA) {
+			return current_target->init(file_size);
+		}
 		return 0;
 	}
 
