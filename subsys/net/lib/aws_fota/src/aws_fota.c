@@ -361,19 +361,26 @@ static void http_fota_handler(enum fota_download_evt_id evt)
 	}
 
 }
+fs_mount_t * mp;
 
-int aws_fota_init(struct mqtt_client *const client,
-		  const char *app_version,
+int aws_fota_init(struct mqtt_client *const client, fs_mount_t *mount_point
 		  aws_fota_callback_t evt_handler)
 {
 	int err;
 
-	if (client == NULL || app_version == NULL || evt_handler == NULL) {
+	if (client == NULL || evt_handler == NULL || mount_point == NULL) {
 		return -EINVAL;
 	}
-
-	if (strlen(app_version) >= CONFIG_AWS_FOTA_VERSION_STRING_MAX_LEN) {
-		return -EINVAL;
+	
+	/* Store mount point to make it available in event handlers. */
+	mp = mount_point;
+	/* TODO: Append mnt point prefix */
+	mp.mnt_point = "/aws_iot_jobs";
+	err = fs_mount(&mp);
+	if (res < 0) {
+		LOG_ERR("Error mounting file system [err: %d, mnt_point: %s, "
+			"type: %d]", res, mp.mnt_point, mp.type);
+		return -EFAULT;
 	}
 
 	/* Store client to make it available in event handlers. */
