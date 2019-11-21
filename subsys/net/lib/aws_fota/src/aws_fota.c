@@ -32,6 +32,8 @@ static const char * const fota_status_strings[] = {
 
 /* Pointer to initialized MQTT client instance */
 static struct mqtt_client *c;
+/* Pointer to initialized mount point for file system*/
+static fs_mount_t * mp;
 
 /* Enum for tracking the job exectuion state */
 static enum execution_status execution_state = AWS_JOBS_QUEUED;
@@ -90,8 +92,7 @@ static int update_job_execution(struct mqtt_client *const client,
 				const char *client_token)
 {
 	char status_details[STATUS_DETAILS_MAX_LEN + 1];
-	int ret = snprintf(status_details,
-			   sizeof(status_details),
+	int ret = snprintf(status_details, sizeof(status_details),
 			   AWS_FOTA_STATUS_DETAILS_TEMPLATE,
 			   fota_status_strings[next_state]);
 	__ASSERT(ret >= 0, "snprintf returned error %d\n", ret);
@@ -140,7 +141,7 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		} else  if (err == 1) {
 			LOG_INF("Got only one field: %s",
 				log_strdup(payload_buf));
-			return 1;
+			return 0;
 		}
 
 		/* Unsubscribe from notify_next_topic to not recive more jobs
@@ -164,15 +165,19 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 				"%d", err);
 			return err;
 		}
+		fs_file_t file_handler;
+		fs_open(file_handler, FILE_JOB_ID);
+		fs_write(file_handler, job_id, sizeof(job_id));
+		fs_close(file_handler);	
 
 		/* Set fota_state to DOWNLOAD_FIRMWARE, when we are subscribed
 		 * to job_id topics we will try to publish and if accepted we
 		 * can start the download
 		 */
 		fota_state = DOWNLOAD_FIRMWARE;
-
+		
 		/* Handled by the library */
-		return 1;
+		return 0;
 
 	} else if (aws_jobs_cmp(update_topic, topic, topic_len, "accepted")) {
 		LOG_DBG("Job document update was accepted");
@@ -229,6 +234,54 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 
 }
 
+static int connack_evt(struct mqtt_client *const client)
+{
+	int err;
+
+	err = aws_jobs_subscribe_topic_notify_next(client, notify_next_topic);
+	if (err) {
+		LOG_ERR("mqtt_subscribe with topic notify-next failed");
+		return err;
+	}
+
+	err = aws_jobs_subscribe_topic_get(client, "$next", get_topic);
+	if (err) {
+		LOG_ERR("mqtt_subscribe with topic jobs/$next/get failed");
+		return err;
+	}
+
+	return 0;
+}
+
+static int suback_notify_next(struct mqtt_client *const client)
+{
+	LOG_DBG("Subscribed to notify-next topic");
+	int err = aws_jobs_get_job_execution(client, "$next", get_topic);
+
+	if (err) {
+		return err;
+	}
+
+	return 0;
+}
+
+static int suback_job_id_update(struct mqtt_client *const client)
+{
+	LOG_DBG("Subscribed to jobs/%s/update update job document version:%d" 
+		log_strdup(job_id), doc_version_number);
+	int err = 0;
+	if (fota_state == DOWNLOAD_FIRMWARE) {
+		err = update_job_execution(client, job_id, AWS_JOBS_IN_PROGRESS,
+					   fota_state, doc_version_number, "");
+	}
+
+	if (err) {
+		return err;
+	}
+
+	return 0;
+}
+
 int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 			      const struct mqtt_evt *evt)
 {
@@ -237,29 +290,17 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 	switch (evt->type) {
 	case MQTT_EVT_CONNACK:
 		if (evt->result != 0) {
-			return 0;
+			return evt->result;
 		}
 
-		err = aws_jobs_subscribe_topic_notify_next(client,
-							   notify_next_topic);
-		if (err) {
-			LOG_ERR("Unable to subscribe to notify-next topic");
-			return err;
-		}
-
-		err = aws_jobs_subscribe_topic_get(client, "$next", get_topic);
-		if (err) {
-			LOG_ERR("Unable to subscribe to jobs/$next/get");
-			return err;
-		}
-
-		return 0;
+		return connack_evt(client);
 		/* This expects that the application's mqtt handler will handle
 		 * any situations where you could not connect to the MQTT
 		 * broker.
 		 */
 
 	case MQTT_EVT_DISCONNECT:
+		//TODO: should we disconnect or just abort mqtt_disconnect(client);
 		return 0;
 
 	case MQTT_EVT_PUBLISH: {
@@ -284,7 +325,7 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 				return err;
 			}
 		}
-		return 1;
+		return 0;
 
 	} break;
 
@@ -293,20 +334,16 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 			LOG_ERR("MQTT PUBACK error %d", evt->result);
 			return 0;
 		}
-		return 0;
+		//TODO: Add PUBACK check for publish
+		return 1;
 
 	case MQTT_EVT_SUBACK:
 		if (evt->result != 0) {
 			return 0;
 		}
+
 		if (evt->param.suback.message_id == SUBSCRIBE_NOTIFY_NEXT) {
-			LOG_INF("subscribed to notify-next topic");
-			err = aws_jobs_get_job_execution(client, "$next",
-							 get_topic);
-			if (err) {
-				return err;
-			}
-			return 1;
+			suback_notify_next(client);
 		}
 
 		if (evt->param.suback.message_id == SUBSCRIBE_GET) {
@@ -314,26 +351,15 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 			return 0;
 		}
 
-		if ((fota_state == DOWNLOAD_FIRMWARE) &&
-		   (evt->param.suback.message_id == SUBSCRIBE_JOB_ID_UPDATE)) {
-			err = update_job_execution(client, job_id,
-						   AWS_JOBS_IN_PROGRESS,
-						   fota_state,
-						   doc_version_number,
-						   "");
-			if (err) {
-				return err;
-			}
-			return 1;
+		if ( && (evt->param.suback.message_id == SUBSCRIBE_JOB_ID_UPDATE)) {
+			suback_job_id_update(client);
+			return 0;
 		}
 
-		return 0;
+		return 1;
 
-	default:
-		/* Handling for default case? */
-		return 0;
 	}
-	return 0;
+	return 1;
 }
 
 static void http_fota_handler(enum fota_download_evt_id evt)
@@ -361,8 +387,10 @@ static void http_fota_handler(enum fota_download_evt_id evt)
 	}
 
 }
-fs_mount_t * mp;
 
+#define FILE_JOB_ID "job_id"
+#define FILE_FOTA_STATE "fota_state" 
+#define FILE_DOC_VER "doc_version_number"
 int aws_fota_init(struct mqtt_client *const client, fs_mount_t *mount_point
 		  aws_fota_callback_t evt_handler)
 {
@@ -372,17 +400,12 @@ int aws_fota_init(struct mqtt_client *const client, fs_mount_t *mount_point
 		return -EINVAL;
 	}
 	
-	/* Store mount point to make it available in event handlers. */
 	mp = mount_point;
 	/* TODO: Append mnt point prefix */
+	//err = snprintf(dir, "%s/aws_iot_jobs", mount_point.mnt_point);
+	
+	/* Store mount point to make it available in event handlers. */
 	mp.mnt_point = "/aws_iot_jobs";
-	err = fs_mount(&mp);
-	if (res < 0) {
-		LOG_ERR("Error mounting file system [err: %d, mnt_point: %s, "
-			"type: %d]", res, mp.mnt_point, mp.type);
-		return -EFAULT;
-	}
-
 	/* Store client to make it available in event handlers. */
 	c = client;
 	callback = evt_handler;
@@ -392,8 +415,27 @@ int aws_fota_init(struct mqtt_client *const client, fs_mount_t *mount_point
 		LOG_ERR("fota_download_init error %d", err);
 		return err;
 	}
+	
+	err = fs_mount(&mp);
+	if (err < 0) {
+		LOG_ERR("Error mounting file system [err: %d, mnt_point: %s, "
+			"type: %d]", err, mp.mnt_point, mp.type);
+		return -EFAULT;
+	}
 
-	strncpy(version, app_version, CONFIG_AWS_FOTA_VERSION_STRING_MAX_LEN);
+	fs_file_t file_handler;
+	fs_open(file_handler, FILE_JOB_ID);
+	fs_read(FILE_JOB_ID, &job_id, sizeof(job_id));
+	fs_close(FILE_JOB_ID);
+	LOG_INF("Previously stored job_id %s", job_id);
+
+	fs_open(file_handler, FILE_DOC_VER);
+	fs_read(FILE_DOC_VER, &doc_version_number, sizeof(doc_version_number));
+	fs_close(FILE_DOC_VER);
+	
+	fs_open(file_handler, FILE_FOTA_STATE);
+	fs_read(FILE_FOTA_STATE, &doc_version_number, sizeof(doc_version_number));
+	fs_close(FILE_DOC_VER);
 
 	return 0;
 }
