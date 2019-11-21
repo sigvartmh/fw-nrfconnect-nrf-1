@@ -17,6 +17,15 @@
 #include <dfu/mcuboot.h>
 #include <misc/reboot.h>
 
+#include <fs/fs.h>
+#include <nffs/nffs.h>
+static struct nffs_flash_desc flash_desc;
+static struct fs_mount_t mount_point = {
+	.type = FS_NFFS,
+	.mnt_point = "/nffs",
+	.fs_data = &flash_desc
+};
+
 #if defined(CONFIG_USE_NRF_CLOUD)
 #define NRF_CLOUD_SECURITY_TAG 16842753
 #endif
@@ -475,6 +484,13 @@ void main(void)
 {
 	int err;
 
+	struct device *flash_dev;
+	flash_dev = device_get_binding(CONFIG_FS_NFFS_FLASH_DEV_NAME);
+	if (!flash_dev) {
+		return;
+	}
+	mount_point.storage_dev = flash_dev;
+
 	/* The mqtt client struct */
 	struct mqtt_client client;
 
@@ -513,7 +529,7 @@ void main(void)
 
 	client_init(&client, CONFIG_MQTT_BROKER_HOSTNAME);
 
-	err = aws_fota_init(&client, CONFIG_APP_VERSION, aws_fota_cb_handler);
+	err = aws_fota_init(&client, &mount_point, aws_fota_cb_handler);
 	if (err != 0) {
 		printk("ERROR: aws_fota_init %d\n", err);
 		return;

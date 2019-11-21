@@ -30,6 +30,7 @@ enum aws_fota_evt_id {
 
 typedef void (*aws_fota_callback_t)(enum aws_fota_evt_id evt_id);
 
+
 /**@brief Initialize the AWS Firmware Over the Air library.
  *
  * @param client       Pointer to an initialized MQTT instance.
@@ -42,8 +43,7 @@ typedef void (*aws_fota_callback_t)(enum aws_fota_evt_id evt_id);
  * @retval -EINVAL If any of the input values are invalid.
  * @return         Negative value on error.
  */
-int aws_fota_init(struct mqtt_client *const client,
-		  const char *app_version,
+int aws_fota_init(struct mqtt_client *const client, fs_mount_t *mount_point,
 		  aws_fota_callback_t evt_handler);
 
 /**@brief AWS Firmware over the air mqtt event handler.
