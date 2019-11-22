@@ -43,7 +43,8 @@ typedef void (*aws_fota_callback_t)(enum aws_fota_evt_id evt_id);
  * @retval -EINVAL If any of the input values are invalid.
  * @return         Negative value on error.
  */
-int aws_fota_init(struct mqtt_client *const client, fs_mount_t *mount_point,
+int aws_fota_init(struct mqtt_client *const client,
+		  struct fs_mount_t *mount_point,
 		  aws_fota_callback_t evt_handler);
 
 /**@brief AWS Firmware over the air mqtt event handler.

@@ -7,12 +7,17 @@
 #include <zephyr.h>
 #include <stdio.h>
 #include <json.h>
+#include <fs/fs.h>
 #include <net/fota_download.h>
 #include <net/aws_jobs.h>
 #include <net/aws_fota.h>
 #include <logging/log.h>
 
 #include "aws_fota_json.h"
+
+#define FILE_JOB_ID "/aws_iot_jobs/jobid"
+#define FILE_FOTA_STATE "/aws_iot_jobs/fota_state"
+#define FILE_DOC_VER "/aws_iot_jobs/doc_version_number"
 
 LOG_MODULE_REGISTER(aws_fota, CONFIG_AWS_FOTA_LOG_LEVEL);
 
@@ -33,7 +38,7 @@ static const char * const fota_status_strings[] = {
 /* Pointer to initialized MQTT client instance */
 static struct mqtt_client *c;
 /* Pointer to initialized mount point for file system*/
-static fs_mount_t * mp;
+static struct fs_mount_t * mp;
 
 /* Enum for tracking the job exectuion state */
 static enum execution_status execution_state = AWS_JOBS_QUEUED;
@@ -165,10 +170,12 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 				"%d", err);
 			return err;
 		}
+		/*
 		fs_file_t file_handler;
 		fs_open(file_handler, FILE_JOB_ID);
 		fs_write(file_handler, job_id, sizeof(job_id));
 		fs_close(file_handler);	
+		*/
 
 		/* Set fota_state to DOWNLOAD_FIRMWARE, when we are subscribed
 		 * to job_id topics we will try to publish and if accepted we
@@ -267,7 +274,7 @@ static int suback_notify_next(struct mqtt_client *const client)
 
 static int suback_job_id_update(struct mqtt_client *const client)
 {
-	LOG_DBG("Subscribed to jobs/%s/update update job document version:%d" 
+	LOG_DBG("Subscribed to jobs/%s/update update job document version: %d",
 		log_strdup(job_id), doc_version_number);
 	int err = 0;
 	if (fota_state == DOWNLOAD_FIRMWARE) {
@@ -291,6 +298,24 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 	case MQTT_EVT_CONNACK:
 		if (evt->result != 0) {
 			return evt->result;
+		}
+		struct fs_file_t file_handler;
+		err = fs_open(&file_handler, FILE_JOB_ID);
+		if (err) {
+			LOG_ERR("Unable to open %s", FILE_JOB_ID);
+			return err;
+		}
+		int len = fs_read(&file_handler, &job_id, sizeof(job_id));
+		fs_close(&file_handler);
+		if (len != 0){
+			err = aws_jobs_subscribe_topic_update(client, job_id,
+						      update_topic);
+			if (err) {
+				LOG_ERR("Error when subscribing job_id_update: "
+				"%d", err);
+				return err;
+			}
+			return 0;
 		}
 
 		return connack_evt(client);
@@ -351,11 +376,13 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 			return 0;
 		}
 
-		if ( && (evt->param.suback.message_id == SUBSCRIBE_JOB_ID_UPDATE)) {
+		if (evt->param.suback.message_id == SUBSCRIBE_JOB_ID_UPDATE) {
 			suback_job_id_update(client);
 			return 0;
 		}
 
+		return 1;
+	default:
 		return 1;
 
 	}
@@ -388,10 +415,8 @@ static void http_fota_handler(enum fota_download_evt_id evt)
 
 }
 
-#define FILE_JOB_ID "job_id"
-#define FILE_FOTA_STATE "fota_state" 
-#define FILE_DOC_VER "doc_version_number"
-int aws_fota_init(struct mqtt_client *const client, fs_mount_t *mount_point
+int aws_fota_init(struct mqtt_client *const client,
+		  struct fs_mount_t *mount_point,
 		  aws_fota_callback_t evt_handler)
 {
 	int err;
@@ -405,7 +430,7 @@ int aws_fota_init(struct mqtt_client *const client, fs_mount_t *mount_point
 	//err = snprintf(dir, "%s/aws_iot_jobs", mount_point.mnt_point);
 	
 	/* Store mount point to make it available in event handlers. */
-	mp.mnt_point = "/aws_iot_jobs";
+	mp->mnt_point = "/aws_iot_jobs";
 	/* Store client to make it available in event handlers. */
 	c = client;
 	callback = evt_handler;
@@ -416,26 +441,26 @@ int aws_fota_init(struct mqtt_client *const client, fs_mount_t *mount_point
 		return err;
 	}
 	
-	err = fs_mount(&mp);
+	err = fs_mount(mp);
 	if (err < 0) {
+		/*
 		LOG_ERR("Error mounting file system [err: %d, mnt_point: %s, "
 			"type: %d]", err, mp.mnt_point, mp.type);
+			*/
 		return -EFAULT;
 	}
 
-	fs_file_t file_handler;
-	fs_open(file_handler, FILE_JOB_ID);
-	fs_read(FILE_JOB_ID, &job_id, sizeof(job_id));
-	fs_close(FILE_JOB_ID);
+	/*
 	LOG_INF("Previously stored job_id %s", job_id);
 
-	fs_open(file_handler, FILE_DOC_VER);
-	fs_read(FILE_DOC_VER, &doc_version_number, sizeof(doc_version_number));
-	fs_close(FILE_DOC_VER);
+	fs_open(&file_handler, FILE_DOC_VER);
+	fs_read(&file_handler, &doc_version_number, sizeof(doc_version_number));
+	fs_close(&file_handler);
 	
-	fs_open(file_handler, FILE_FOTA_STATE);
-	fs_read(FILE_FOTA_STATE, &doc_version_number, sizeof(doc_version_number));
-	fs_close(FILE_DOC_VER);
+	fs_open(&file_handler, FILE_FOTA_STATE);
+	fs_read(&file_handler, &fota_state, sizeof(fota_state));
+	fs_close(&file_handler);
+	*/
 
 	return 0;
 }
