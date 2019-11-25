@@ -170,18 +170,22 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 				"%d", err);
 			return err;
 		}
-		/*
-		fs_file_t file_handler;
-		fs_open(file_handler, FILE_JOB_ID);
-		fs_write(file_handler, job_id, sizeof(job_id));
-		fs_close(file_handler);	
-		*/
+		
+		struct fs_file_t file_handler;
+		fs_open(&file_handler, FILE_JOB_ID);
+		fs_write(&file_handler, job_id, sizeof(job_id));
+		fs_close(&file_handler);	
+
 
 		/* Set fota_state to DOWNLOAD_FIRMWARE, when we are subscribed
 		 * to job_id topics we will try to publish and if accepted we
 		 * can start the download
 		 */
 		fota_state = DOWNLOAD_FIRMWARE;
+		
+		fs_open(&file_handler, FILE_FOTA_STATE);
+		fs_write(&file_handler, &fota_state, sizeof(fota_state));
+		fs_close(&file_handler);
 		
 		/* Handled by the library */
 		return 0;
@@ -192,8 +196,14 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		if (err) {
 			return err;
 		}
+		struct fs_file_t file_handler;
+
 		/* Update accepted, increment document version counter. */
 		doc_version_number++;
+		fs_open(&file_handler, FILE_DOC_VER);	
+		fs_write(&file_handler, &doc_version_number,
+			 sizeof(doc_version_number));
+		fs_close(&file_handler);
 
 		if (fota_state == DOWNLOAD_FIRMWARE) {
 			/*Job document is updated and we are ready to download
@@ -257,7 +267,7 @@ static int connack_evt(struct mqtt_client *const client)
 		return err;
 	}
 
-	return 0;
+	return 1;
 }
 
 static int suback_notify_next(struct mqtt_client *const client)
@@ -269,7 +279,7 @@ static int suback_notify_next(struct mqtt_client *const client)
 		return err;
 	}
 
-	return 0;
+	return 1;
 }
 
 static int suback_job_id_update(struct mqtt_client *const client)
@@ -286,7 +296,7 @@ static int suback_job_id_update(struct mqtt_client *const client)
 		return err;
 	}
 
-	return 0;
+	return 1;
 }
 
 int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
@@ -300,14 +310,14 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 			return evt->result;
 		}
 		struct fs_file_t file_handler;
-		err = fs_open(&file_handler, FILE_JOB_ID);
-		if (err) {
+		err = fs_open(&file_handler, FILE_JOB_ID); if (err) {
 			LOG_ERR("Unable to open %s", FILE_JOB_ID);
 			return err;
 		}
 		int len = fs_read(&file_handler, &job_id, sizeof(job_id));
 		fs_close(&file_handler);
 		if (len != 0){
+			LOG_INF("Job id from storage: %s", job_id);
 			err = aws_jobs_subscribe_topic_update(client, job_id,
 						      update_topic);
 			if (err) {
@@ -315,7 +325,7 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 				"%d", err);
 				return err;
 			}
-			return 0;
+			return 1;
 		}
 
 		return connack_evt(client);
@@ -350,7 +360,7 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 				return err;
 			}
 		}
-		return 0;
+		return 1;
 
 	} break;
 
@@ -373,20 +383,20 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 
 		if (evt->param.suback.message_id == SUBSCRIBE_GET) {
 			LOG_INF("subscribed to get topic");
-			return 0;
+			return 1;
 		}
 
 		if (evt->param.suback.message_id == SUBSCRIBE_JOB_ID_UPDATE) {
 			suback_job_id_update(client);
-			return 0;
+			return 1;
 		}
 
-		return 1;
+		return 0;
 	default:
-		return 1;
+		return 0;
 
 	}
-	return 1;
+	return 0;
 }
 
 static void http_fota_handler(enum fota_download_evt_id evt)
@@ -404,6 +414,10 @@ static void http_fota_handler(enum fota_download_evt_id evt)
 		if (err != 0) {
 			callback(AWS_FOTA_EVT_ERROR);
 		}
+		struct fs_file_t file_handler;
+		fs_open(&file_handler, FILE_FOTA_STATE);
+		fs_write(&file_handler, &fota_state, sizeof(fota_state));
+		fs_close(&file_handler);
 		break;
 	case FOTA_DOWNLOAD_EVT_ERROR:
 		LOG_ERR("FOTA download failed, report back");
@@ -443,24 +457,11 @@ int aws_fota_init(struct mqtt_client *const client,
 	
 	err = fs_mount(mp);
 	if (err < 0) {
-		/*
 		LOG_ERR("Error mounting file system [err: %d, mnt_point: %s, "
-			"type: %d]", err, mp.mnt_point, mp.type);
-			*/
+			"type: %d]", err, mp->mnt_point, mp->type);
 		return -EFAULT;
 	}
-
-	/*
-	LOG_INF("Previously stored job_id %s", job_id);
-
-	fs_open(&file_handler, FILE_DOC_VER);
-	fs_read(&file_handler, &doc_version_number, sizeof(doc_version_number));
-	fs_close(&file_handler);
-	
-	fs_open(&file_handler, FILE_FOTA_STATE);
-	fs_read(&file_handler, &fota_state, sizeof(fota_state));
-	fs_close(&file_handler);
-	*/
+	LOG_INF("Initialized successfully");
 
 	return 0;
 }
