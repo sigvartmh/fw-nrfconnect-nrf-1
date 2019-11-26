@@ -13,14 +13,14 @@
 #include <net/mqtt.h>
 #include <net/socket.h>
 #include <net/bsdlib.h>
-#include <net/aws_fota.h>
 #include <dfu/mcuboot.h>
 #include <misc/reboot.h>
 
 #include <fs/fs.h>
+#include <net/aws_fota.h>
 #include <nffs/nffs.h>
 static struct nffs_flash_desc flash_desc;
-static struct fs_mount_t mount_point = {
+struct fs_mount_t mount_point = {
 	.type = FS_NFFS,
 	.mnt_point = "/nffs",
 	.fs_data = &flash_desc
@@ -162,7 +162,7 @@ void mqtt_evt_handler(struct mqtt_client * const c,
 	int err;
 
 	err = aws_fota_mqtt_evt_handler(c, evt);
-	if (err > 0) {
+	if (err == 0) {
 		/* Event handled by FOTA library so we can skip it */
 		return;
 	} else if (err < 0) {

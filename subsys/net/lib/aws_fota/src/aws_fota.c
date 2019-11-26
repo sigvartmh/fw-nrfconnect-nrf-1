@@ -253,6 +253,7 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 
 static int connack_evt(struct mqtt_client *const client)
 {
+	LOG_DBG("Connack evt called");
 	int err;
 
 	err = aws_jobs_subscribe_topic_notify_next(client, notify_next_topic);
@@ -267,7 +268,7 @@ static int connack_evt(struct mqtt_client *const client)
 		return err;
 	}
 
-	return 1;
+	return 0;
 }
 
 static int suback_notify_next(struct mqtt_client *const client)
@@ -279,7 +280,7 @@ static int suback_notify_next(struct mqtt_client *const client)
 		return err;
 	}
 
-	return 1;
+	return 0;
 }
 
 static int suback_job_id_update(struct mqtt_client *const client)
@@ -296,7 +297,7 @@ static int suback_job_id_update(struct mqtt_client *const client)
 		return err;
 	}
 
-	return 1;
+	return 0;
 }
 
 int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
@@ -306,6 +307,7 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 
 	switch (evt->type) {
 	case MQTT_EVT_CONNACK:
+		LOG_DBG("MQTT_EVT_CONNACK res: %d", evt->result);
 		if (evt->result != 0) {
 			return evt->result;
 		}
@@ -325,7 +327,7 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 				"%d", err);
 				return err;
 			}
-			return 1;
+			return 0;
 		}
 
 		return connack_evt(client);
