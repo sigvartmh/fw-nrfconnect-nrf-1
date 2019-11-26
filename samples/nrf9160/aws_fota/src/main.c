@@ -482,8 +482,9 @@ static void aws_fota_cb_handler(enum aws_fota_evt_id evt)
 
 void main(void)
 {
-	int err;
+	printk("MQTT AWS Jobs FOTA Sample, version: %s\n", CONFIG_APP_VERSION);
 
+	int err;
 	struct device *flash_dev;
 	flash_dev = device_get_binding(CONFIG_FS_NFFS_FLASH_DEV_NAME);
 	if (!flash_dev) {
@@ -494,7 +495,6 @@ void main(void)
 	/* The mqtt client struct */
 	struct mqtt_client client;
 
-	printk("MQTT AWS Jobs FOTA Sample, version: %s\n", CONFIG_APP_VERSION);
 	printk("Initializing bsdlib\n");
 	err = bsdlib_init();
 	switch (err) {

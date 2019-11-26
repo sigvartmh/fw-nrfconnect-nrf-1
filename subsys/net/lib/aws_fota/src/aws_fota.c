@@ -18,6 +18,8 @@
 #define FILE_JOB_ID "/aws_iot_jobs/jobid"
 #define FILE_FOTA_STATE "/aws_iot_jobs/fota_state"
 #define FILE_DOC_VER "/aws_iot_jobs/doc_version_number"
+#define FILE_HOSTNAME "/aws_iot_jobs/hostname"
+#define FILE_PATH "/aws_iot_jobs/file_path"
 
 LOG_MODULE_REGISTER(aws_fota, CONFIG_AWS_FOTA_LOG_LEVEL);
 
@@ -61,6 +63,62 @@ static u8_t hostname[CONFIG_AWS_FOTA_HOSTNAME_MAX_LEN];
 static u8_t file_path[CONFIG_AWS_FOTA_FILE_PATH_MAX_LEN];
 static u8_t job_id[AWS_JOBS_JOB_ID_MAX_LEN];
 static aws_fota_callback_t callback;
+
+static int read_file_value(void *value, size_t size, char *file_name) 
+{
+	int len;
+	struct fs_file_t file_handler;
+
+	int err = fs_open(&file_handler, file_name);
+	if (err) {
+		LOG_ERR("Unable to open %s", log_strdup(file_name));
+		return err;
+	}
+
+	len = fs_read(&file_handler, value, size);
+	fs_close(&file_handler);
+
+	if (err) {
+		LOG_ERR("Unable to close %s", log_strdup(file_name));
+		return err;
+	}
+
+	if (len != 0) {
+		LOG_DBG("Found data from storage");
+		return 0;
+	}
+
+	return 1;
+}
+
+static int write_file_value(void *value, size_t size, char *file_name) 
+{
+	int len;
+	struct fs_file_t file_handler;
+
+	int err = fs_open(&file_handler, file_name);
+	if (err) {
+		LOG_ERR("Unable to open %s", log_strdup(file_name));
+		return err;
+	}
+
+	len = fs_write(&file_handler, value, size);
+	err = fs_close(&file_handler);
+
+	if (err) {
+		LOG_ERR("Unable to close %s", log_strdup(file_name));
+		return err;
+	}
+
+	if (len == size) {
+		LOG_DBG("Successfully wrote to the file %s",
+			log_strdup(file_name));
+		return 0;
+	}
+
+	return -EFAULT;
+}
+
 
 static int get_published_payload(struct mqtt_client *client, u8_t *write_buf,
 				 size_t length)
@@ -170,22 +228,28 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 				"%d", err);
 			return err;
 		}
-		
-		struct fs_file_t file_handler;
-		fs_open(&file_handler, FILE_JOB_ID);
-		fs_write(&file_handler, job_id, sizeof(job_id));
-		fs_close(&file_handler);	
 
-
+		err = write_file_value(&job_id, sizeof(job_id), FILE_JOB_ID);
+		if (err) {
+			return err;
+		}
+	
 		/* Set fota_state to DOWNLOAD_FIRMWARE, when we are subscribed
 		 * to job_id topics we will try to publish and if accepted we
 		 * can start the download
 		 */
 		fota_state = DOWNLOAD_FIRMWARE;
-		
-		fs_open(&file_handler, FILE_FOTA_STATE);
-		fs_write(&file_handler, &fota_state, sizeof(fota_state));
-		fs_close(&file_handler);
+
+		err = write_file_value(&job_id, sizeof(job_id), FILE_JOB_ID);
+		if (err) {
+			return err;
+		}
+
+		err = write_file_value(&fota_state, sizeof(fota_state), FILE_FOTA_STATE);
+		if (err) {
+			return err;
+		}
+	
 		
 		/* Handled by the library */
 		return 0;
@@ -212,6 +276,14 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 			execution_state = AWS_JOBS_IN_PROGRESS;
 			LOG_INF("Start downloading firmware from %s%s",
 				log_strdup(hostname), log_strdup(file_path));
+			err = write_file_value(&hostname, sizeof(hostname), FILE_HOSTNAME);
+		if (err) {
+			return err;
+		}
+			err = write_file_value(&hostname, sizeof(file_path), FILE_PATH);
+		if (err) {
+			return err;
+		}
 			err = fota_download_start(hostname, file_path);
 			if (err) {
 				LOG_ERR("Error when trying to start firmware"
@@ -304,6 +376,7 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 			      const struct mqtt_evt *evt)
 {
 	int err;
+	int stored;
 
 	switch (evt->type) {
 	case MQTT_EVT_CONNACK:
@@ -311,25 +384,12 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 		if (evt->result != 0) {
 			return evt->result;
 		}
-		struct fs_file_t file_handler;
-		err = fs_open(&file_handler, FILE_JOB_ID); if (err) {
-			LOG_ERR("Unable to open %s", FILE_JOB_ID);
+		stored = read_file_value(&job_id, sizeof(job_id), FILE_JOB_ID);
+		if (stored == 0) {
+			err = aws_jobs_subscribe_topic_update(client, job_id, update_topic);
 			return err;
 		}
-		int len = fs_read(&file_handler, &job_id, sizeof(job_id));
-		fs_close(&file_handler);
-		if (len != 0){
-			LOG_INF("Job id from storage: %s", job_id);
-			err = aws_jobs_subscribe_topic_update(client, job_id,
-						      update_topic);
-			if (err) {
-				LOG_ERR("Error when subscribing job_id_update: "
-				"%d", err);
-				return err;
-			}
-			return 0;
-		}
-
+	
 		return connack_evt(client);
 		/* This expects that the application's mqtt handler will handle
 		 * any situations where you could not connect to the MQTT
@@ -415,11 +475,15 @@ static void http_fota_handler(enum fota_download_evt_id evt)
 				     fota_state, doc_version_number, "");
 		if (err != 0) {
 			callback(AWS_FOTA_EVT_ERROR);
+			return;
 		}
-		struct fs_file_t file_handler;
-		fs_open(&file_handler, FILE_FOTA_STATE);
-		fs_write(&file_handler, &fota_state, sizeof(fota_state));
-		fs_close(&file_handler);
+
+		err = write_file_value(&fota_state, sizeof(fota_state), FILE_FOTA_STATE);
+		if (err != 0) {
+			callback(AWS_FOTA_EVT_ERROR);
+			return;
+		}
+
 		break;
 	case FOTA_DOWNLOAD_EVT_ERROR:
 		LOG_ERR("FOTA download failed, report back");
