@@ -23,7 +23,70 @@
 #include <dfu/mcuboot.h>
 #include <dfu/flash_img.h>
 
+
 LOG_MODULE_REGISTER(dfu_target_mcuboot, CONFIG_DFU_TARGET_LOG_LEVEL);
+
+#ifdef CONFIG_FILE_SYSTEM_NFFS
+#include <fs/fs.h>
+#include <nffs/nffs.h>
+extern struct fs_mount_t mount_point;
+#define FILE_OFFSET "/aws_iot_jobs/offset"
+
+static int read_file_value(void *value, size_t size, char *file_name) 
+{
+	int len;
+	struct fs_file_t file_handler;
+
+	int err = fs_open(&file_handler, file_name);
+	if (err) {
+		LOG_ERR("Unable to open %s", log_strdup(file_name));
+		return err;
+	}
+
+	len = fs_read(&file_handler, value, size);
+	fs_close(&file_handler);
+
+	if (err) {
+		LOG_ERR("Unable to close %s", log_strdup(file_name));
+		return err;
+	}
+
+	if (len != 0) {
+		LOG_DBG("Found data from storage");
+		return 0;
+	}
+
+	return -EFAULT;
+}
+
+static int write_file_value(void *value, size_t size, char *file_name) 
+{
+	int len;
+	struct fs_file_t file_handler;
+
+	int err = fs_open(&file_handler, file_name);
+	if (err) {
+		LOG_ERR("Unable to open %s", log_strdup(file_name));
+		return err;
+	}
+
+	len = fs_write(&file_handler, value, size);
+	err = fs_close(&file_handler);
+
+	if (err) {
+		LOG_ERR("Unable to close %s", log_strdup(file_name));
+		return err;
+	}
+
+	if (len == size) {
+		LOG_DBG("Successfully wrote to the file %s",
+			log_strdup(file_name));
+		return 0;
+	}
+
+	return -EFAULT;
+}
+#endif
 
 #define MAX_FILE_SEARCH_LEN 500
 #define MCUBOOT_HEADER_MAGIC 0x96f3b83d
@@ -74,6 +137,7 @@ bool dfu_target_mcuboot_identify(const void *const buf)
 int dfu_target_mcuboot_init(size_t file_size)
 {
 	int err = flash_img_init(&flash_img);
+	int stored = 1;
 
 	if (file_size > PM_MCUBOOT_SECONDARY_SIZE) {
 		LOG_ERR("Requested file too big to fit in flash");
@@ -85,7 +149,13 @@ int dfu_target_mcuboot_init(size_t file_size)
 		return err;
 	}
 
-	offset = 0;
+#ifdef CONFIG_FILE_SYSTEM_NFFS
+	stored = read_file_value(&offset, sizeof(offset), FILE_OFFSET);
+#endif
+
+	if(stored != 0){	
+		offset = 0;
+	}
 
 	return 0;
 }
@@ -106,14 +176,21 @@ int dfu_target_mcuboot_write(const void *const buf, size_t len)
 	}
 
 	offset += len;
+	err = write_file_value(&offset, sizeof(offset), FILE_OFFSET);
+	if (err != 0) {
+		LOG_ERR("fs write error %d", err);
+		return err;
+	}
+	
 
 	return 0;
 }
 
 int dfu_target_mcuboot_done(bool successful)
 {
+	int err;
 	if (successful) {
-		int err = flash_img_buffered_write(&flash_img, NULL, 0, true);
+		err = flash_img_buffered_write(&flash_img, NULL, 0, true);
 
 		if (err != 0) {
 			LOG_ERR("flash_img_buffered_write error %d", err);
@@ -130,6 +207,11 @@ int dfu_target_mcuboot_done(bool successful)
 			"apply");
 	} else {
 		LOG_INF("MCUBoot image upgrade aborted.");
+	}
+	err = fs_unlink(FILE_OFFSET);
+	if (err) {
+		LOG_ERR("Unable to delete file %s", FILE_OFFSET);
+		return err;
 	}
 
 	return 0;
