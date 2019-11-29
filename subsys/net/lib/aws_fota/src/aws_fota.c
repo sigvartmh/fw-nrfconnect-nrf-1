@@ -18,6 +18,7 @@
 #define FILE_JOB_ID "/aws_iot_jobs/jobid"
 #define FILE_FOTA_STATE "/aws_iot_jobs/fota_state"
 #define FILE_DOC_VER "/aws_iot_jobs/doc_version_number"
+#define FILE_EXEC_STATE "/aws_iot_jobs/execution_state"
 #define FILE_HOSTNAME "/aws_iot_jobs/hostname"
 #define FILE_PATH "/aws_iot_jobs/file_path"
 
@@ -88,7 +89,7 @@ static int read_file_value(void *value, size_t size, char *file_name)
 		return 0;
 	}
 
-	return 1;
+	return -EFAULT;
 }
 
 static int write_file_value(void *value, size_t size, char *file_name) 
@@ -189,6 +190,7 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 
 	if (is_notify_next_topic || is_get_next_topic) {
 		err = get_published_payload(client, payload_buf, payload_len);
+		LOG_DBG("Received payload: %s", log_strdup(payload_buf));
 		if (err) {
 			LOG_ERR("Error when getting the payload: %d", err);
 			return err;
@@ -217,6 +219,12 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 			       "%d", err);
 			return err;
 		}
+		err = aws_jobs_unsubscribe_topic_get(client, "$next", get_topic);
+		if (err) {
+			LOG_ERR("Error when unsubscribing notify_next_topic: "
+			       "%d", err);
+			return err;
+		}
 
 		/* Subscribe to update topic to recive feedback on wether an
 		 * update is accepted or not.
@@ -233,6 +241,14 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		if (err) {
 			return err;
 		}
+		err = write_file_value(&hostname, sizeof(hostname), FILE_HOSTNAME);
+		if(err) {
+			return err;
+		}
+		err = write_file_value(&file_path, sizeof(file_path), FILE_PATH);
+		if (err) {
+			return err;
+		}
 	
 		/* Set fota_state to DOWNLOAD_FIRMWARE, when we are subscribed
 		 * to job_id topics we will try to publish and if accepted we
@@ -240,12 +256,8 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		 */
 		fota_state = DOWNLOAD_FIRMWARE;
 
-		err = write_file_value(&job_id, sizeof(job_id), FILE_JOB_ID);
-		if (err) {
-			return err;
-		}
-
-		err = write_file_value(&fota_state, sizeof(fota_state), FILE_FOTA_STATE);
+		err = write_file_value(&fota_state, sizeof(fota_state),
+					FILE_FOTA_STATE);
 		if (err) {
 			return err;
 		}
@@ -260,30 +272,25 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		if (err) {
 			return err;
 		}
-		struct fs_file_t file_handler;
 
 		/* Update accepted, increment document version counter. */
 		doc_version_number++;
-		fs_open(&file_handler, FILE_DOC_VER);	
-		fs_write(&file_handler, &doc_version_number,
-			 sizeof(doc_version_number));
-		fs_close(&file_handler);
+		err = write_file_value(&doc_version_number, sizeof(doc_version_number),
+				 FILE_DOC_VER);
+		if (err) {
+			LOG_ERR("Unable to write to %s", FILE_DOC_VER);
+		}
 
 		if (fota_state == DOWNLOAD_FIRMWARE) {
 			/*Job document is updated and we are ready to download
 			 * the firmware.
 			 */
 			execution_state = AWS_JOBS_IN_PROGRESS;
-			LOG_INF("Start downloading firmware from %s%s",
+			write_file_value(&execution_state,
+					sizeof(execution_state),
+					FILE_EXEC_STATE);
+			LOG_INF("Start downloading firmware from %s/%s",
 				log_strdup(hostname), log_strdup(file_path));
-			err = write_file_value(&hostname, sizeof(hostname), FILE_HOSTNAME);
-		if (err) {
-			return err;
-		}
-			err = write_file_value(&hostname, sizeof(file_path), FILE_PATH);
-		if (err) {
-			return err;
-		}
 			err = fota_download_start(hostname, file_path);
 			if (err) {
 				LOG_ERR("Error when trying to start firmware"
@@ -372,6 +379,52 @@ static int suback_job_id_update(struct mqtt_client *const client)
 	return 0;
 }
 
+static int restart_download(void)
+{
+	int stored;
+	stored = read_file_value(&hostname, sizeof(hostname), FILE_HOSTNAME);
+	if (stored != 0) {
+		LOG_ERR("Unable to find hostname to resume from after reboot");
+		LOG_ERR("hostname: %s", log_strdup(hostname));
+		return -EFAULT;
+	}
+	stored = read_file_value(&file_path, sizeof(file_path), FILE_PATH);
+	if (stored != 0) {
+		LOG_ERR("Unable to find file path to resume from after reboot");
+		LOG_ERR("file_path: %s", log_strdup(file_path));
+		return -EFAULT;
+	}
+	
+	LOG_INF("Resuming from stored job %s/%s", hostname, file_path);
+	return fota_download_start(hostname, file_path);
+}
+
+static int restore_state(void)
+{
+	int stored = read_file_value(&fota_state, sizeof(fota_state), FILE_FOTA_STATE);
+	if (stored != 0) {
+		LOG_ERR("Unable to find fota_state to resume from after reboot");
+		LOG_ERR("fota_state: %d", fota_state);
+		return -EFAULT;
+	}
+
+	stored = read_file_value(&doc_version_number, sizeof(doc_version_number), FILE_DOC_VER);
+	if (stored != 0) {
+		LOG_ERR("Unable to find file path to resume from after reboot");
+		LOG_ERR("doc_ver: %d", doc_version_number);
+		return -EFAULT;
+	}
+
+	stored = read_file_value(&execution_state, sizeof(execution_state),
+			FILE_EXEC_STATE);
+	if (stored != 0) {
+		LOG_ERR("Unable to find file path to resume from after reboot");
+		LOG_ERR("doc_ver: %d", doc_version_number);
+		return -EFAULT;
+	}
+	return 0;
+}
+
 int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 			      const struct mqtt_evt *evt)
 {
@@ -387,7 +440,26 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 		stored = read_file_value(&job_id, sizeof(job_id), FILE_JOB_ID);
 		if (stored == 0) {
 			err = aws_jobs_subscribe_topic_update(client, job_id, update_topic);
+			if (err) {
+				return err;
+			}
+			err = aws_jobs_unsubscribe_topic_get(client, "$next", get_topic);
+			if (err) {
+				LOG_ERR("Error when unsubscribing notify_next_topic: " "%d", err);
 			return err;
+			}
+
+			err = restore_state();
+			if (err) {
+				return err;
+			}
+
+			err = restart_download();
+			if (err) {
+				return err;
+			}
+
+			return 0;
 		}
 	
 		return connack_evt(client);
@@ -422,35 +494,36 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 				return err;
 			}
 		}
-		return 1;
+		return 0;
 
 	} break;
 
 	case MQTT_EVT_PUBACK:
 		if (evt->result != 0) {
 			LOG_ERR("MQTT PUBACK error %d", evt->result);
-			return 0;
+			return evt->result;
 		}
 		//TODO: Add PUBACK check for publish
-		return 1;
+		return 0;
 
 	case MQTT_EVT_SUBACK:
 		if (evt->result != 0) {
-			return 0;
+			LOG_ERR("Error in suback result: %d", evt->result);
+			return evt->result;
 		}
 
 		if (evt->param.suback.message_id == SUBSCRIBE_NOTIFY_NEXT) {
-			suback_notify_next(client);
+			return suback_notify_next(client);
 		}
 
 		if (evt->param.suback.message_id == SUBSCRIBE_GET) {
 			LOG_INF("subscribed to get topic");
-			return 1;
+			return 0;
 		}
 
 		if (evt->param.suback.message_id == SUBSCRIBE_JOB_ID_UPDATE) {
 			suback_job_id_update(client);
-			return 1;
+			return 0;
 		}
 
 		return 0;
@@ -458,7 +531,8 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 		return 0;
 
 	}
-	return 0;
+	CODE_UNREACHABLE;
+	return 1;
 }
 
 static void http_fota_handler(enum fota_download_evt_id evt)
