@@ -38,7 +38,7 @@ static enum execution_status execution_state = AWS_JOBS_QUEUED;
 static enum fota_status fota_state = NONE;
 
 /* Document version starts at 1 and is incremented with each accepted update */
-static u32_t doc_version_number = 1;
+static u32_t doc_version_number;
 
 /* Buffer for reporting the current application version */
 static char version[CONFIG_AWS_FOTA_VERSION_STRING_MAX_LEN];
@@ -112,6 +112,97 @@ static int update_job_execution(struct mqtt_client *const client,
 	return ret;
 }
 
+static int get_job(struct mqtt_client *const client, u32_t payload_len)
+{
+	int err = get_published_payload(client, payload_buf, payload_len);
+
+	if (err) {
+		LOG_ERR("error when getting the payload: %d", err);
+		return err;
+	}
+
+	/* Check if message received is a job. */
+	err = aws_fota_parse_notify_next_document(payload_buf,
+			payload_len, job_id,
+			hostname, file_path,
+			&doc_version_number);
+	if (err < 0) {
+		LOG_ERR("Error when parsing the json: %d", err);
+		return err;
+	} else  if (err == 1) {
+		/* Empty job execution object */
+		LOG_INF("No job execution object found: %s",
+				log_strdup(payload_buf));
+		return 1;
+	}
+
+	LOG_DBG("Job ID: %s", job_id);
+	LOG_DBG("hostname: %s", hostname);
+	LOG_DBG("file_path %s", file_path);
+	LOG_DBG("doc_version_number: %d ", doc_version_number);
+
+	/* Subscribe to update topic to recive feedback on whether an update is
+	 * accepted or not.
+	 */
+
+	err = aws_jobs_subscribe_topic_update(client, job_id,  update_topic);
+	if (err) {
+		LOG_ERR("Error when subscribing job_id_update: %d", err);
+		return err;
+	}
+
+	/* Set fota_state to DOWNLOAD_FIRMWARE, when we are subscribed
+	 * to job_id topics we will try to publish and if accepted we
+	 * can start the download
+	 */
+
+	fota_state = DOWNLOAD_FIRMWARE;
+
+	return 1;
+}
+
+static int update_accepted(struct mqtt_client *const client, u32_t payload_len)
+{
+	LOG_DBG("Job document update was accepted");
+	int err = get_published_payload(client, payload_buf, payload_len);
+
+	if (err) {
+		return err;
+	}
+	/* Update accepted, increment document version counter. */
+	doc_version_number++;
+
+	if (fota_state == DOWNLOAD_FIRMWARE) {
+		/*Job document is updated and we are ready to download
+		 * the firmware.
+		 */
+		execution_state = AWS_JOBS_IN_PROGRESS;
+		LOG_INF("Start downloading firmware from %s%s",
+				log_strdup(hostname), log_strdup(file_path));
+		err = fota_download_start(hostname, file_path);
+		if (err) {
+			LOG_ERR("Error when trying to start firmware download: "
+				"%d", err);
+			return err;
+		}
+	} else if (execution_state == AWS_JOBS_IN_PROGRESS &&
+			fota_state == APPLY_UPDATE) {
+		LOG_INF("Firmware download completed");
+		execution_state = AWS_JOBS_SUCCEEDED;
+		err = update_job_execution(client, job_id,
+				execution_state, fota_state,
+				doc_version_number, "");
+		if (err) {
+			return err;
+		}
+	} else if (execution_state == AWS_JOBS_SUCCEEDED &&
+			fota_state == APPLY_UPDATE) {
+		LOG_INF("Job document updated with SUCCEDED");
+		LOG_INF("Ready to reboot");
+		callback(AWS_FOTA_EVT_DONE);
+	}
+	return 1;
+}
 
 static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 				   const u8_t *topic,
@@ -123,113 +214,34 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 	LOG_INF("Received topic: %s", log_strdup(topic));
 
 	bool is_get_next_topic = aws_jobs_cmp(get_topic, topic, topic_len, "");
+	bool is_get_next_accepted = aws_jobs_cmp(get_topic, topic, topic_len,
+						 "accepted");
 	bool is_notify_next_topic = aws_jobs_cmp(notify_next_topic, topic,
 						 topic_len, "");
+	bool doc_update_accepted = aws_jobs_cmp(update_topic, topic, topic_len,
+					       "accepted");
+	bool doc_update_rejected = aws_jobs_cmp(update_topic, topic, topic_len,
+						"rejected");
 
-	if (is_notify_next_topic || is_get_next_topic) {
-		err = get_published_payload(client, payload_buf, payload_len);
-		if (err) {
-			LOG_ERR("Error when getting the payload: %d", err);
-			return err;
-		}
-		/* Check if message received is a job. */
-		err = aws_fota_parse_notify_next_document(payload_buf,
-							  payload_len, job_id,
-							  hostname, file_path);
-
-		if (err < 0) {
-			LOG_ERR("Error when parsing the json: %d", err);
-			return err;
-		} else  if (err == 1) {
-			LOG_INF("Got only one field: %s",
-				log_strdup(payload_buf));
-			return 1;
-		}
-
-		/* Unsubscribe from notify_next_topic to not recive more jobs
-		 * while processing the current job.
-		 */
-		err = aws_jobs_unsubscribe_topic_notify_next(client,
-							     notify_next_topic);
-		if (err) {
-			LOG_ERR("Error when unsubscribing notify_next_topic: "
-			       "%d", err);
-			return err;
-		}
-
-		/* Subscribe to update topic to recive feedback on wether an
-		 * update is accepted or not.
-		 */
-		err = aws_jobs_subscribe_topic_update(client, job_id,
-						      update_topic);
-		if (err) {
-			LOG_ERR("Error when subscribing job_id_update: "
-				"%d", err);
-			return err;
-		}
-
-		/* Set fota_state to DOWNLOAD_FIRMWARE, when we are subscribed
-		 * to job_id topics we will try to publish and if accepted we
-		 * can start the download
-		 */
-		fota_state = DOWNLOAD_FIRMWARE;
-
-		/* Handled by the library */
-		return 1;
-
-	} else if (aws_jobs_cmp(update_topic, topic, topic_len, "accepted")) {
-		LOG_DBG("Job document update was accepted");
-		err = get_published_payload(client, payload_buf, payload_len);
-		if (err) {
-			return err;
-		}
-		/* Update accepted, increment document version counter. */
-		doc_version_number++;
-
-		if (fota_state == DOWNLOAD_FIRMWARE) {
-			/*Job document is updated and we are ready to download
-			 * the firmware.
-			 */
-			execution_state = AWS_JOBS_IN_PROGRESS;
-			LOG_INF("Start downloading firmware from %s%s",
-				log_strdup(hostname), log_strdup(file_path));
-			err = fota_download_start(hostname, file_path);
-			if (err) {
-				LOG_ERR("Error when trying to start firmware"
-				       "download: %d", err);
-				return err;
-			}
-		} else if (execution_state == AWS_JOBS_IN_PROGRESS &&
-		    fota_state == APPLY_UPDATE) {
-			LOG_INF("Firmware download completed");
-			execution_state = AWS_JOBS_SUCCEEDED;
-			err = update_job_execution(client, job_id,
-						   execution_state, fota_state,
-						   doc_version_number, "");
-			if (err) {
-				return err;
-			}
-		} else if (execution_state == AWS_JOBS_SUCCEEDED &&
-			   fota_state == APPLY_UPDATE) {
-			LOG_INF("Job document updated with SUCCEDED");
-			LOG_INF("Ready to reboot");
-			callback(AWS_FOTA_EVT_DONE);
-		}
-		return 1;
-	} else if (aws_jobs_cmp(update_topic, topic, topic_len, "rejected")) {
+	if (is_notify_next_topic || is_get_next_topic || is_get_next_accepted) {
+		/* Already job in progress */
+		return get_job(client, payload_len);
+	} else if (doc_update_accepted) {
+		return update_accepted(client, payload_len);
+	} else if (doc_update_rejected) {
 		LOG_ERR("Job document update was rejected");
 		err = get_published_payload(client, payload_buf, payload_len);
 		if (err) {
 			LOG_ERR("Error when getting the payload: %d", err);
 			return err;
 		}
+		/* TODO: Print reason */
 		callback(AWS_FOTA_EVT_ERROR);
 		return -EFAULT;
 	}
-	LOG_INF("Recived an unhandled MQTT publish event on topic: %s",
+	LOG_DBG("Recived an unhandled MQTT publish event on topic: %s",
 		log_strdup(topic));
 	return 0;
-
 }
 
 int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
