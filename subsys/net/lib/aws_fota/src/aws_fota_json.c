@@ -25,21 +25,6 @@ struct job_document_obj {
 	struct location_obj location;
 };
 
-struct execution_obj {
-	const char *job_id;
-	const char *status;
-	int queued_at;
-	int last_update_at;
-	int version_number;
-	int execution_number;
-	struct job_document_obj job_document;
-};
-
-struct notify_next_obj {
-	int timestamp;
-	struct execution_obj execution;
-};
-
 struct status_details_obj {
 	const char *next_state;
 };
@@ -49,6 +34,25 @@ struct execution_state_obj {
 	struct status_details_obj status_details;
 	int version_number;
 };
+
+struct execution_obj {
+	const char *job_id;
+	const char *status;
+	struct status_details_obj status_details;
+	int queued_at;
+	int last_update_at;
+	int version_number;
+	int execution_number;
+	struct job_document_obj job_document;
+};
+
+struct notify_next_obj {
+	const char *client_token;
+	int timestamp;
+	struct execution_obj execution;
+};
+
+
 
 static const struct json_obj_descr location_obj_descr[] = {
 	JSON_OBJ_DESCR_PRIM(struct location_obj, protocol, JSON_TOK_STRING),
@@ -70,12 +74,25 @@ static const struct json_obj_descr job_document_obj_descr[] = {
 			      location_obj_descr),
 };
 
+static const struct json_obj_descr status_details_obj_descr[] = {
+	JSON_OBJ_DESCR_PRIM_NAMED(struct status_details_obj,
+				  "nextState",
+				  next_state,
+				  JSON_TOK_STRING),
+};
+
 static const struct json_obj_descr execution_obj_descr[] = {
 	JSON_OBJ_DESCR_PRIM_NAMED(struct execution_obj,
 				  "jobId",
 				  job_id,
 				  JSON_TOK_STRING),
 	JSON_OBJ_DESCR_PRIM(struct execution_obj, status, JSON_TOK_STRING),
+
+	JSON_OBJ_DESCR_OBJECT_NAMED(struct execution_obj,
+				    "statusDetails",
+				    status_details,
+				    status_details_obj_descr),
+
 	JSON_OBJ_DESCR_PRIM_NAMED(struct execution_obj,
 				  "queuedAt",
 				  queued_at,
@@ -99,18 +116,14 @@ static const struct json_obj_descr execution_obj_descr[] = {
 };
 
 static const struct json_obj_descr notify_next_obj_descr[] = {
+	JSON_OBJ_DESCR_PRIM_NAMED(struct notify_next_obj, "clientToken",
+				  client_token, JSON_TOK_STRING),
 	JSON_OBJ_DESCR_PRIM(struct notify_next_obj, timestamp, JSON_TOK_NUMBER),
 	JSON_OBJ_DESCR_OBJECT(struct notify_next_obj,
 			      execution,
 			      execution_obj_descr),
 };
 
-static const struct json_obj_descr status_details_obj_descr[] = {
-	JSON_OBJ_DESCR_PRIM_NAMED(struct status_details_obj,
-				  "nextState",
-				  next_state,
-				  JSON_TOK_STRING),
-};
 
 struct update_rsp_obj {
 	const char *status;
@@ -167,9 +180,10 @@ int aws_fota_parse_update_job_exec_state_rsp(char *update_rsp_document,
 	return ret;
 }
 
+#define CHECK_BIT(val, bit) ((val) & (1<<(bit)))
 int aws_fota_parse_notify_next_document(char *job_document,
 		u32_t payload_len, char *job_id_buf, char *hostname_buf,
-		char *file_path_buf)
+		char *file_path_buf, int *doc_version_number)
 {
 	struct notify_next_obj job;
 	struct job_document_obj *job_doc_obj;
@@ -179,13 +193,21 @@ int aws_fota_parse_notify_next_document(char *job_document,
 				 notify_next_obj_descr,
 				 ARRAY_SIZE(notify_next_obj_descr),
 				 &job);
-	job_doc_obj = &job.execution.job_document;
+
+	if (!CHECK_BIT(ret, 2)) {
+		/* No execution object in JSON */
+		return 1;
+	}
 
 	/* Check if the execution field of the object has been parsed */
-	if (ret & 0x02) {
+	if (CHECK_BIT(ret, 2)) {
+		job_doc_obj = &job.execution.job_document;
 		if (job.execution.job_id != 0) {
 			strncpy_nullterm(job_id_buf, job.execution.job_id,
-				      AWS_JOBS_JOB_ID_MAX_LEN);
+					AWS_JOBS_JOB_ID_MAX_LEN);
+		}
+		if (job.execution.version_number != 0) {
+			*doc_version_number = job.execution.version_number;
 		}
 		if (job_doc_obj->location.host != 0) {
 			strncpy_nullterm(hostname_buf,
