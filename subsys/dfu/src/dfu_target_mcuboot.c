@@ -22,6 +22,7 @@
 #include <logging/log.h>
 #include <dfu/mcuboot.h>
 #include <dfu/flash_img.h>
+#include <settings/settings.h>
 
 LOG_MODULE_REGISTER(dfu_target_mcuboot, CONFIG_DFU_TARGET_LOG_LEVEL);
 
@@ -65,6 +66,39 @@ int dfu_ctx_mcuboot_set_b1_file(char *file, bool s0_active, char **update)
 	return 0;
 }
 
+#define MODULE "dfu"
+#define FILE_OFFSET "mcuboot/offset"
+static int store_offset(void)
+{
+	if (IS_ENABLED(CONFIG_SETTINGS_FCB)) {
+		char key[] = MODULE "/" FILE_OFFSET;
+		int err = settings_save_one(key, &offset, sizeof(offset));
+
+		if (err) {
+			LOG_ERR("Problem storing offset (err %d)", err);
+			return err;
+		}
+	}
+
+	return 0;
+}
+
+
+static int settings_set(const char *key, size_t len_rd,
+			settings_read_cb read_cb, void *cb_arg)
+{
+	if (!strcmp(key, FILE_OFFSET)) {
+		ssize_t len = read_cb(cb_arg, &offset,
+				      sizeof(offset));
+		if (len != sizeof(offset)) {
+			LOG_ERR("Can't read offset from storage");
+			return len;
+		}
+	}
+
+	return 0;
+}
+
 bool dfu_target_mcuboot_identify(const void *const buf)
 {
 	/* MCUBoot headers starts with 4 byte magic word */
@@ -74,6 +108,31 @@ bool dfu_target_mcuboot_identify(const void *const buf)
 int dfu_target_mcuboot_init(size_t file_size)
 {
 	int err = flash_img_init(&flash_img);
+
+	if (IS_ENABLED(CONFIG_SETTINGS_FCB)) {
+		err = settings_subsys_init();
+		static struct settings_handler sh = {
+			.name = MODULE,
+			.h_set = settings_set,
+		};
+		if (err) {
+			LOG_ERR("settings_subsys_init failed (err %d)", err);
+			return err;
+		}
+
+		err = settings_register(&sh);
+
+		if (err) {
+			LOG_ERR("Cannot register settings (err %d)", err);
+			return err;
+		}
+
+	}
+
+	if (err) {
+		LOG_WRN("Cannot load settings");
+		return err;
+	}
 
 	if (file_size > PM_MCUBOOT_SECONDARY_SIZE) {
 		LOG_ERR("Requested file too big to fit in flash");
@@ -85,7 +144,16 @@ int dfu_target_mcuboot_init(size_t file_size)
 		return err;
 	}
 
-	offset = 0;
+	if (IS_ENABLED(CONFIG_SETTINGS_FCB)) {
+		err = settings_load();
+		if (err) {
+			LOG_ERR("Cannot register settings (err %d)", err);
+			return err;
+		}
+		flash_img.bytes_written = offset;
+	} else {
+		offset = 0;
+	}
 
 	return 0;
 }
@@ -106,12 +174,16 @@ int dfu_target_mcuboot_write(const void *const buf, size_t len)
 	}
 
 	offset += len;
+	store_offset();
 
 	return 0;
 }
 
 int dfu_target_mcuboot_done(bool successful)
 {
+	offset = 0;
+	store_offset();
+
 	if (successful) {
 		int err = flash_img_buffered_write(&flash_img, NULL, 0, true);
 
@@ -125,7 +197,6 @@ int dfu_target_mcuboot_done(bool successful)
 			LOG_ERR("boot_request_upgrade error %d", err);
 			return err;
 		}
-
 		LOG_INF("MCUBoot image upgrade scheduled. Reset the device to "
 			"apply");
 	} else {
