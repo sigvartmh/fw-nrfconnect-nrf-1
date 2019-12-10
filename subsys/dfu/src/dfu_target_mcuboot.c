@@ -67,8 +67,8 @@ int dfu_ctx_mcuboot_set_b1_file(char *file, bool s0_active, char **update)
 	return 0;
 }
 
-#define MODULE "dfu"
-#define FILE_OFFSET "mcuboot/offset"
+#define MODULE "/nffs"
+#define FILE_OFFSET "offset"
 static int store_offset(void)
 {
 	if(IS_ENABLED(CONFIG_SETTINGS)) {
@@ -110,16 +110,10 @@ int dfu_target_mcuboot_init(size_t file_size)
 	int err = flash_img_init(&flash_img);
 
 	if(IS_ENABLED(CONFIG_SETTINGS)) {
-		err = settings_subsys_init();
 		static struct settings_handler sh = {
 			.name = MODULE,
 			.h_set = settings_set,
 		};
-		if (err) {
-			LOG_ERR("settings_subsys_init failed (err %d)", err);
-			return err;
-		}
-		
 
 		err = settings_register(&sh);
 

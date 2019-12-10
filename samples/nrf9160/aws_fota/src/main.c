@@ -17,6 +17,24 @@
 #include <dfu/mcuboot.h>
 #include <misc/reboot.h>
 
+#if defined(CONFIG_SETTINGS_FS)
+#include <device.h>
+#include <fs/fs.h>
+#include <nffs/nffs.h>
+#include <settings/settings.h>
+
+#define FS_MPTR "/nffs"
+/* NFFS work area strcut */
+static struct nffs_flash_desc flash_desc;
+
+/* mounting info */
+static struct fs_mount_t nffs_mnt = {
+	.type = FS_NFFS,
+	.mnt_point = FS_MPTR,
+	.fs_data = &flash_desc,
+};
+#endif
+
 #if defined(CONFIG_USE_NRF_CLOUD)
 #define NRF_CLOUD_SECURITY_TAG 16842753
 #endif
@@ -510,6 +528,20 @@ void main(void)
 	provision_certificates();
 #endif /* CONFIG_PROVISION_CERTIFICATES */
 	modem_configure();
+
+	if (IS_ENABLED(CONIFG_SETTINGS_FS)) {
+		struct device *flash_dev;
+		flash_dev = device_get_binding(CONFIG_FS_NFFS_FLASH_DEV_NAME);
+		nffs_mnt.storage_dev = flash_dev;
+		err = fs_mount(&nffs_mnt);
+		if (err) {
+			printk("Failed to mount filesystem: %d", err);
+		}
+		err = settings_subsys_init();
+		if (err) {
+			printk("settings_subsys_init failed (err %d)", err);
+		}
+	}
 
 	client_init(&client, CONFIG_MQTT_BROKER_HOSTNAME);
 
