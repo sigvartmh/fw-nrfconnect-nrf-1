@@ -46,7 +46,7 @@ struct execution_obj {
 	struct job_document_obj job_document;
 };
 
-struct notify_next_obj {
+struct desc_job_execution_obj {
 	const char *client_token;
 	int timestamp;
 	struct execution_obj execution;
@@ -91,8 +91,8 @@ static const struct json_obj_descr execution_obj_descr[] = {
 				    job_document, job_document_obj_descr),
 };
 
-static const struct json_obj_descr notify_next_obj_descr[] = {
-	JSON_OBJ_DESCR_PRIM_NAMED(struct notify_next_obj, "clientToken",
+static const struct json_obj_descr desc_job_execution_obj_descr[] = {
+	JSON_OBJ_DESCR_PRIM_NAMED(struct desc_job_execution_obj, "clientToken",
 				  client_token, JSON_TOK_STRING),
 	JSON_OBJ_DESCR_PRIM(struct desc_job_execution_obj, timestamp,
 			    JSON_TOK_NUMBER),
@@ -110,7 +110,7 @@ struct update_rsp_obj {
 
 static const struct json_obj_descr update_job_exec_stat_rsp_descr[] = {
 	JSON_OBJ_DESCR_PRIM_NAMED(struct update_rsp_obj, "status",
-			status, JSON_TOK_STRING),
+				  status, JSON_TOK_STRING),
 	JSON_OBJ_DESCR_OBJECT_NAMED(struct update_rsp_obj, "statusDetails",
 				    status_details, status_details_obj_descr),
 	JSON_OBJ_DESCR_PRIM_NAMED(struct update_rsp_obj, "expectedVersion",
@@ -132,8 +132,8 @@ static void strncpy_nullterm(char *dst, const char *src, size_t maxlen)
 	}
 }
 
-int aws_fota_parse_update_job_exec_state_rsp(char *update_rsp_document,
-		size_t payload_len, char *status)
+int aws_fota_parse_UpdateJobExecution_rsp(char *update_rsp_document,
+					  size_t payload_len, char *status)
 {
 	struct update_rsp_obj rsp;
 
@@ -149,16 +149,21 @@ int aws_fota_parse_update_job_exec_state_rsp(char *update_rsp_document,
 	return ret;
 }
 
-int aws_fota_parse_job_execution(char *job_document, u32_t payload_len,
-				 char *job_id_buf, char *hostname_buf,
-				 char *file_path_buf, int *version_number)
+int aws_fota_parse_DescribeJobExecution_rsp(char *job_document,
+					   u32_t payload_len,
+					   char *job_id_buf,
+					   char *hostname_buf,
+					   char *file_path_buf,
+					   int *version_number)
 {
-	struct notify_next_obj job;
+	struct desc_job_execution_obj root_obj;
 	struct job_document_obj *job_doc_obj;
+	struct execution_obj *exec_obj;
 
 	int ret = json_obj_parse(job_document, payload_len,
-				 notify_next_obj_descr,
-				 ARRAY_SIZE(notify_next_obj_descr), &job);
+				 desc_job_execution_obj_descr,
+				 ARRAY_SIZE(desc_job_execution_obj_descr),
+				 &root_obj);
 
 	if (!(ret & BIT(2))) {
 		/* No execution object in JSON */
@@ -167,13 +172,14 @@ int aws_fota_parse_job_execution(char *job_document, u32_t payload_len,
 
 	/* Check if the execution field of the object has been parsed */
 	if (ret & BIT(2)) {
-		job_doc_obj = &job.execution.job_document;
-		if (job.execution.job_id != 0) {
-			strncpy_nullterm(job_id_buf, job.execution.job_id,
+		exec_obj = &root_obj.execution;
+		job_doc_obj = &exec_obj->job_document;
+		if (exec_obj->job_id != 0) {
+			strncpy_nullterm(job_id_buf, exec_obj->job_id,
 					AWS_JOBS_JOB_ID_MAX_LEN);
 		}
-		if (job.execution.version_number != 0) {
-			*version_number = job.execution.version_number;
+		if (exec_obj->version_number != 0) {
+			*version_number = exec_obj->version_number;
 		}
 		if (job_doc_obj->location.host != 0) {
 			strncpy_nullterm(hostname_buf,

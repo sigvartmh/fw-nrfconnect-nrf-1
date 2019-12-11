@@ -27,8 +27,11 @@ static void test_notify_next(void)
 	memset(hostname, 0xff, sizeof(hostname));
 	memset(file_path, 0xff, sizeof(file_path));
 
-	ret = aws_fota_parse_job_execution(encoded, sizeof(encoded) - 1,
-			job_id, hostname, file_path, &version_number);
+	ret = aws_fota_parse_DescribeJobExecution_rsp(encoded,
+						      sizeof(encoded) - 1,
+						      job_id, hostname,
+						      file_path,
+						      &version_number);
 
 	zassert_true(!strcmp(job_id, expected_job_id), NULL);
 	zassert_equal(version_number, 1, NULL);
@@ -48,7 +51,7 @@ static void test_update_job_longer_than_max(void)
 
 	memset(status, 0xff, sizeof(status));
 
-	ret = aws_fota_parse_update_job_exec_state_rsp(encoded,
+	ret = aws_fota_parse_UpdateJobExecution_rsp(encoded,
 			sizeof(encoded) - 1, status);
 	zassert_true(!strcmp(status, expected_status), NULL);
 }
@@ -63,11 +66,14 @@ static void test_timestamp_only(void)
 	char encoded[] = "{\"timestamp\":1559808907}";
 	int version_number;
 
-	ret = aws_fota_parse_job_execution(encoded, sizeof(encoded) - 1,
-			job_id, hostname, file_path, &version_number);
+	ret = aws_fota_parse_DescribeJobExecution_rsp(encoded,
+						      sizeof(encoded) - 1,
+						      job_id,
+						      hostname,
+						      file_path,
+						      &version_number);
 
-	zassert_equal(ret, 1,
-		     "Timestamp decoded correctly");
+	zassert_equal(ret, 1, "Timestamp decoded correctly");
 }
 
 static void test_update_job_exec_rsp_minimal(void)
@@ -76,8 +82,9 @@ static void test_update_job_exec_rsp_minimal(void)
 	char status[100];
 	int ret;
 
-	ret = aws_fota_parse_update_job_exec_state_rsp(encoded,
-			sizeof(encoded) - 1, status);
+	ret = aws_fota_parse_UpdateJobExecution_rsp(encoded,
+						    sizeof(encoded) - 1,
+						    status);
 
 	/* Only two last fields are set */
 	zassert_equal(ret, 0b11000, "All fields decoded correctly");
@@ -92,8 +99,9 @@ static void test_update_job_exec_rsp(void)
 
 	memset(status, 0xff, sizeof(status));
 
-	ret = aws_fota_parse_update_job_exec_state_rsp(encoded,
-			sizeof(encoded) - 1, status);
+	ret = aws_fota_parse_UpdateJobExecution_rsp(encoded,
+						    sizeof(encoded) - 1,
+						    status);
 	zassert_true(!strcmp(status, expected_status), NULL);
 }
 
