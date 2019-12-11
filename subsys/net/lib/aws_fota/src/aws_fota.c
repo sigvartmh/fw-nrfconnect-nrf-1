@@ -81,7 +81,8 @@ static int get_published_payload(struct mqtt_client *client, u8_t *write_buf,
 #define AWS_FOTA_STATUS_DETAILS_TEMPLATE "{\"nextState\":\"%s\","\
 					 "\"progress\":%d}"
 #define STATUS_DETAILS_MAX_LEN  (sizeof("{\"nextState\":\"\"}") \
-				+ (sizeof("download_firmware") + 2))
+				+ (sizeof("download_firmware") \
+				+ (sizeof("progress") + 14)))
 
 static int update_job_execution(struct mqtt_client *const client,
 				const u8_t *job_id,
@@ -190,7 +191,7 @@ static int update_accepted(struct mqtt_client *const client, u32_t payload_len)
 		LOG_INF("Firmware download completed");
 		execution_state = AWS_JOBS_SUCCEEDED;
 		err = update_job_execution(client, job_id,
-				execution_state, fota_state,
+				execution_state, fota_state, 100,
 				doc_version_number, "");
 		if (err) {
 			return err;
@@ -236,6 +237,7 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 			return err;
 		}
 		/* TODO: Print reason */
+		LOG_ERR("Job document rejected: %s", log_strdup(payload_buf));
 		callback(AWS_FOTA_EVT_ERROR);
 		return -EFAULT;
 	}
@@ -334,6 +336,7 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 			err = update_job_execution(client, job_id,
 						   AWS_JOBS_IN_PROGRESS,
 						   fota_state,
+						   0,
 						   doc_version_number,
 						   "");
 			if (err) {
@@ -351,7 +354,7 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 	return 0;
 }
 
-static void http_fota_handler(struct fota_download_evt evt)
+static void http_fota_handler(const struct fota_download_evt *evt)
 {
 	__ASSERT_NO_MSG(c != NULL);
 
@@ -362,7 +365,7 @@ static void http_fota_handler(struct fota_download_evt evt)
 		LOG_INF("FOTA download completed evt recived");
 		fota_state = APPLY_UPDATE;
 		err = update_job_execution(c, job_id, AWS_JOBS_IN_PROGRESS,
-				     fota_state, doc_version_number, "");
+				     fota_state, 100, doc_version_number, "");
 		if (err != 0) {
 			callback(AWS_FOTA_EVT_ERROR);
 		}
@@ -370,13 +373,20 @@ static void http_fota_handler(struct fota_download_evt evt)
 	case FOTA_DOWNLOAD_EVT_ERROR:
 		LOG_ERR("FOTA download failed, report back");
 		(void) update_job_execution(c, job_id, AWS_JOBS_FAILED,
-				     fota_state, doc_version_number, "");
+				     fota_state, doc_version_number, -1, "");
 		callback(AWS_FOTA_EVT_ERROR);
 		break;
 	case FOTA_DOWNLOAD_EVT_PROGRESS:
-		//err = update_job_execution_progress
-		//if(err != 0) {
-		//LOG_ERR("Unable to report progress");
+		LOG_INF("Reporting progress");
+		err = update_job_execution(c, job_id, AWS_JOBS_FAILED,
+				           fota_state, 
+					   (evt->progress.offset * 100)/
+					   evt->progress.file_size,
+					   doc_version_number,
+					   "");
+		if(err != 0) {
+			LOG_ERR("Unable to report progress");
+		}
 		break;
 	}
 
