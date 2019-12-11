@@ -20,16 +20,18 @@ static void test_notify_next(void)
 	char job_id[100];
 	char hostname[100];
 	char file_path[1000];
+	int version_number;
 
 	/* Memset to ensure correct null-termination */
 	memset(job_id, 0xff, sizeof(job_id));
 	memset(hostname, 0xff, sizeof(hostname));
 	memset(file_path, 0xff, sizeof(file_path));
 
-	ret = aws_fota_parse_notify_next_document(encoded, sizeof(encoded) - 1,
-			job_id, hostname, file_path);
+	ret = aws_fota_parse_job_execution(encoded, sizeof(encoded) - 1,
+			job_id, hostname, file_path, &version_number);
 
 	zassert_true(!strcmp(job_id, expected_job_id), NULL);
+	zassert_equal(version_number, 1, NULL);
 	zassert_true(!strcmp(hostname, expected_hostname), NULL);
 	zassert_true(!strcmp(file_path, expected_file_path), NULL);
 }
@@ -59,9 +61,10 @@ static void test_timestamp_only(void)
 	char hostname[100];
 	char file_path[100];
 	char encoded[] = "{\"timestamp\":1559808907}";
+	int version_number;
 
-	ret = aws_fota_parse_notify_next_document(encoded, sizeof(encoded) - 1,
-			job_id, hostname, file_path);
+	ret = aws_fota_parse_job_execution(encoded, sizeof(encoded) - 1,
+			job_id, hostname, file_path, &version_number);
 
 	zassert_equal(ret, 1,
 		     "Timestamp decoded correctly");

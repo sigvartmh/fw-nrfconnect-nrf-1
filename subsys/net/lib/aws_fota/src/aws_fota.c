@@ -37,8 +37,9 @@ static struct mqtt_client *c;
 static enum execution_status execution_state = AWS_JOBS_QUEUED;
 static enum fota_status fota_state = NONE;
 
-/* Document version starts at 1 and is incremented with each accepted update */
-static u32_t doc_version_number = 1;
+/* Document version starts is read out from the job execution document  and is
+ * incremented with each accepted update */
+static u32_t doc_version_number;
 
 /* Buffer for reporting the current application version */
 static char version[CONFIG_AWS_FOTA_VERSION_STRING_MAX_LEN];
@@ -120,19 +121,21 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 	LOG_INF("Received topic: %s", log_strdup(topic));
 
 	bool is_get_next_topic = aws_jobs_cmp(get_topic, topic, topic_len, "");
-	bool is_notify_next_topic = aws_jobs_cmp(notify_next_topic, topic,
-						 topic_len, "");
+	bool is_get_accepted =
+		aws_jobs_cmp(get_topic, topic, topic_len, "accepted");
+	bool is_notify_next_topic =
+		aws_jobs_cmp(notify_next_topic, topic, topic_len, "");
 
-	if (is_notify_next_topic || is_get_next_topic) {
+	if (is_notify_next_topic || is_get_next_topic || is_get_accepted) {
 		err = get_published_payload(client, payload_buf, payload_len);
 		if (err) {
 			LOG_ERR("Error when getting the payload: %d", err);
 			return err;
 		}
 		/* Check if message received is a job. */
-		err = aws_fota_parse_notify_next_document(payload_buf,
-							  payload_len, job_id,
-							  hostname, file_path);
+		err = aws_fota_parse_job_execution(payload_buf, payload_len,
+						   job_id, hostname, file_path,
+						   &doc_version_number);
 
 		if (err < 0) {
 			LOG_ERR("Error when parsing the json: %d", err);
@@ -143,16 +146,10 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 			return 1;
 		}
 
-		/* Unsubscribe from notify_next_topic to not recive more jobs
-		 * while processing the current job.
-		 */
-		err = aws_jobs_unsubscribe_topic_notify_next(client,
-							     notify_next_topic);
-		if (err) {
-			LOG_ERR("Error when unsubscribing notify_next_topic: "
-			       "%d", err);
-			return err;
-		}
+		LOG_DBG("Job ID: %s", log_strdup(job_id));
+		LOG_DBG("hostname: %s", log_strdup(hostname));
+		LOG_DBG("file_path %s", log_strdup(file_path));
+		LOG_DBG("doc_version_number: %d ", doc_version_number);
 
 		/* Subscribe to update topic to recive feedback on wether an
 		 * update is accepted or not.
@@ -188,7 +185,7 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 			 * the firmware.
 			 */
 			execution_state = AWS_JOBS_IN_PROGRESS;
-			LOG_INF("Start downloading firmware from %s%s",
+			LOG_INF("Start downloading firmware from %s/%s",
 				log_strdup(hostname), log_strdup(file_path));
 			err = fota_download_start(hostname, file_path);
 			if (err) {
