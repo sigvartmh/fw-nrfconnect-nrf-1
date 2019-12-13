@@ -92,7 +92,7 @@ static int download_client_callback(const struct download_client_evt *event)
 				callback(FOTA_DOWNLOAD_EVT_ERROR);
 			}
 			callback(FOTA_DOWNLOAD_EVT_PROGRESS);
-			LOG_INF("Progress: %d %%", ((offset*100)/file_size));
+			LOG_INF("Progress: %d/%d", offset,file_size);
 		}
 	break;
 	}
