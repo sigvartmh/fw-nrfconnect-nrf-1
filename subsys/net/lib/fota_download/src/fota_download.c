@@ -56,6 +56,11 @@ static int download_client_callback(const struct download_client_evt *event)
 			}
 
 			err = dfu_target_offset_get(&offset);
+			if (err != 0) {
+				LOG_DBG("unable to get dfu target offseterr: %d",
+					err);
+				callback(FOTA_DOWNLOAD_EVT_ERROR);
+			}
 			LOG_INF("Offset: 0x%x", offset);
 
 			if (offset != 0) {
@@ -77,6 +82,17 @@ static int download_client_callback(const struct download_client_evt *event)
 			err = download_client_disconnect(&dlc);
 			callback(FOTA_DOWNLOAD_EVT_ERROR);
 			return err;
+		}
+		if(!first_fragment)
+		{
+			err = dfu_target_offset_get(&offset);
+			if (err != 0) {
+				LOG_DBG("unable to get dfu target offseterr: %d",
+					err);
+				callback(FOTA_DOWNLOAD_EVT_ERROR);
+			}
+			callback(FOTA_DOWNLOAD_EVT_PROGRESS);
+			LOG_INF("Progress: %d %%", ((offset*100)/file_size));
 		}
 	break;
 	}

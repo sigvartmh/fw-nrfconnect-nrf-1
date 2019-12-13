@@ -30,6 +30,8 @@ extern "C" {
  * @brief FOTA download event IDs.
  */
 enum fota_download_evt_id {
+	/** FOTA download progress report. */
+	FOTA_DOWNLOAD_EVT_PROGRESS,
 	/** FOTA download finished. */
 	FOTA_DOWNLOAD_EVT_FINISHED,
 	/** FOTA download error. */

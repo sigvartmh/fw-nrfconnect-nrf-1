@@ -429,6 +429,8 @@ static void http_fota_handler(enum fota_download_evt_id evt)
 					    execution_version_number, "");
 		callback(AWS_FOTA_EVT_ERROR);
 		break;
+	case FOTA_DOWNLOAD_EVT_PROGRESS:
+		LOG_INF("Progress callback");
 	}
 
 }
