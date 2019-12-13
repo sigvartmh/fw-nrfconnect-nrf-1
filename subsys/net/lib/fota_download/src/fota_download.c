@@ -28,7 +28,7 @@ static int socket_retries_left;
 static int download_client_callback(const struct download_client_evt *event)
 {
 	static bool first_fragment = true;
-	size_t file_size;
+	static size_t file_size;
 	size_t offset;
 	int err;
 
