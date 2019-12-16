@@ -16,6 +16,11 @@
 
 LOG_MODULE_REGISTER(aws_fota, CONFIG_AWS_FOTA_LOG_LEVEL);
 
+/* Mutex to ensure that you don't update the document before the last update is
+ * accepted
+ */
+K_MUTEX_DEFINE(update_accepted);
+
 /* Enum to keep the fota status */
 enum fota_status {
 	NONE = 0,
@@ -32,7 +37,6 @@ static const char * const fota_status_strings[] = {
 
 /* Pointer to initialized MQTT client instance */
 static struct mqtt_client *c;
-static bool progress_state;
 
 /* Enum for tracking the job exectuion state */
 static enum execution_status execution_state = AWS_JOBS_QUEUED;
@@ -188,6 +192,9 @@ static int get_job_execution(struct mqtt_client *const client,
 static int job_update_accepted(struct mqtt_client *const client,
 			       u32_t payload_len)
 {
+	/*
+	k_mutex_unlock(&update_accepted);
+	*/
 	int err = get_published_payload(client, payload_buf, payload_len);
 
 	if (err) {
@@ -203,7 +210,8 @@ static int job_update_accepted(struct mqtt_client *const client,
 	 */
 	execution_version_number++;
 
-	if (fota_state == DOWNLOAD_FIRMWARE) {
+	if (fota_state == DOWNLOAD_FIRMWARE
+	    && execution_state != AWS_JOBS_IN_PROGRESS) {
 		/*Job document is updated and we are ready to download
 		 * the firmware.
 		 */
@@ -220,14 +228,15 @@ static int job_update_accepted(struct mqtt_client *const client,
 		   && fota_state == APPLY_UPDATE) {
 		LOG_INF("Firmware download completed");
 		execution_state = AWS_JOBS_SUCCEEDED;
+		execution_version_number --;
 		err = update_job_execution(execution_state, fota_state, 100,
 					   execution_version_number, "");
 		if (err) {
 			LOG_ERR("Unable to update the job execution");
 			return err;
 		}
-	} else if (execution_state == AWS_JOBS_SUCCEEDED &&
-			fota_state == APPLY_UPDATE) {
+	} else if (execution_state == AWS_JOBS_SUCCEEDED
+		   && fota_state == APPLY_UPDATE) {
 		LOG_INF("Job document updated with SUCCEDED");
 		LOG_INF("Ready to reboot");
 		callback(AWS_FOTA_EVT_DONE);
@@ -249,17 +258,17 @@ static int job_update_rejected(struct mqtt_client *const client,
 			       u32_t payload_len)
 {
 	LOG_ERR("Job document update was rejected");
+	execution_version_number--;
 	int err = get_published_payload(client, payload_buf, payload_len);
 
 	if (err) {
 		LOG_ERR("Error when getting the payload: %d", err);
 		return err;
 	}
+	LOG_ERR("%s", log_strdup(payload_buf));
 	callback(AWS_FOTA_EVT_ERROR);
 	return -EFAULT;
 }
-
-struct k_mutex wait_accepted;
 
 /**
  * @brief Handling of a MQTT publish event. It checks whether the topic matches
@@ -296,12 +305,6 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		LOG_INF("Checking for an available job");
 		return get_job_execution(client, payload_len);
 	} else if (doc_update_accepted) {
-		LOG_INF("AcceptedTopic");
-		if(fota_state == DOWNLOAD_FIRMWARE && progress_state){
-			fota_download_resume();
-			progress_state = false;
-		}
-		LOG_DBG("Job document update was accepted");
 		return job_update_accepted(client, payload_len);
 	} else if (doc_update_rejected) {
 		LOG_ERR("Job document update was rejected");
@@ -404,8 +407,6 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 						   fota_state, 0,
 						   execution_version_number,
 						   "");
-			LOG_INF("Aquire own mutex");
-
 			if (err) {
 				return err;
 			}
@@ -434,15 +435,13 @@ struct download_progress {
 
 void report_progress(struct k_work *item)
 {
-	fota_download_pause();
-	while(progress_state);
 	struct download_progress *progress = CONTAINER_OF(item, struct download_progress, work);
 	int err = update_job_execution(AWS_JOBS_IN_PROGRESS, fota_state, progress->progress,
 			execution_version_number, "");
-	progress_state = true;
 	if (err != 0) {
 		LOG_ERR("Error happened in progress report: %d", err);
 	}
+
 	LOG_INF("Progress callback: %d", progress->progress);
 }
 
@@ -472,11 +471,8 @@ static void http_fota_handler(enum fota_download_evt_id evt)
 	case FOTA_DOWNLOAD_EVT_PROGRESS:
 		LOG_INF("Progress callback");
 		dl_progress.progress += 10;
-		k_work_submit(&dl_progress.work);
-		/*
 		err = update_job_execution(AWS_JOBS_IN_PROGRESS, fota_state, dl_progress.progress,
 			execution_version_number, "");
-			*/
 
 	}
 
