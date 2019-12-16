@@ -32,6 +32,7 @@ static const char * const fota_status_strings[] = {
 
 /* Pointer to initialized MQTT client instance */
 static struct mqtt_client *c;
+static bool progress_state;
 
 /* Enum for tracking the job exectuion state */
 static enum execution_status execution_state = AWS_JOBS_QUEUED;
@@ -92,6 +93,7 @@ static int update_job_execution(enum execution_status state,
 				int version_number,
 				const char *client_token)
 {
+	LOG_INF("Update job execution");
 	char status_details[STATUS_DETAILS_MAX_LEN + 1];
 	int ret = snprintf(status_details,
 			   sizeof(status_details),
@@ -272,7 +274,6 @@ struct k_mutex wait_accepted;
  *	     in the topic was successfully handled. Otherwise an negative error
  *	     code is returned.
  */
-static bool wait;
 static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 				   const u8_t *topic,
 				   u32_t topic_len,
@@ -295,16 +296,14 @@ static int aws_fota_on_publish_evt(struct mqtt_client *const client,
 		LOG_INF("Checking for an available job");
 		return get_job_execution(client, payload_len);
 	} else if (doc_update_accepted) {
-		wait = false;
-		/*
-		if(fota_state == DOWNLOAD_FIRMWARE){
-			k_mutex_unlock(&wait_accepted);
+		LOG_INF("AcceptedTopic");
+		if(fota_state == DOWNLOAD_FIRMWARE && progress_state){
+			fota_download_resume();
+			progress_state = false;
 		}
-		*/
 		LOG_DBG("Job document update was accepted");
 		return job_update_accepted(client, payload_len);
 	} else if (doc_update_rejected) {
-		wait = false;
 		LOG_ERR("Job document update was rejected");
 		return job_update_rejected(client, payload_len);
 	}
@@ -435,9 +434,12 @@ struct download_progress {
 
 void report_progress(struct k_work *item)
 {
+	fota_download_pause();
+	while(progress_state);
 	struct download_progress *progress = CONTAINER_OF(item, struct download_progress, work);
 	int err = update_job_execution(AWS_JOBS_IN_PROGRESS, fota_state, progress->progress,
 			execution_version_number, "");
+	progress_state = true;
 	if (err != 0) {
 		LOG_ERR("Error happened in progress report: %d", err);
 	}
@@ -470,13 +472,12 @@ static void http_fota_handler(enum fota_download_evt_id evt)
 	case FOTA_DOWNLOAD_EVT_PROGRESS:
 		LOG_INF("Progress callback");
 		dl_progress.progress += 10;
+		k_work_submit(&dl_progress.work);
+		/*
 		err = update_job_execution(AWS_JOBS_IN_PROGRESS, fota_state, dl_progress.progress,
 			execution_version_number, "");
-		LOG_INF("Got to lock");
-		wait = true;
-		while(wait);
-		//k_work_submit_to_queue(&dl_prog_wq, &dl_progress.work);
-		//k_work_submit(&dl_progress.work);
+			*/
+
 	}
 
 }
@@ -490,7 +491,6 @@ int aws_fota_init(struct mqtt_client *const client,
 	if (client == NULL || app_version == NULL || evt_handler == NULL) {
 		return -EINVAL;
 	}
-	k_mutex_init(&wait_accepted);
 	k_work_init(&dl_progress.work, report_progress);
 	k_work_q_start(&dl_prog_wq, dl_prog_stack, K_THREAD_STACK_SIZEOF(dl_prog_stack), PRIORITY);
 	dl_progress.progress=0;

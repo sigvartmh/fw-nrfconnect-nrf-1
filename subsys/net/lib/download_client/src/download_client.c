@@ -665,11 +665,13 @@ int download_client_start(struct download_client *client, const char *file,
 
 void download_client_pause(struct download_client *client)
 {
+	LOG_INF("Paused");
 	k_thread_suspend(client->tid);
 }
 
 void download_client_resume(struct download_client *client)
 {
+	LOG_INF("Resumed");
 	k_thread_resume(client->tid);
 }
 

@@ -221,6 +221,16 @@ int fota_download_start(char *host, char *file)
 	return 0;
 }
 
+void fota_download_pause(void)
+{
+	download_client_pause(&dlc);
+}
+
+void fota_download_resume(void)
+{
+	download_client_resume(&dlc);
+}
+
 int fota_download_init(fota_download_callback_t client_callback)
 {
 	if (client_callback == NULL) {
@@ -236,6 +246,6 @@ int fota_download_init(fota_download_callback_t client_callback)
 	if (err != 0) {
 		return err;
 	}
-
+	
 	return 0;
 }
