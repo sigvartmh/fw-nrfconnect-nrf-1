@@ -20,6 +20,7 @@ LOG_MODULE_REGISTER(aws_fota, CONFIG_AWS_FOTA_LOG_LEVEL);
  * accepted
  */
 K_MUTEX_DEFINE(update_accepted);
+static bool accepted;
 
 /* Enum to keep the fota status */
 enum fota_status {
@@ -115,7 +116,7 @@ static int update_job_execution(enum execution_status state,
 	if (ret < 0) {
 		LOG_ERR("aws_jobs_update_job_execution failed: %d", ret);
 	}
-
+	
 	return ret;
 }
 
@@ -195,6 +196,7 @@ static int job_update_accepted(struct mqtt_client *const client,
 	/*
 	k_mutex_unlock(&update_accepted);
 	*/
+	accepted = true;
 	int err = get_published_payload(client, payload_buf, payload_len);
 
 	if (err) {
@@ -224,11 +226,11 @@ static int job_update_accepted(struct mqtt_client *const client,
 				"%d", err);
 			return err;
 		}
+
 	} else if (execution_state == AWS_JOBS_IN_PROGRESS
 		   && fota_state == APPLY_UPDATE) {
 		LOG_INF("Firmware download completed");
 		execution_state = AWS_JOBS_SUCCEEDED;
-		execution_version_number --;
 		err = update_job_execution(execution_state, fota_state, 100,
 					   execution_version_number, "");
 		if (err) {
@@ -438,6 +440,12 @@ void report_progress(struct k_work *item)
 	struct download_progress *progress = CONTAINER_OF(item, struct download_progress, work);
 	int err = update_job_execution(AWS_JOBS_IN_PROGRESS, fota_state, progress->progress,
 			execution_version_number, "");
+	accepted = false;
+	while(!accepted)
+	{
+		k_sleep(K_MSEC(500));
+		LOG_INF("Update not accepted yet");
+	};
 	if (err != 0) {
 		LOG_ERR("Error happened in progress report: %d", err);
 	}
@@ -458,6 +466,12 @@ static void http_fota_handler(enum fota_download_evt_id evt)
 		fota_state = APPLY_UPDATE;
 		err = update_job_execution(AWS_JOBS_IN_PROGRESS, fota_state,
 					   100, execution_version_number, "");
+	accepted = false;
+	while(!accepted)
+	{
+		k_sleep(K_MSEC(500));
+		LOG_INF("Update not accepted yet");
+	};
 		if (err != 0) {
 			callback(AWS_FOTA_EVT_ERROR);
 		}
@@ -467,12 +481,24 @@ static void http_fota_handler(enum fota_download_evt_id evt)
 		(void) update_job_execution(AWS_JOBS_FAILED, fota_state, -1,
 					    execution_version_number, "");
 		callback(AWS_FOTA_EVT_ERROR);
+	accepted = false;
+	while(!accepted)
+	{
+		k_sleep(K_MSEC(500));
+		LOG_INF("Update not accepted yet");
+	};
 		break;
 	case FOTA_DOWNLOAD_EVT_PROGRESS:
 		LOG_INF("Progress callback");
 		dl_progress.progress += 10;
 		err = update_job_execution(AWS_JOBS_IN_PROGRESS, fota_state, dl_progress.progress,
 			execution_version_number, "");
+	accepted = false;
+	while(!accepted)
+	{
+		k_sleep(K_MSEC(500));
+		LOG_INF("Update not accepted yet");
+	};
 
 	}
 
