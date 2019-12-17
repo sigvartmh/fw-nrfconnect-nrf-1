@@ -111,7 +111,7 @@ static int download_client_callback(const struct download_client_evt *event)
 
 			if (IS_ENABLED(CONFIG_FOTA_DOWNLOAD_PROGRESS_EVT)) {
 				fota_download_send_progress(offset);
-				LOG_INF("Progress: %d/%d", offset,file_size);
+				LOG_INF("Progress: %d/%d%%", offset, file_size);
 			}
 		}
 	break;
