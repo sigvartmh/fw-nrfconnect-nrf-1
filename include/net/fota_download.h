@@ -38,13 +38,20 @@ enum fota_download_evt_id {
 	FOTA_DOWNLOAD_EVT_ERROR,
 };
 
+struct fota_download_evt {
+	enum fota_download_evt_id id;
+#ifdef CONFIG_FOTA_DOWNLOAD_PROGRESS_EVT
+	int offset;
+#endif
+};
+
 /**
  * @brief FOTA download asynchronous callback function.
  *
  * @param event_id Event ID.
  *
  */
-typedef void (*fota_download_callback_t)(enum fota_download_evt_id evt_id);
+typedef void (*fota_download_callback_t)(const struct fota_download_evt *evt);
 
 /**@brief Initialize the firmware over-the-air download library.
  *

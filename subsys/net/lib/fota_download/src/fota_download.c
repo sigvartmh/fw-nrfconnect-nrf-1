@@ -25,6 +25,23 @@ static struct download_client   dlc;
 static struct k_delayed_work    dlc_with_offset_work;
 static int socket_retries_left;
 
+static void fota_download_evt_send(enum fota_download_evt_id id)
+{
+	const struct fota_download_evt evt = {
+		.id = id
+	};
+	callback(&evt);
+}
+
+static void fota_download_send_progress(int offset)
+{
+	const struct fota_download_evt evt = {
+		.id = FOTA_DOWNLOAD_EVT_PROGRESS,
+		.offset = offset
+	};
+	callback(&evt);
+}
+
 static int download_client_callback(const struct download_client_evt *event)
 {
 	static bool first_fragment = true;
@@ -43,7 +60,7 @@ static int download_client_callback(const struct download_client_evt *event)
 			if (err != 0) {
 				LOG_DBG("download_client_file_size_get err: %d",
 					err);
-				callback(FOTA_DOWNLOAD_EVT_ERROR);
+				fota_download_evt_send(FOTA_DOWNLOAD_EVT_ERROR);
 				return err;
 			}
 			first_fragment = false;
@@ -59,7 +76,7 @@ static int download_client_callback(const struct download_client_evt *event)
 			if (err != 0) {
 				LOG_DBG("unable to get dfu target offseterr: %d",
 					err);
-				callback(FOTA_DOWNLOAD_EVT_ERROR);
+				fota_download_evt_send(FOTA_DOWNLOAD_EVT_ERROR);
 			}
 			LOG_INF("Offset: 0x%x", offset);
 
@@ -80,7 +97,7 @@ static int download_client_callback(const struct download_client_evt *event)
 		if (err != 0) {
 			LOG_ERR("dfu_target_write error %d", err);
 			err = download_client_disconnect(&dlc);
-			callback(FOTA_DOWNLOAD_EVT_ERROR);
+			fota_download_evt_send(FOTA_DOWNLOAD_EVT_ERROR);
 			return err;
 		}
 		if(!first_fragment)
@@ -89,10 +106,13 @@ static int download_client_callback(const struct download_client_evt *event)
 			if (err != 0) {
 				LOG_DBG("unable to get dfu target offseterr: %d",
 					err);
-				callback(FOTA_DOWNLOAD_EVT_ERROR);
+				fota_download_evt_send(FOTA_DOWNLOAD_EVT_ERROR);
 			}
-			callback(FOTA_DOWNLOAD_EVT_PROGRESS);
-			LOG_INF("Progress: %d/%d", offset,file_size);
+
+			if (IS_ENABLED(CONFIG_FOTA_DOWNLOAD_PROGRESS_EVT)) {
+				fota_download_send_progress(offset);
+				LOG_INF("Progress: %d/%d", offset,file_size);
+			}
 		}
 	break;
 	}
@@ -101,16 +121,16 @@ static int download_client_callback(const struct download_client_evt *event)
 		err = dfu_target_done(true);
 		if (err != 0) {
 			LOG_ERR("dfu_target_done error: %d", err);
-			callback(FOTA_DOWNLOAD_EVT_ERROR);
+			fota_download_evt_send(FOTA_DOWNLOAD_EVT_ERROR);
 			return err;
 		}
 
 		err = download_client_disconnect(&dlc);
 		if (err != 0) {
-			callback(FOTA_DOWNLOAD_EVT_ERROR);
+			fota_download_evt_send(FOTA_DOWNLOAD_EVT_ERROR);
 			return err;
 		}
-		callback(FOTA_DOWNLOAD_EVT_FINISHED);
+		fota_download_evt_send(FOTA_DOWNLOAD_EVT_FINISHED);
 		first_fragment = true;
 		break;
 
@@ -135,7 +155,7 @@ static int download_client_callback(const struct download_client_evt *event)
 					"used by dfu_target.");
 			}
 			first_fragment = true;
-			callback(FOTA_DOWNLOAD_EVT_ERROR);
+			fota_download_evt_send(FOTA_DOWNLOAD_EVT_ERROR);
 			/* Return non-zero to tell download_client to stop */
 			return event->error;
 		}

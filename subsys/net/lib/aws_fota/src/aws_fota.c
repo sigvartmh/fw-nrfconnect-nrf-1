@@ -424,43 +424,13 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 	return 0;
 }
 
-#define STACK_SIZE 2048 
-#define PRIORITY 5
-K_THREAD_STACK_DEFINE(dl_prog_stack, STACK_SIZE);
-struct k_work_q dl_prog_wq;
-
-struct download_progress {
-	struct k_work work;
-	int progress;
-} dl_progress;
-
-
-void report_progress(struct k_work *item)
-{
-	struct download_progress *progress = CONTAINER_OF(item, struct download_progress, work);
-	int err = update_job_execution(AWS_JOBS_IN_PROGRESS, fota_state, progress->progress,
-			execution_version_number, "");
-	accepted = false;
-	while(!accepted)
-	{
-		k_sleep(K_MSEC(500));
-		LOG_INF("Update not accepted yet");
-	};
-	if (err != 0) {
-		LOG_ERR("Error happened in progress report: %d", err);
-	}
-
-	LOG_INF("Progress callback: %d", progress->progress);
-}
-
-
-static void http_fota_handler(enum fota_download_evt_id evt)
+static void http_fota_handler(const struct fota_download_evt *evt)
 {
 	__ASSERT_NO_MSG(c != NULL);
 
 	int err = 0;
 
-	switch (evt) {
+	switch (evt->id) {
 	case FOTA_DOWNLOAD_EVT_FINISHED:
 		LOG_INF("FOTA download completed evt recived");
 		fota_state = APPLY_UPDATE;
@@ -481,28 +451,31 @@ static void http_fota_handler(enum fota_download_evt_id evt)
 		(void) update_job_execution(AWS_JOBS_FAILED, fota_state, -1,
 					    execution_version_number, "");
 		callback(AWS_FOTA_EVT_ERROR);
-	accepted = false;
-	while(!accepted)
-	{
-		k_sleep(K_MSEC(500));
-		LOG_INF("Update not accepted yet");
-	};
+		accepted = false;
+		while(!accepted)
+		{
+			k_sleep(K_MSEC(500));
+			LOG_INF("Update not accepted yet");
+		};
 		break;
+
+#ifdef CONFIG_FOTA_DOWNLOAD_PROGRESS_EVT
 	case FOTA_DOWNLOAD_EVT_PROGRESS:
 		LOG_INF("Progress callback");
-		dl_progress.progress += 10;
-		err = update_job_execution(AWS_JOBS_IN_PROGRESS, fota_state, dl_progress.progress,
-			execution_version_number, "");
-	accepted = false;
-	while(!accepted)
-	{
-		k_sleep(K_MSEC(500));
-		LOG_INF("Update not accepted yet");
-	};
-
+		err = update_job_execution(AWS_JOBS_IN_PROGRESS, fota_state,
+				evt->offset, execution_version_number, "");
+		accepted = false;
+		while(!accepted)
+		{
+			k_sleep(K_MSEC(500));
+			LOG_INF("Update not accepted yet");
+		};
+		break;
+#endif
 	}
 
 }
+
 
 int aws_fota_init(struct mqtt_client *const client,
 		  const char *app_version,
@@ -513,9 +486,6 @@ int aws_fota_init(struct mqtt_client *const client,
 	if (client == NULL || app_version == NULL || evt_handler == NULL) {
 		return -EINVAL;
 	}
-	k_work_init(&dl_progress.work, report_progress);
-	k_work_q_start(&dl_prog_wq, dl_prog_stack, K_THREAD_STACK_SIZEOF(dl_prog_stack), PRIORITY);
-	dl_progress.progress=0;
 
 	if (strlen(app_version) >= CONFIG_AWS_FOTA_VERSION_STRING_MAX_LEN) {
 		return -EINVAL;
