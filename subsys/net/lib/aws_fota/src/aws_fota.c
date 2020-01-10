@@ -116,7 +116,7 @@ static int update_job_execution(enum execution_status state,
 	if (ret < 0) {
 		LOG_ERR("aws_jobs_update_job_execution failed: %d", ret);
 	}
-	
+
 	return ret;
 }
 
@@ -193,9 +193,6 @@ static int get_job_execution(struct mqtt_client *const client,
 static int job_update_accepted(struct mqtt_client *const client,
 			       u32_t payload_len)
 {
-	/*
-	k_mutex_unlock(&update_accepted);
-	*/
 	accepted = true;
 	int err = get_published_payload(client, payload_buf, payload_len);
 
@@ -436,12 +433,12 @@ static void http_fota_handler(const struct fota_download_evt *evt)
 		fota_state = APPLY_UPDATE;
 		err = update_job_execution(AWS_JOBS_IN_PROGRESS, fota_state,
 					   100, execution_version_number, "");
-	accepted = false;
-	while(!accepted)
-	{
-		k_sleep(K_MSEC(500));
-		LOG_INF("Update not accepted yet");
-	};
+		accepted = false;
+		while (!accepted) {
+			k_sleep(K_MSEC(500));
+			LOG_INF("Update not accepted yet");
+		};
+
 		if (err != 0) {
 			callback(AWS_FOTA_EVT_ERROR);
 		}
@@ -452,8 +449,7 @@ static void http_fota_handler(const struct fota_download_evt *evt)
 					    execution_version_number, "");
 		callback(AWS_FOTA_EVT_ERROR);
 		accepted = false;
-		while(!accepted)
-		{
+		while (!accepted) {
 			k_sleep(K_MSEC(500));
 			LOG_INF("Update not accepted yet");
 		};
@@ -465,8 +461,7 @@ static void http_fota_handler(const struct fota_download_evt *evt)
 		err = update_job_execution(AWS_JOBS_IN_PROGRESS, fota_state,
 				evt->offset, execution_version_number, "");
 		accepted = false;
-		while(!accepted)
-		{
+		while (!accepted) {
 			k_sleep(K_MSEC(500));
 			LOG_INF("Update not accepted yet");
 		};
