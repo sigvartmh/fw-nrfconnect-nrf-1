@@ -114,9 +114,14 @@ static int download_client_callback(const struct download_client_evt *event)
 			download_client_disconnect(&dlc);
 			LOG_ERR("Download client error");
 			err = dfu_target_done(false);
-			if (err != 0) {
+			if (err != 0 && err != -EACCES) {
 				LOG_ERR("Unable to deinitialze resources "
 					"used by dfu_target.");
+			}
+
+			if (IS_ENABLED(CONFIG_FOTA_DOWNLOAD_LOG_LEVEL_DBG)
+			    && err == -EACCES) {
+				LOG_DBG("No DFU target was initialized");
 			}
 			first_fragment = true;
 			callback(FOTA_DOWNLOAD_EVT_ERROR);
