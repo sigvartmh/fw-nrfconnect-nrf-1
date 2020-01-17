@@ -8,6 +8,8 @@
 
 config  CJSON_LIB
 	bool "cJSON library"
+	# Since minimal libc lacks sscanf and strtod we need to use newlibc
+	depends on NEWLIB_LIBC
 	default n
 	help
 	  Enable the cJSON Library
