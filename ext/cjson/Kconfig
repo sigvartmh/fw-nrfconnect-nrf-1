@@ -8,6 +8,7 @@
 
 config  CJSON_LIB
 	bool "cJSON library"
+	depends on NEWLIB_LIBC
 	default n
 	help
 	  Enable the cJSON Library
