@@ -55,6 +55,19 @@ int aws_fota_parse_UpdateJobExecution_rsp(const char *update_rsp_document,
 	return 0;
 }
 
+static int jsoneq(const char *json, jsmntok_t *tok, const char *s) {
+  if (tok->type == JSMN_STRING && (int)strlen(s) == tok->end - tok->start &&
+      strncmp(json + tok->start, s, tok->end - tok->start) == 0) {
+    return 0;
+  }
+  return -1;
+}
+
+
+jsmntok_t tokens[128];
+char * json_token_tostr(char *js, jsmntok_t *t) {
+}
+
 int aws_fota_parse_DescribeJobExecution_rsp(const char *job_document,
 					   u32_t payload_len,
 					   char *job_id_buf,
@@ -69,6 +82,49 @@ int aws_fota_parse_DescribeJobExecution_rsp(const char *job_document,
 	    || execution_version_number == NULL) {
 		return -EINVAL;
 	}
+
+	jsmn_parser parser;
+	jsmn_init(&parser);
+	int result = jsmn_parse(&parser, job_document, payload_len, tokens,
+				ARRAY_SIZE(tokens));
+	if (result < 0) {
+		switch(result):
+		case JSMN_ERROR_NOMEM:
+			return -ENOMEM;
+		case JSMN_ERROR_INVAL:
+			return -EINVAL;
+		case JSMN_ERROR_PART:
+
+
+		if(result == JSMN_ERROR_NOMEM) {
+		}
+		printk("Failed to parse JSON: %d\n", result);
+	}
+
+	if (result < 1 || tokens[0].type != JSMN_OBJECT) {
+		return -ENODATA;
+	}
+	for (int i = 1; i < result; i++) {
+		if(jsoneq(job_document, &tokens[i], "execution") == 0) {
+			printk("Found execution object");
+		}
+		if(jsoneq(job_document, &tokens[i], "jobId") == 0){
+			printk("Found jobId");
+		}
+		if(jsoneq(job_document, &tokens[i], "jobDocument") == 0){
+		}
+		if(jsoneq(job_document, &tokens[i], "location") == 0){
+		}
+		if(jsoneq(job_document, &tokens[i], "host") == 0){
+		}
+		if(jsoneq(job_document, &tokens[i], "path") == 0){
+		}
+		if(jsoneq(job_document, &tokens[i], "versionNumber") == 0){
+			printk("Found versionNumber");
+		}
+	}
+
+
 
 	cJSON * json_data = cJSON_Parse(job_document);
 
