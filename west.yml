@@ -29,6 +29,8 @@ manifest:
       url-base: https://github.com/ThrowTheSwitch
     - name: armmbed
       url-base: https://github.com/ARMmbed
+    - name: zserge 
+      url-base: https://github.com/zserge
 
   # The list of external projects for the nRF Connect SDK.
   #
@@ -126,6 +128,10 @@ manifest:
       path: modules/debug/mipi-sys-t
       remote: zephyrproject
       revision: baf51863f19f009b92e762115ba5572a5b996b92
+    - name: jsmn
+      path: modules/lib/jsmn
+      remote: zserge 
+      revision: 85695f3d5903b1cd5b4030efe50db3b4f5f3c928
 
   self:
     path: nrf

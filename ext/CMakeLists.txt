@@ -5,3 +5,4 @@
 #
 
 add_subdirectory_ifdef(CONFIG_CJSON_LIB cjson)
+add_subdirectory_ifdef(CONFIG_JSMN_LIB jsmn)

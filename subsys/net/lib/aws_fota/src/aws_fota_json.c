@@ -8,6 +8,8 @@
 #include <string.h>
 #include <json.h>
 #include <cJSON.h>
+#define JSMN_HEADER
+#include <jsmn.h>
 #include <sys/util.h>
 #include <net/aws_jobs.h>
 
