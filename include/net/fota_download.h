@@ -46,6 +46,7 @@ struct fota_download_evt {
 #ifdef CONFIG_FOTA_DOWNLOAD_PROGRESS_EVT
 	int offset;
 #endif
+	const char * reason;
 };
 
 /**
