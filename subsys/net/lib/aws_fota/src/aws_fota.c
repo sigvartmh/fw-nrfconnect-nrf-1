@@ -107,6 +107,36 @@ static inline void wait_for_update_accepted(void)
 	};
 }
 
+/*
+static int createStatusDetails(int progress)
+{
+	cJSON *progress_item = NULL;
+	cJSON *nextState = NULL;
+	cJSON *statusDetails = cJSON_CreateObject();
+
+	if (statusDetails == NULL)
+	{
+		goto cleanup;
+	}
+
+	nextState = cJSON_CreateString(next_state_str);
+	if (nextState == NULL)
+	{
+		goto cleanup;
+	}
+	cJSON_AddItemToObject(statusDetails, "nextState", nextState);
+
+	progress_item = cJSON_CreateNumber(progress);
+	if (progress_item == NULL)
+	{
+		goto cleanup;
+	}
+
+	cJSON_AddItemToObject(statusDetails, "progress", progress_item);
+
+}
+*/
+
 /**
  * @brief Update an AWS IoT Job Execution with a state and status details
  *
@@ -127,29 +157,33 @@ static inline void wait_for_update_accepted(void)
  */
 #define NUM_OF_QUOTATION_MARKS 10
 #define AWS_FOTA_STATUS_DETAILS_TEMPLATE "{\"nextState\":\"%s\","\
-					 "\"progress\":%d}"
+					 "\"progress\":%d,"\
+					 "\"errorReason\":\"e: %s\"}"
 #define STATUS_DETAILS_MAX_LEN  (sizeof("{\"nextState\":\"\"}") \
 				+ (sizeof("download_firmware") \
-				+ (sizeof("progress")\
-				+ NUM_OF_QUOTATION_MARKS)))
+				+ (sizeof("progress: 100")\
+				+ (sizeof("errorReason") + 100\
+				+ NUM_OF_QUOTATION_MARKS))))
 
 static int update_job_execution(struct mqtt_client *const client,
 				const u8_t *job_id,
 				enum execution_status state,
 				enum fota_status next_state,
 				int progress,
-				const char *client_token
-				)
+				const char *client_token,
+				const char *err_reason)
 {
 	/* Waiting for the previous call to this function to be accepted. */
 	wait_for_update_accepted();
 	accepted = false;
 	LOG_DBG("%s, state: %d, status: %d, version_number: %d", __func__,
 		state, next_state, execution_version_number);
+
 	char status_details[STATUS_DETAILS_MAX_LEN + 1];
 	int ret = snprintf(status_details, sizeof(status_details),
 			   AWS_FOTA_STATUS_DETAILS_TEMPLATE,
-			   fota_status_strings[next_state], progress);
+			   fota_status_strings[next_state], progress,
+			   err_reason);
 	__ASSERT(ret >= 0, "snprintf returned error %d\n", ret);
 	__ASSERT(ret < STATUS_DETAILS_MAX_LEN,
 		"Not enough space for status, need %d bytes\n", ret+1);
@@ -275,7 +309,7 @@ static int job_update_accepted(struct mqtt_client *const client,
 		execution_state = AWS_JOBS_SUCCEEDED;
 		err = update_job_execution(client, job_id,
 				execution_state, fota_state, stored_progress,
-				"");
+				"", "");
 		if (err) {
 			LOG_ERR("Unable to update the job execution");
 			return err;
@@ -452,7 +486,7 @@ int aws_fota_mqtt_evt_handler(struct mqtt_client *const client,
 			err = update_job_execution(client, job_id,
 						   AWS_JOBS_IN_PROGRESS,
 						   fota_state, stored_progress,
-						   "");
+						   "", "");
 			if (err) {
 				return err;
 			}
@@ -480,15 +514,16 @@ static void http_fota_handler(const struct fota_download_evt *evt)
 		LOG_INF("FOTA download completed evt received");
 		fota_state = APPLY_UPDATE;
 		err = update_job_execution(c, job_id, AWS_JOBS_IN_PROGRESS,
-					   fota_state, stored_progress, "");
+					   fota_state, stored_progress, "", "");
 		if (err != 0) {
 			callback(AWS_FOTA_EVT_ERROR);
 		}
 		break;
 	case FOTA_DOWNLOAD_EVT_ERROR:
+		LOG_INF("Error reason: %s", evt->reason);
 		LOG_ERR("FOTA download failed, report back");
 		(void) update_job_execution(c, job_id, AWS_JOBS_FAILED,
-					    fota_state, -1, "");
+					    fota_state, -1, "", evt->reason);
 		callback(AWS_FOTA_EVT_ERROR);
 		break;
 
@@ -496,7 +531,7 @@ static void http_fota_handler(const struct fota_download_evt *evt)
 	case FOTA_DOWNLOAD_EVT_PROGRESS:
 		stored_progress = evt->offset;
 		err = update_job_execution(c, job_id, AWS_JOBS_IN_PROGRESS,
-					   fota_state, stored_progress, "");
+					   fota_state, stored_progress, "", "");
 		break;
 #endif
 	}
