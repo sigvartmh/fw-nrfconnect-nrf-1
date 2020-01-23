@@ -166,6 +166,10 @@ void mqtt_evt_handler(struct mqtt_client * const c,
 			break;
 		}
 
+#if defined(CONFIG_LOG_BACKEND_MQTT)
+		log_backend_mqtt_connected(c);
+#endif
+
 		printk("[%s:%d] MQTT client connected!\n", __func__, __LINE__);
 #if !defined(CONFIG_USE_NRF_CLOUD)
 		err = update_device_shadow_version(c);
@@ -529,6 +533,10 @@ void main(void)
 		printk("ERROR: fds_init %d\n", err);
 		return;
 	}
+
+#if defined(CONFIG_LOG_BACKEND_MQTT)
+	log_backend_mqtt_set_ctx(&client);
+#endif
 
 	/* All initializations were successful mark image as working so that we
 	 * will not revert upon reboot.
