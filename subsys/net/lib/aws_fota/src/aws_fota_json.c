@@ -109,7 +109,6 @@ int aws_fota_parse_DescribeJobExecution_rsp(const char *job_document,
 		goto cleanup;
 	}
 
-
 	cJSON *hostname = cJSON_GetObjectItemCaseSensitive(location, "host");
 	cJSON *path = cJSON_GetObjectItemCaseSensitive(location, "path");
 
