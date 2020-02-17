@@ -36,15 +36,19 @@ static const struct dfu_target *current_target;
 
 int dfu_target_img_type(const void *const buf, size_t len)
 {
+#if CONFIG_DFU_TARGET_MCUBOOT
 	if (IS_ENABLED(CONFIG_DFU_TARGET_MCUBOOT) &&
 	    dfu_target_mcuboot_identify(buf)) {
 		return DFU_TARGET_IMAGE_TYPE_MCUBOOT;
 	}
+#endif
 
+#ifdef CONFIG_DFU_TARGET_MODEM
 	if (IS_ENABLED(CONFIG_DFU_TARGET_MODEM) &&
 	    dfu_target_modem_identify(buf)) {
 		return DFU_TARGET_IMAGE_TYPE_MODEM_DELTA;
 	}
+#endif
 
 	if (len < MIN_SIZE_IDENTIFY_BUF) {
 		return -EAGAIN;
@@ -58,13 +62,18 @@ int dfu_target_init(int img_type, size_t file_size, dfu_target_callback_t cb)
 {
 	const struct dfu_target *new_target = NULL;
 
+#ifdef CONFIG_DFU_TARGET_MCUBOOT
 	if (IS_ENABLED(CONFIG_DFU_TARGET_MCUBOOT) &&
 	    img_type == DFU_TARGET_IMAGE_TYPE_MCUBOOT) {
 		new_target = &dfu_target_mcuboot;
-	} else if (IS_ENABLED(CONFIG_DFU_TARGET_MODEM) &&
+	}
+#endif
+#ifdef CONFIG_DFU_TARGET_MODEM
+	if (IS_ENABLED(CONFIG_DFU_TARGET_MODEM) &&
 		   img_type == DFU_TARGET_IMAGE_TYPE_MODEM_DELTA) {
 		new_target = &dfu_target_modem;
 	}
+#endif
 
 	if (new_target == NULL) {
 		LOG_ERR("Unknown image type");

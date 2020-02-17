@@ -15,7 +15,6 @@ config DFU_TARGET_MCUBOOT
 	bool "MCUBoot update support"
 	default y
 	depends on IMG_MANAGER
-	depends on BOOTLOADER_MCUBOOT
 	depends on IMG_ERASE_PROGRESSIVELY
 	imply MPU_ALLOW_FLASH_WRITE
 	help

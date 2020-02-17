@@ -9,7 +9,9 @@
 #include <net/fota_download.h>
 #include <net/download_client.h>
 #include <dfu/dfu_target.h>
+#if USE_PARTITION_MANAGER
 #include <pm_config.h>
+#endif
 
 #ifdef PM_S1_ADDRESS
 /* MCUBoot support is required */

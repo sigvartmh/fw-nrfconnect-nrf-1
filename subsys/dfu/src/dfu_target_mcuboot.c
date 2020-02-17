@@ -18,7 +18,11 @@
 
 #include <zephyr.h>
 #include <drivers/flash.h>
+#if USE_PARTITION_MANAGER
 #include <pm_config.h>
+#else
+#define PM_MCUBOOT_SECONDARY_SIZE 0x5000
+#endif
 #include <logging/log.h>
 #include <dfu/mcuboot.h>
 #include <dfu/dfu_target.h>
