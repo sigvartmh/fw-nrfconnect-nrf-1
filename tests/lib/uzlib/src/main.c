@@ -12,6 +12,7 @@
 #include <kernel.h>
 #include <uzlib.h>
 #include <string.h>
+/*
 #include "test_data/app_update.h"
 #include "test_data/app_update.gz.h"
 #include "test_data/app_update.lzip.h"
@@ -21,6 +22,7 @@
 #include "test_data/aaa.gz.h"
 #include "test_data/alphabet.h"
 #include "test_data/alphabet.gz.h"
+*/
 #include "test_data/alice29.h"
 #include "test_data/alice29.gz.h"
 
@@ -47,20 +49,19 @@ int read_source_cb(struct uzlib_uncomp *data)
 	if (data->source >= (alice29_txt + alice29_txt_len-1)){
 		return -1;
 	}else {
-		counter = 1;
-		return alice29_txt + counter;
+		return 4;
 	}
 }
 
 int decompress_stream(unsigned char * source, size_t len, unsigned char *dest)
 {
 	struct uzlib_uncomp data;
+	unsigned char dict[32*1024];
 	unsigned int dlen = 4*len;
 	unsigned int outlen = dlen;
-	unsigned char dict[32*1024];
 	uzlib_uncompress_init(&data, dict, 32*1024);
 	data.source = source;
-	data.source_limit = source + 15 - 4;
+	data.source_limit = source + len - 4;
 	data.source_read_cb = read_source_cb;
 	printk("Decompress stream\n");
 	
@@ -69,37 +70,37 @@ int decompress_stream(unsigned char * source, size_t len, unsigned char *dest)
 		printk("Error parsing header: %d\n", res);
 		zassert_true(false, "dummy");
 	}
-	data.dest_start = data.dest = dest;
-	data.dest_limit = data.dest + 256;
+	unsigned char buf[256];
+	data.dest_start = buf;
+	data.dest_limit = buf + 1;
 	/* destination is larger than compressed */
 	/* Add extra byte incase header is out of bounds */
 	unsigned int i = 0;
+	unsigned int pos = 0;
+	unsigned int decompressed = 0;
 	while(1){
-		unsigned int chunk_len = dlen < 256 ? dlen : 256;
+		data.dest = &buf[pos];
+		unsigned int chunk_len = dlen < 1 ? dlen : 1;
 		res = uzlib_uncompress_chksum(&data);
 		dlen -= chunk_len;
 		if(res != TINF_OK){
 			break;
 		}
-		if (i < 3) {
-		printk("Decoded chunk:\n");
-			int zero = 0;
-			for(size_t j = 0; j < chunk_len+256; j++) {
-				printk("%c", dest[j]);
-			}
-			data.dest_start = dest;
-			data.dest_limit = dest + 256;
-			printk("\n");
+		zassert_equal(alice29_txt[decompressed], buf[pos], "alice29_txt[%d]: %c != %c out_buf[%d]", decompressed, alice29_txt[decompressed], buf[pos], pos);
+		pos++;
+		decompressed += 1;
+		if (pos == 256) {
+			//memcpy(dest+56, buf, 256);
+			pos = 0;
 		}
-		i++;
+
 	}
 	if (res != TINF_DONE){
 		zassert_not_equal(res, TINF_DONE, "decompress CRC failure: %d\n", res);
 	}
-	printk("Decompressed %d bytes\n", data.dest - dest);
+	printk("Decompressed %d bytes\n", decompressed);
 	return 0;
 }
-
 
 int decompress(unsigned char * source, size_t len, unsigned char *dest)
 {
@@ -170,6 +171,7 @@ int decompress_lzip(unsigned char * source, size_t len, unsigned char *dest)
 	return 0;
 }
 
+/*
 static void test_compressed_a(void)
 {
 	unsigned char out_buf[] = {[0 ... ARRAY_SIZE(a_txt) - 1] = 'b'};
@@ -194,16 +196,12 @@ static void test_compressed_alphabet(void)
 		zassert_equal(alphabet_txt[i], out_buf[i], "alphabet_txt[i]: %c != %c out_buf[i]", alphabet_txt[i], out_buf[i]);
 	}
 }
+*/
 static void test_compressed_alice_stream(void)
 {
-	unsigned char out_buf[] = {[0 ... ARRAY_SIZE(alice29_txt) - 1] = 'x'};
-
-	decompress_stream(alice29_txt_gz, alice29_txt_gz_len, out_buf);
-	for (size_t i = 0; i < alice29_txt_len; i++) {
-		zassert_equal(alice29_txt[i], out_buf[i], "alice29_txt[%d]: %c != %c out_buf[%d]", i, alice29_txt[i], out_buf[i], i);
-	}
+	decompress_stream(alice29_txt_gz, alice29_txt_gz_len, NULL);
 }
-
+/*
 static void test_compressed_gz_firmware(void)
 {
 	unsigned char out_buf[app_update_bin_len];
@@ -225,7 +223,7 @@ static void test_compressed_lzip_firmware(void)
 static void setup_flash(void)
 {
 }
-
+*/
 
 void test_main(void)
 {
@@ -238,9 +236,11 @@ void test_main(void)
 		ztest_unit_test(test_compressed_a),
 		ztest_unit_test(test_compressed_aaa),
 		*/
+			/*
 		ztest_unit_test(test_compressed_alphabet),
-		ztest_unit_test(test_compressed_alice_stream),
-		ztest_unit_test(test_compressed_gz_firmware)
+		*/
+		ztest_unit_test(test_compressed_alice_stream)
+		//ztest_unit_test(test_compressed_gz_firmware)
 		/*
 		ztest_unit_test(test_compressed_lzip_firmware)
 		*/
