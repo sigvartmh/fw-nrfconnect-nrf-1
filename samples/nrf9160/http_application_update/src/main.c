@@ -103,6 +103,8 @@ static int dfu_button_init(void)
 
 void fota_dl_handler(const struct fota_download_evt *evt)
 {
+	int err;
+
 	switch (evt->id) {
 	case FOTA_DOWNLOAD_EVT_ERROR:
 		printk("Received error from fota_download\n");
@@ -111,10 +113,25 @@ void fota_dl_handler(const struct fota_download_evt *evt)
 		/* Re-enable button callback */
 		gpio_pin_enable_callback(gpiob, DT_ALIAS_SW0_GPIOS_PIN);
 		break;
+	case FOTA_DOWNLOAD_EVT_ERASE_PENDING:
+		printk("fota_download erase pending\n");
+		err = lte_lc_offline();
+		if (err) {
+			printk("Error turning off the LTE link\n");
+		}
+		break;
+	case FOTA_DOWNLOAD_EVT_ERASE_DONE:
+		printk("fota_download erase done\n");
+		err = lte_lc_connect();
+		if (err) {
+			printk("Error reconnecting the LTE link\n");
+		}
+		break;
 
 	default:
 		break;
 	}
+	return;
 }
 
 /**@brief Configures modem to provide LTE link.

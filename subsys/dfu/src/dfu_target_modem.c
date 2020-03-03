@@ -20,11 +20,52 @@ struct modem_delta_header {
 static int  fd;
 static int  offset;
 static dfu_target_callback_t callback;
+static bool delete_done;
+static struct k_work delete_fw_work;
+K_THREAD_STACK_DEFINE(my_stack_area, 512);
+struct k_work_q my_work_q;
+
+
+static int delete_banked_modem_fw(void);
+
+static void delete_fw(struct k_work *unused)
+{
+	printk("Entering delete_fw\n");
+	int err;
+	
+	fd = socket(AF_LOCAL, SOCK_STREAM, NPROTO_DFU);
+	if (fd < 0) {
+		LOG_ERR("Failed to open Modem DFU socket.");
+	}
+
+	err = delete_banked_modem_fw();
+	if (err < 0)
+	{
+		LOG_ERR("Error in deleting banked modem FW");
+	}
+
+	err = close(fd);
+	if (err < 0) {
+		LOG_ERR("Unable to close modem DFU socket");
+	}
+	delete_done = true;
+}
+
+int dfu_target_modem_delete_fw(dfu_target_callback_t cb) {
+	dfu_target_callback_t tmp_cb = callback;
+	callback = cb;
+	k_work_q_start(&my_work_q, my_stack_area, K_THREAD_STACK_SIZEOF(my_stack_area), 5);
+	k_work_init(&delete_fw_work, delete_fw);
+	k_work_submit_to_queue(&my_work_q, &delete_fw_work);
+	printk("Delete called\n");
+	while(!delete_done);
+	delete_done = false;
+	return 0;
+}
 
 static int get_modem_error(void)
 {
-	int rc;
-	int err = 0;
+	int rc; int err = 0;
 	socklen_t len;
 
 	len = sizeof(err);
@@ -241,6 +282,9 @@ int dfu_target_modem_done(bool successful)
 			return err;
 		}
 	} else {
+#if CONFIG_DFU_TARGET_MODEM_DELETE_ON_FAILURE
+		delete_banked_modem_fw();
+#endif
 		LOG_INF("Modem upgrade aborted.");
 	}
 

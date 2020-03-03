@@ -51,6 +51,9 @@ config DFU_TARGET_MODEM_TIMEOUT
 	  DFU_ERASE_PENDING request. It's also possible to reboot the device to
 	  achive the same desired behavior.
 
+config CONFIG_DFU_TARGET_MODEM_DELETE_ON_FAILURE
+	bool "Delete downloaded modem firmware on failure"
+	default n
 
 endif # DFU_TARGET_MODEM
 

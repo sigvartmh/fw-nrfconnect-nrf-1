@@ -18,6 +18,9 @@ config FOTA_SOCKET_RETRIES
 config FOTA_DOWNLOAD_PROGRESS_EVT
 	bool "Emit progress event upon receiving a download fragment"
 
+config FOTA_DOWNLOAD_RESET_ON_RETRY 
+	bool "Reset download to progress on retries"
+
 module=FOTA_DOWNLOAD
 module-dep=LOG
 module-str=Firmware Over the Air Download

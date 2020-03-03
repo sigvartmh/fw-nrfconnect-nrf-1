@@ -156,6 +156,10 @@ static int download_client_callback(const struct download_client_evt *event)
 			LOG_WRN("Download socket error. %d retries left...",
 				socket_retries_left);
 			socket_retries_left--;
+#if defined(CONFIG_FOTA_DOWNLOAD_RESET_ON_RETRY)
+			err = dfu_target_done(false);
+			first_fragment = true;
+#endif
 			/* Fall through and return 0 below to tell
 			 * download_client to retry
 			 */
@@ -240,6 +244,8 @@ int fota_download_start(const char *host, const char *file)
 		file = update;
 	}
 #endif /* PM_S1_ADDRESS */
+
+	dfu_target_modem_delete_fw(dfu_target_callback_handler);
 
 	err = download_client_connect(&dlc, host, &config);
 	if (err != 0) {
