@@ -166,6 +166,14 @@ int dfu_target_mcuboot_offset_get(size_t *out)
 	return 0;
 }
 
+int dfu_target_mcuboot_erase(bool force)
+{
+	if (force) {
+		//TODO: Force erase of whole image bank
+	}
+	return 0;
+}
+
 int dfu_target_mcuboot_write(const void *const buf, size_t len)
 {
 	int err = flash_img_buffered_write(&flash_img, (u8_t *)buf, len, false);

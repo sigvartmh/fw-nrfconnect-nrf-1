@@ -15,6 +15,7 @@ const struct dfu_target dfu_target_modem = {
 	.init = dfu_target_modem_init,
 	.offset_get = dfu_target_modem_offset_get,
 	.write = dfu_target_modem_write,
+	.erase = dfu_target_modem_erase,
 	.done = dfu_target_modem_done,
 };
 #endif
@@ -24,6 +25,7 @@ const struct dfu_target dfu_target_mcuboot = {
 	.init  = dfu_target_mcuboot_init,
 	.offset_get = dfu_target_mcuboot_offset_get,
 	.write = dfu_target_mcuboot_write,
+	.erase = dfu_target_mcuboot_erase,
 	.done  = dfu_target_mcuboot_done,
 };
 #endif
@@ -102,6 +104,15 @@ int dfu_target_write(const void *const buf, size_t len)
 	}
 
 	return current_target->write(buf, len);
+}
+
+int dfu_target_erase(bool force)
+{
+	if (current_target == NULL || buf == NULL) {
+		return -EACCES;
+	}
+
+	return current_target->erase(force);
 }
 
 int dfu_target_done(bool successful)

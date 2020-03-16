@@ -18,7 +18,7 @@ struct modem_delta_header {
 };
 
 static int  fd;
-static int  offset;
+static size_t offset;
 static dfu_target_callback_t callback;
 
 static int get_modem_error(void)
@@ -169,15 +169,34 @@ int dfu_target_modem_init(size_t file_size, dfu_target_callback_t cb)
 	}
 
 	if (offset == DIRTY_IMAGE) {
-		delete_banked_modem_fw();
+		return -ENOSPC;
 	} else if (offset != 0) {
 		LOG_INF("Setting offset to 0x%x", offset);
 		len = sizeof(offset);
 		err = setsockopt(fd, SOL_DFU, SO_DFU_OFFSET, &offset, len);
 		if (err != 0) {
-			LOG_INF("Error while setting offset: %d", offset);
+			LOG_ERR("Error while setting offset: %d", offset);
 		}
 	}
+
+	return 0;
+}
+
+int dfu_target_modem_erase(bool force)
+{
+	err = getsockopt(fd, SOL_DFU, SO_DFU_OFFSET, &offset, &len);
+	if (err < 0) {
+		if (errno == ENOEXEC) {
+			LOG_ERR("Modem error: %d", get_modem_error());
+		} else {
+			LOG_ERR("getsockopt(OFFSET) errno: %d", errno);
+		}
+		return -EFAULT;
+	}
+
+	if (offset == DIRTY_IMAGE || force) {
+		delete_banked_modem_fw();
+	} 
 
 	return 0;
 }
@@ -190,9 +209,9 @@ int dfu_target_modem_offset_get(size_t *out)
 
 int dfu_target_modem_write(const void *const buf, size_t len)
 {
-	int err = 0;
-	int sent = 0;
-	int modem_error = 0;
+	int err;
+	int sent;
+	int modem_error;
 
 	sent = send(fd, buf, len, 0);
 	if (sent > 0) {
