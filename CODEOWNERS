@@ -2,8 +2,7 @@
 
 # https://help.github.com/en/articles/about-code-owners#codeowners-syntax
 # Order is important; the last matching pattern takes the most
-# precedence.
-
+# precedence. 
 # Root folder
 /VERSION                                  @carlescufi @tejlmand
 /CODEOWNERS                               @carlescufi
@@ -85,6 +84,7 @@ Kconfig*                                  @tejlmand
 /samples/usb/usb_uart_bridge/             @jhn-nordic @jtguggedal
 /samples/zigbee/                          @maciekfabia @mariuszpos
 /samples/CMakeLists.txt                   @tejlmand
+/samples/nrf5340/netboot/                 @hakonfam
 /scripts/                                 @mbolivar @tejlmand
 /scripts/hid_configurator/                @pdunaj
 /share/zephyrbuild-package/               @tejlmand
@@ -102,6 +102,7 @@ Kconfig*                                  @tejlmand
 /subsys/net/                              @rlubos
 /subsys/nfc/                              @grochu @anangl
 /subsys/partition_manager/                @hakonfam
+/subsys/pcd/                              @hakonfam
 /subsys/profiler/                         @pdunaj
 /subsys/shell/                            @nordic-krch
 /subsys/spm/                              @ioannisg

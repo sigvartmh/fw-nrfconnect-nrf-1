@@ -84,7 +84,6 @@ function(add_child_image_from_source)
 
     # This needs to be made globally available as it is used in other files.
     set(${ACI_DOMAIN}_PM_DOMAIN_DYNAMIC_PARTITION ${ACI_NAME} CACHE INTERNAL "")
-    set(${ACI_NAME}_DOMAIN ${ACI_DOMAIN})
 
     if (NOT (${ACI_DOMAIN} IN_LIST PM_DOMAINS))
       list(APPEND PM_DOMAINS ${ACI_DOMAIN})
@@ -96,8 +95,15 @@ function(add_child_image_from_source)
     get_board_without_ns_suffix(${BOARD} ACI_BOARD)
   endif()
 
-  set(${ACI_NAME}_BOARD ${ACI_BOARD})
+  if (NOT ACI_DOMAIN AND DOMAIN)
+    # If no domain is specified, a child image will inherit the domain of
+    # its parent.
+    message("SETTING DOMAIN")
+    set(ACI_DOMAIN ${DOMAIN})
+  endif()
 
+  set(${ACI_NAME}_DOMAIN ${ACI_DOMAIN})
+  set(${ACI_NAME}_BOARD ${ACI_BOARD})
 
   message("\n=== child image ${ACI_NAME} - ${ACI_DOMAIN} begin ===")
   # Construct a list of variables that, when present in the root
