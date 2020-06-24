@@ -16,12 +16,13 @@
 #include <device.h>
 
 #define CMD_ADDR 0x20000000
+#define FLASH_NAME DT_CHOSEN_ZEPHYR_FLASH_CONTROLLER_LABEL
 
 void main(void)
 {
 	struct pcd_cmd *cmd;
 	int err = fprotect_area(PM_B0N_IMAGE_ADDRESS, PM_B0N_IMAGE_SIZE);
-	struct device *fdev = device_get_binding(DT_FLASH_DEV_NAME);
+	struct device *fdev = device_get_binding(FLASH_NAME);
 
 	if (err) {
 		printk("Failed to protect b0n flash, cancel startup.\n\r");

@@ -51,16 +51,16 @@ if (CONFIG_BT_RPMSG_NRF53)
         )
     endif()
 
-      if (CONFIG_BOOTLOADER_MCUBOOT)
-        # Inject this configuration from parent image hci_rpmsg to enable
-        # secure bootloader on the network core. This enables firmware update
-        # of the network core application.
-        add_overlay_config(
-          hci_rpmsg
-          "${ZEPHYR_NRF_MODULE_DIR}/subsys/bootloader/image/secure_boot.conf"
-          )
+    if (CONFIG_BOOTLOADER_MCUBOOT)
+      # Inject this configuration from parent image hci_rpmsg to enable
+      # secure bootloader on the network core. This enables firmware update
+      # of the network core application.
+      add_overlay_config(
+        hci_rpmsg
+        "${ZEPHYR_NRF_MODULE_DIR}/subsys/bootloader/image/secure_boot.conf"
+        )
 
-      endif()
+    endif()
 
     add_child_image(
       NAME hci_rpmsg
