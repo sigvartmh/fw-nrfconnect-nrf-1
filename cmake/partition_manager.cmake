@@ -401,9 +401,10 @@ else()
           )
       endforeach()
 
+      # TODO don't check BOARD, don'c check for BT_RPMSG. Do something smarter, look at domains?
+      # Don't hard code domain/board names.
       if (CONFIG_BT_RPMSG_NRF53 AND CONFIG_BOOTLOADER_MCUBOOT AND
-          ((BOARD STREQUAL nrf5340pdk_nrf5340_cpuappns) OR
-          (BOARD STREQUAL nrf5340pdk_nrf5340_cpuapp)))
+          (CONFIG_SOC_NRF5340_CPUAPP))
           # Create symbols for the offset reqired for moving the signed network
           # core application to MCUBoots secondary slot. This is needed
           # because  objcopy does not support arithmetic expressions as argument

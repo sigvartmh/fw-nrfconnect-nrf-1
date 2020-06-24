@@ -162,6 +162,7 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
     "version_MCUBOOT=${CONFIG_MCUBOOT_IMAGE_VERSION}"
     )
 
+  # TODO if network core is added as child image, remove hard coded board prefix to PM_APP_HEX
   if (CONFIG_BT_RPMSG_NRF53 AND ((BOARD STREQUAL nrf5340pdk_nrf5340_cpuappns) OR
     (BOARD STREQUAL nrf5340pdk_nrf5340_cpuapp)))
     # The bootloader on the network core is enabled. The validation of this
