@@ -162,9 +162,8 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
     "version_MCUBOOT=${CONFIG_MCUBOOT_IMAGE_VERSION}"
     )
 
-  if (CONFIG_BT_RPMSG_NRF53 AND ((BOARD STREQUAL nrf5340_dk_nrf5340_cpuappns) OR
-    (BOARD STREQUAL nrf5340_dk_nrf5340_cpuapp)))
-    message("Adding stuffo")
+  if (CONFIG_BT_RPMSG_NRF53 AND ((BOARD STREQUAL nrf5340pdk_nrf5340_cpuappns) OR
+    (BOARD STREQUAL nrf5340pdk_nrf5340_cpuapp)))
     # The bootloader on the network core is enabled. The validation of this
     # bootloader is performed by MCUBoot on the application core. Hence we
     # need a target for creating the signed binary of the network core
@@ -172,7 +171,7 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
 
     include(${CMAKE_BINARY_DIR}/hci_rpmsg/shared_vars.cmake)
 
-    sign(${nrf5340_dk_nrf5340_cpunet_PM_APP_HEX}
+    sign(${nrf5340pdk_nrf5340_cpunet_PM_APP_HEX}
       ${PROJECT_BINARY_DIR}/net_core_app
       $<TARGET_PROPERTY:partition_manager,net_app_TO_SECONDARY>
       hci_rpmsg_subimage
