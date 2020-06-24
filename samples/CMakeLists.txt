@@ -22,7 +22,7 @@ if (CONFIG_SPM)
 endif()
 
 if (CONFIG_SECURE_BOOT)
-  if (CONFIG_BOARD_NRF5340PDK_NRF5340_CPUNET)
+  if (CONFIG_SOC_NRF5340_CPUNET)
     add_child_image(
       NAME b0n
       SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/nrf5340/netboot
@@ -50,7 +50,6 @@ if (CONFIG_BT_RPMSG_NRF53)
         ${NRF_DIR}/subsys/bluetooth/controller/bt_ll_nrfxlib_hci_rpmsg.conf
         )
     endif()
-
     if (CONFIG_BOOTLOADER_MCUBOOT)
       # Inject this configuration from parent image hci_rpmsg to enable
       # secure bootloader on the network core. This enables firmware update
@@ -59,7 +58,6 @@ if (CONFIG_BT_RPMSG_NRF53)
         hci_rpmsg
         "${ZEPHYR_NRF_MODULE_DIR}/subsys/bootloader/image/secure_boot.conf"
         )
-
     endif()
 
     add_child_image(
