@@ -402,8 +402,8 @@ else()
       endforeach()
 
       if (CONFIG_BT_RPMSG_NRF53 AND CONFIG_BOOTLOADER_MCUBOOT AND
-          ((BOARD STREQUAL nrf5340_dk_nrf5340_cpuappns) OR
-          (BOARD STREQUAL nrf5340_dk_nrf5340_cpuapp)))
+          ((BOARD STREQUAL nrf5340pdk_nrf5340_cpuappns) OR
+          (BOARD STREQUAL nrf5340pdk_nrf5340_cpuapp)))
           # Create symbols for the offset reqired for moving the signed network
           # core application to MCUBoots secondary slot. This is needed
           # because  objcopy does not support arithmetic expressions as argument
@@ -414,7 +414,7 @@ else()
           get_target_property(
             net_app_addr
             partition_manager
-            nrf5340_dk_nrf5340_cpunet_PM_APP_ADDRESS
+            nrf5340pdk_nrf5340_cpunet_PM_APP_ADDRESS
             )
 
           # There is no padding in front of the network core application.

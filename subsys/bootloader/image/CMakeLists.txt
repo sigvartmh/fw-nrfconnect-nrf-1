@@ -68,7 +68,7 @@ if (CONFIG_SB_VALIDATE_FW_SIGNATURE)
   set(PROVISION_DEPENDS signature_public_key_file_target)
 endif()
 
-if (CONFIG_BOARD_NRF5340_DK_NRF5340_CPUNET)
+if (CONFIG_BOARD_NRF5340PDK_NRF5340_CPUNET)
   set(s0_arg --s0-addr $<TARGET_PROPERTY:partition_manager,PM_APP_ADDRESS>)
 else()
   set(s0_arg --s0-addr $<TARGET_PROPERTY:partition_manager,PM_S0_ADDRESS>)

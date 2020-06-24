@@ -1,5 +1,5 @@
 #include <autoconf.h>
-#include <devicetree_unfixed.h>
+#include <devicetree_legacy_unfixed.h>
 
 b0n_image:
   size: 0x10000
