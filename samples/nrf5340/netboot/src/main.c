@@ -38,7 +38,7 @@ void main(void)
 		}
 	}
 
-	u32_t s0_addr = s0_address_read();
+	uint32_t s0_addr = s0_address_read();
 
 	if (cmd != NULL) {
 		if (!bl_validate_firmware(s0_addr, s0_addr)) {
