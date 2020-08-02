@@ -113,6 +113,7 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
     --version     ${CONFIG_MCUBOOT_IMAGE_VERSION}
     --slot-size   $<TARGET_PROPERTY:partition_manager,PM_MCUBOOT_PRIMARY_SIZE>
     --pad-header
+    --boot-record NetCore
     )
 
   if(CONFIG_ZIGBEE)
