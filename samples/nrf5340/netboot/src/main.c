@@ -12,6 +12,7 @@
 #include <bl_storage.h>
 #include <bl_boot.h>
 #include <bl_validation.h>
+#include <hal/nrf_mutex.h>
 #include <dfu/pcd.h>
 #include <device.h>
 
@@ -20,6 +21,7 @@
 
 void main(void)
 {
+	printk("Starting Network bootloader \n\r");
 	struct pcd_cmd *cmd;
 	int err = fprotect_area(PM_B0N_IMAGE_ADDRESS, PM_B0N_IMAGE_SIZE);
 	struct device *fdev = device_get_binding(FLASH_NAME);
@@ -28,7 +30,8 @@ void main(void)
 		printk("Failed to protect b0n flash, cancel startup.\n\r");
 		return;
 	}
-
+	while(!nrf_mutex_lock(NRF_APPMUTEX_S, 0));	
+	printk("Aquired mutex 0\n\r");
 	cmd = pcd_get_cmd((void*)CMD_ADDR);
 	if (cmd != NULL) {
 		err = pcd_transfer(cmd, fdev);
@@ -36,10 +39,15 @@ void main(void)
 			printk("Failed to transfer image: %d. \n\r", err);
 			return;
 		}
+		printk("PCD cmd = %x\n\r", cmd->magic);
+		nrf_mutex_unlock(NRF_APPMUTEX_S, 0);
+		printk("Mutex 0 unlocked\n\r");
 	}
 
 	uint32_t s0_addr = s0_address_read();
+	printk("s0_addr: 0x%x\n\r", s0_addr);
 
+	while(!nrf_mutex_lock(NRF_APPMUTEX_S, 0));	
 	if (cmd != NULL) {
 		if (!bl_validate_firmware(s0_addr, s0_addr)) {
 			err = pcd_invalidate(cmd);
@@ -49,6 +57,8 @@ void main(void)
 			}
 		}
 	}
+	nrf_mutex_unlock(NRF_APPMUTEX_S, 0);
+	
 
 	err = fprotect_area(PM_APP_ADDRESS, PM_APP_SIZE);
 	if (err) {

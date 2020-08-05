@@ -60,6 +60,7 @@ int pcd_transfer(struct pcd_cmd *cmd, struct device *fdev)
 
 	/* Signal complete by setting magic to 0 */
 	cmd->magic = PCD_CMD_MAGIC_DONE;
+	LOG_INF("Transfer done");
 
 	return 0;
 }

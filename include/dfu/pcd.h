@@ -37,7 +37,7 @@ extern "C" {
  */
 struct pcd_cmd {
 	uint32_t magic;     /* Magic value to identify this structure in memory */
-	const void *src; /* Source address to copy from */
+	void *src; /* Source address to copy from */
 	size_t len;      /* Number of bytes to copy */
 	size_t offset;   /* Offset to store the flash image in */
 	uint8_t buf[CONFIG_PCD_BUF_SIZE]; /* Copy buffer */
