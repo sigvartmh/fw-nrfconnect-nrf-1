@@ -31,16 +31,16 @@ void main(void)
 		return;
 	}
 	while(!nrf_mutex_lock(NRF_APPMUTEX_S, 0));	
-	printk("Aquired mutex 0\n\r");
 	cmd = pcd_get_cmd((void*)CMD_ADDR);
+
 	if (cmd != NULL) {
 		err = pcd_transfer(cmd, fdev);
 		if (err != 0) {
 			printk("Failed to transfer image: %d. \n\r", err);
 			return;
 		}
-		printk("PCD cmd = %x\n\r", cmd->magic);
 		nrf_mutex_unlock(NRF_APPMUTEX_S, 0);
+		printk("PCD cmd = %x\n\r", cmd->magic);
 		printk("Mutex 0 unlocked\n\r");
 	}
 
