@@ -30,17 +30,19 @@ extern "C" {
 /** Magic value written to indicate that a copy failed. */
 #define PCD_CMD_MAGIC_DONE 0xf103ce5d
 
+#define CMD_ADDR (0x20000000 + 32)
+
 /** @brief PCD command structure.
  *
  *  The command is used to communicate information between the sender
  *  and the receiver of the DFU image.
  */
 struct pcd_cmd {
-	uint32_t magic;     /* Magic value to identify this structure in memory */
-	uint32_t src_addr; /* Source address to copy from */
-	size_t len;      /* Number of bytes to copy */
-	size_t offset;   /* Offset to store the flash image in */
-};
+	uint32_t magic;   /* Magic value to identify this structure in memory */
+	void * src_addr;  /* Source address to copy from */
+	size_t len;       /* Number of bytes to copy */
+	size_t offset;    /* Offset to store the flash image in */
+} __attribute__ ((aligned(4)));
 
 /** @brief Get a PCD CMD from the specified address.
  *

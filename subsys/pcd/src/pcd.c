@@ -41,14 +41,6 @@ int pcd_transfer(struct pcd_cmd *cmd, struct device *fdev)
 	uint8_t buf[CONFIG_PCD_BUF_SIZE];
 	int rc;
 
-	nrf_ipc_channel_t channel = NRF_IPC_CHANNEL_1;
-	nrf_ipc_event_t event = NRF_IPC_EVENT_RECEIVE_1;
-	nrf_ipc_receive_config_set(NRF_IPC, 0, channel);
-	while(!nrf_ipc_event_check(NRF_IPC,  event)){
-		__WFE();
-	}
-	nrf_ipc_task_trigger(NRF_IPC, NRF_IPC_TASK_SEND_0);
-
 	if (cmd == NULL) {
 		return -EINVAL;
 	}
@@ -67,10 +59,11 @@ int pcd_transfer(struct pcd_cmd *cmd, struct device *fdev)
 		return rc;
 	}
 
+	LOG_INF("Transfer done");
 	/* Signal complete by setting magic to 0 */
 	cmd->magic = PCD_CMD_MAGIC_DONE;
-	LOG_INF("Transfer done");
-	nrf_ipc_task_trigger(NRF_IPC, NRF_IPC_TASK_SEND_0);
-
+	/* Wait for being rebooted */
+	while(1);
+	CODE_UNREACHABLE;
 	return 0;
 }

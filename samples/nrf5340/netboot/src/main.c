@@ -16,7 +16,6 @@
 #include <dfu/pcd.h>
 #include <device.h>
 
-#define CMD_ADDR 0x20000000
 #define FLASH_NAME DT_CHOSEN_ZEPHYR_FLASH_CONTROLLER_LABEL
 
 void main(void)
@@ -30,24 +29,20 @@ void main(void)
 		printk("Failed to protect b0n flash, cancel startup.\n\r");
 		return;
 	}
-	while(!nrf_mutex_lock(NRF_APPMUTEX_S, 0));	
-	cmd = pcd_get_cmd((void*)CMD_ADDR);
 
+	cmd = pcd_get_cmd((void*)CMD_ADDR);
 	if (cmd != NULL) {
 		err = pcd_transfer(cmd, fdev);
 		if (err != 0) {
 			printk("Failed to transfer image: %d. \n\r", err);
 			return;
 		}
-		nrf_mutex_unlock(NRF_APPMUTEX_S, 0);
 		printk("PCD cmd = %x\n\r", cmd->magic);
-		printk("Mutex 0 unlocked\n\r");
 	}
 
 	uint32_t s0_addr = s0_address_read();
 	printk("s0_addr: 0x%x\n\r", s0_addr);
 
-	while(!nrf_mutex_lock(NRF_APPMUTEX_S, 0));	
 	if (cmd != NULL) {
 		if (!bl_validate_firmware(s0_addr, s0_addr)) {
 			err = pcd_invalidate(cmd);
@@ -57,8 +52,6 @@ void main(void)
 			}
 		}
 	}
-	nrf_mutex_unlock(NRF_APPMUTEX_S, 0);
-	
 
 	err = fprotect_area(PM_APP_ADDRESS, PM_APP_SIZE);
 	if (err) {
