@@ -48,10 +48,6 @@ struct pcd_cmd {
 #endif
 #define PCD_CMD_ADDRESS (APP_CORE_SRAM_BASE_ADDRESS + APP_CORE_SRAM_SIZE \
 			- sizeof(struct pcd_cmd))
-#define PCD_RSP_ADDRESS (APP_CORE_SRAM_BASE_ADDRESS + APP_CORE_SRAM_SIZE \
-			- sizeof(struct pcd_cmd) \
-			- CONFIG_NRF_SPU_RAM_REGION_SIZE)
-
 
 /** @brief Get a PCD CMD from the specified address.
  *
@@ -77,13 +73,11 @@ int pcd_invalidate(struct pcd_cmd *cmd);
  * provided flash device.
  *
  * @param cmd The PCD CMD whose configuration will be used for the transfer.
- * @param cmd The PCD CMD response structure which is used to notify when the
- *	      transfer is done.
  * @param fdev The flash device to transfer the DFU image to.
  *
  * @retval non-negative integer on success, negative errno code on failure.
  */
-int pcd_transfer(struct pcd_cmd *cmd, struct pcd_cmd *rsp, struct device *fdev);
+int pcd_transfer(struct pcd_cmd *cmd, struct device *fdev);
 
 #endif /* PCD_H__ */
 

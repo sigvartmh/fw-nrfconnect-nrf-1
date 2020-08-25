@@ -20,7 +20,6 @@
 void main(void)
 {
 	struct pcd_cmd *cmd = NULL;
-	struct pcd_cmd *rsp = NULL;
 	int err = fprotect_area(PM_B0N_IMAGE_ADDRESS, PM_B0N_IMAGE_SIZE);
 	struct device *fdev = device_get_binding(FLASH_NAME);
 
@@ -30,13 +29,15 @@ void main(void)
 	}
 	
 	cmd = pcd_get_cmd((void*)PCD_CMD_ADDRESS);
-	rsp = pcd_get_cmd((void*)PCD_RSP_ADDRESS);
-	if (cmd != NULL && rsp != NULL) {
-		err = pcd_transfer(cmd, rsp, fdev);
+	if (cmd != NULL) {
+		err = pcd_transfer(cmd, fdev);
 		if (err != 0) {
 			printk("Failed to transfer image: %d. \n\r", err);
-			return;
+			goto failure;
 		}
+		/* Success, waiting to be rebooted */
+		while(1);
+		CODE_UNREACHABLE;
 	}
 
 	uint32_t s0_addr = s0_address_read();
@@ -58,9 +59,9 @@ void main(void)
 	}
 
 	bl_boot(fw_info_find(s0_addr));
+	return;
 
 failure:
-	rsp->magic = PCD_CMD_MAGIC_FAIL;
+	pcd_invalidate(cmd);
 	return;
-	CODE_UNREACHABLE;
 }
