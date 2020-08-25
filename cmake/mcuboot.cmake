@@ -199,8 +199,12 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
 
     add_custom_target(
       net_core_app_sign_target
-      ALL
       DEPENDS ${net_core_app_signed_hex}
+      )
+
+    add_dependencies(
+      mcuboot_sign_target
+      net_core_app_sign_target
       )
 
   endif()
