@@ -193,7 +193,7 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
     sign(${nrf5340pdk_nrf5340_cpunet_PM_APP_HEX}
       ${PROJECT_BINARY_DIR}/net_core_app
       $<TARGET_PROPERTY:partition_manager,net_app_TO_SECONDARY>
-      hci_rpmsg_subimage
+      "hci_rpmsg_subimage;${CMAKE_BINARY_DIR}/hci_rpmsg/zephyr/zephyr.hex"
       net_core_app_signed_hex
       )
 
