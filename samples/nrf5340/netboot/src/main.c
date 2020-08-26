@@ -35,6 +35,7 @@ void main(void)
 			printk("Failed to transfer image: %d. \n\r", err);
 			goto failure;
 		}
+
 		/* Success, waiting to be rebooted */
 		while(1);
 		CODE_UNREACHABLE;

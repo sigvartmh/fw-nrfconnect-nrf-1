@@ -30,9 +30,15 @@ struct pcd_cmd {
 } __attribute__ ((aligned(4)));
 
 #ifdef CONFIG_SOC_SERIES_NRF53X
+/* These must be hard coded as this code is preprocessed for both net and app
+ * core.
+ */
 #define APP_CORE_SRAM_START 0x20000000
 #define APP_CORE_SRAM_SIZE KB(512)
-#define PCD_CMD_ADDRESS (APP_CORE_SRAM_START + APP_CORE_SRAM_SIZE - sizeof(struct pcd_cmd))
+#define RAM_SECURE_AATRIBUTION_REGION_SIZE 0x2000
+#define PCD_CMD_ADDRESS (APP_CORE_SRAM_START \
+			+ APP_CORE_SRAM_SIZE \
+			- RAM_SECURE_AATRIBUTION_REGION_SIZE)
 #else
 #error "Unsupported architecture"
 #endif
