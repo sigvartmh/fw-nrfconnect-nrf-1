@@ -181,19 +181,22 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
     "version_MCUBOOT=${CONFIG_MCUBOOT_IMAGE_VERSION}"
     )
 
-  if (CONFIG_BT_RPMSG_NRF53 AND CONFIG_SOC_NRF5340_CPUAPP)
-    # The bootloader on the network core is enabled. The validation of this
-    # bootloader is performed by MCUBoot on the application core. Hence we
-    # need a target for creating the signed binary of the network core
-    # application.
+  if (CONFIG_BT_RPMSG_NRF53 AND CONFIG_HCI_RPMSG_BUILD_STRATEGY_FROM_SOURCE
+      AND CONFIG_SOC_NRF5340_CPUAPP)
+    # Network core application updates are enabled.
+    # We know this since MCUBoot is enabled on the application core, and
+    # a network core child image is included in the build.
+    # These updates are verified by the application core MCUBoot.
+    # Create a signed variant of the network core application.
 
+    # Load the shared vars to get the path to the hex file to sign.
     include(${CMAKE_BINARY_DIR}/hci_rpmsg/shared_vars.cmake)
 
-    # TODO replace with proper domain once PR is in
-    sign(${nrf5340pdk_nrf5340_cpunet_PM_APP_HEX}
+    # TODO I think we need to depend on the CPUNET_PM_APP_HEX file as well
+    sign(${CPUNET_PM_APP_HEX}
       ${PROJECT_BINARY_DIR}/net_core_app
       $<TARGET_PROPERTY:partition_manager,net_app_TO_SECONDARY>
-      "hci_rpmsg_subimage;${CMAKE_BINARY_DIR}/hci_rpmsg/zephyr/zephyr.hex"
+      hci_rpmsg_subimage
       net_core_app_signed_hex
       )
 

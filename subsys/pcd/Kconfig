@@ -8,6 +8,8 @@ menu "Peripheral CPU DFU (PCD)"
 
 menuconfig PCD
 	bool "Peripheral CPU DFU Support"
+	default y if SOC_NRF5340_CPUNET && IS_SECURE_BOOTLOADER
+	default y if SOC_SERIES_NRF53X && MCUBOOT
 	select FLASH_PAGE_LAYOUT
 	select STREAM_FLASH
 	select STREAM_FLASH_ERASE

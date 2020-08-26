@@ -22,41 +22,34 @@ extern "C" {
 #endif
 #include <device.h>
 
-/** Magic value written to indicate that a copy should take place. */
-#define PCD_CMD_MAGIC_COPY 0xb5b4b3b6
-/** Magic value written to indicate that a something failed. */
-#define PCD_CMD_MAGIC_FAIL 0x25bafc15
-/** Magic value written to indicate that a copy is done. */
-#define PCD_CMD_MAGIC_DONE 0xf103ce5d
-
-/** @brief PCD command structure.
- *
- *  The command is used to communicate information between the sender
- *  and the receiver of the DFU image.
- */
 struct pcd_cmd {
 	uint32_t magic;   /* Magic value to identify this structure in memory */
-	void * src_addr;  /* Source address to copy from */
+	void *src_addr;   /* Source address to copy from */
 	size_t len;       /* Number of bytes to copy */
 	size_t offset;    /* Offset to store the flash image in */
 } __attribute__ ((aligned(4)));
 
-#define APP_CORE_SRAM_BASE_ADDRESS 0x20000000
+#ifdef CONFIG_SOC_SERIES_NRF53X
+#define APP_CORE_SRAM_START 0x20000000
 #define APP_CORE_SRAM_SIZE KB(512)
-#if !defined(CONFIG_NRF_SPU_RAM_REGION_SIZE) //&& defined nrf53?
-#define CONFIG_NRF_SPU_RAM_REGION_SIZE 0x2000
+#define PCD_CMD_ADDRESS (APP_CORE_SRAM_START + APP_CORE_SRAM_SIZE - sizeof(struct pcd_cmd))
+#else
+#error "Unsupported architecture"
 #endif
-#define PCD_CMD_ADDRESS (APP_CORE_SRAM_BASE_ADDRESS + APP_CORE_SRAM_SIZE \
-			- sizeof(struct pcd_cmd))
+
+
 
 /** @brief Get a PCD CMD from the specified address.
- *
+
  * @param addr The address to check for a valid PCD CMD.
  *
  * @retval A pointer to the PCD CMD if successful.
  *           Otherwise, NULL is returned.
  */
-struct pcd_cmd *pcd_get_cmd(void *addr);
+struct pcd_cmd *pcd_cmd_get(void *addr);
+
+struct pcd_cmd *pcd_cmd_write(void *cmd_addr, void *src_addr, size_t len,
+		  size_t offset);
 
 /** @brief Update the PCD CMD to invalidate the magic value, indicating that
  * the copy failed.
@@ -66,6 +59,8 @@ struct pcd_cmd *pcd_get_cmd(void *addr);
  * @retval non-negative integer on success, negative errno code on failure.
  */
 int pcd_invalidate(struct pcd_cmd *cmd);
+
+int pcd_status(struct pcd_cmd *cmd);
 
 /** @brief Perform the DFU image transfer.
  *
@@ -77,7 +72,7 @@ int pcd_invalidate(struct pcd_cmd *cmd);
  *
  * @retval non-negative integer on success, negative errno code on failure.
  */
-int pcd_transfer(struct pcd_cmd *cmd, struct device *fdev);
+int pcd_fetch(struct pcd_cmd *cmd, struct device *fdev);
 
 #endif /* PCD_H__ */
 

@@ -12,13 +12,41 @@
 
 LOG_MODULE_REGISTER(pcd, CONFIG_PCD_LOG_LEVEL);
 
-struct pcd_cmd *pcd_get_cmd(void *addr)
+/** Magic value written to indicate that a copy should take place. */
+#define PCD_CMD_MAGIC_COPY 0xb5b4b3b6
+/** Magic value written to indicate that a something failed. */
+#define PCD_CMD_MAGIC_FAIL 0x25bafc15
+/** Magic value written to indicate that a copy is done. */
+#define PCD_CMD_MAGIC_DONE 0xf103ce5d
+
+/** @brief PCD command structure.
+ *
+ *  The command is used to communicate information between the sender
+ *  and the receiver of the DFU image.
+ */
+struct pcd_cmd *pcd_cmd_get(void *addr)
 {
 	struct pcd_cmd *cmd = (struct pcd_cmd *)addr;
 
 	if (cmd->magic != PCD_CMD_MAGIC_COPY) {
 		return NULL;
 	}
+
+	return cmd;
+}
+
+struct pcd_cmd *pcd_cmd_write(void *cmd_addr, void *src_addr, size_t len, size_t offset)
+{
+	struct pcd_cmd *cmd = (struct pcd_cmd *)cmd_addr;
+
+	if (cmd_addr == NULL || src_addr == NULL || len == 0) {
+		return NULL;
+	}
+
+	cmd->magic = PCD_CMD_MAGIC_COPY;
+	cmd->src_addr = src_addr;
+	cmd->len = len;
+	cmd->offset = offset;
 
 	return cmd;
 }
@@ -34,7 +62,18 @@ int pcd_invalidate(struct pcd_cmd *cmd)
 	return 0;
 }
 
-int pcd_transfer(struct pcd_cmd *cmd, struct device *fdev)
+int pcd_status(struct pcd_cmd *cmd)
+{
+	if (cmd->magic == PCD_CMD_MAGIC_COPY) {
+		return 0;
+	} else if (cmd->magic == PCD_CMD_MAGIC_DONE) {
+		return 1;
+	} else {
+		return -1;
+	}
+}
+
+int pcd_fetch(struct pcd_cmd *cmd, struct device *fdev)
 {
 	struct stream_flash_ctx stream;
 	uint8_t buf[CONFIG_PCD_BUF_SIZE];
@@ -59,7 +98,9 @@ int pcd_transfer(struct pcd_cmd *cmd, struct device *fdev)
 	}
 
 	LOG_INF("Transfer done");
+
 	/* Signal complete by setting magic to DONE */
 	cmd->magic = PCD_CMD_MAGIC_DONE;
+
 	return 0;
 }

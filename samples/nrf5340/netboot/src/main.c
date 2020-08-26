@@ -27,10 +27,10 @@ void main(void)
 		printk("Failed to protect b0n flash, cancel startup.\n\r");
 		goto failure;
 	}
-	
-	cmd = pcd_get_cmd((void*)PCD_CMD_ADDRESS);
+
+	cmd = pcd_cmd_get((void *)PCD_CMD_ADDRESS);
 	if (cmd != NULL) {
-		err = pcd_transfer(cmd, fdev);
+		err = pcd_fetch(cmd, fdev);
 		if (err != 0) {
 			printk("Failed to transfer image: %d. \n\r", err);
 			goto failure;
