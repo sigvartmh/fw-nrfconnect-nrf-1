@@ -352,7 +352,7 @@ if (is_dynamic_partition_in_domain)
   share("set(${DOMAIN}_PM_HEX_FILE ${PROJECT_BINARY_DIR}/${merged}.hex)")
   share("set(${domain}_PM_DOTCONF_FILES ${pm_out_dotconf_files})")
   # The partition manager script ensures that the 'app' hex always exists.
-  share("set(${domain}_PM_APP_HEX ${PROJECT_BINARY_DIR}/app.hex)")
+  share("set(${DOMAIN}_PM_APP_HEX ${PROJECT_BINARY_DIR}/app.hex)")
 else()
   # This is the root image, generate the global pm_config.h
   # First, include the shared_vars.cmake file for all child images.
