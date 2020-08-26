@@ -189,8 +189,7 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
 
     include(${CMAKE_BINARY_DIR}/hci_rpmsg/shared_vars.cmake)
 
-    # TODO replace with proper domain once PR is in
-    sign(${nrf5340pdk_nrf5340_cpunet_PM_APP_HEX}
+    sign(${CPUNET_PM_APP_HEX}
       ${PROJECT_BINARY_DIR}/net_core_app
       $<TARGET_PROPERTY:partition_manager,net_app_TO_SECONDARY>
       "hci_rpmsg_subimage;${CMAKE_BINARY_DIR}/hci_rpmsg/zephyr/zephyr.hex"

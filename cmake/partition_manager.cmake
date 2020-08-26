@@ -350,8 +350,7 @@ if (is_dynamic_partition_in_domain)
   share("set(${DOMAIN}_PM_DOMAIN_HEADER_FILES ${header_files})")
   share("set(${DOMAIN}_PM_DOMAIN_IMAGES ${prefixed_images})")
   share("set(${DOMAIN}_PM_HEX_FILE ${PROJECT_BINARY_DIR}/${merged}.hex)")
-  share("set(${domain}_PM_DOTCONF_FILES ${pm_out_dotconf_files})")
-  # The partition manager script ensures that the 'app' hex always exists.
+  share("set(${DOMAIN}_PM_DOTCONF_FILES ${pm_out_dotconf_files})")
   share("set(${DOMAIN}_PM_APP_HEX ${PROJECT_BINARY_DIR}/app.hex)")
 else()
   # This is the root image, generate the global pm_config.h
@@ -394,8 +393,6 @@ else()
           )
       endforeach()
 
-      # TODO don't check BOARD, don'c check for BT_RPMSG. Do something smarter, look at domains?
-      # Don't hard code domain/board names.
       if (CONFIG_BT_RPMSG_NRF53 AND CONFIG_BOOTLOADER_MCUBOOT AND
           (CONFIG_SOC_NRF5340_CPUAPP))
           # Create symbols for the offset reqired for moving the signed network
@@ -408,7 +405,7 @@ else()
           get_target_property(
             net_app_addr
             partition_manager
-            nrf5340pdk_nrf5340_cpunet_PM_APP_ADDRESS
+            CPUNET_PM_APP_ADDRESS
             )
 
           # There is no padding in front of the network core application.
