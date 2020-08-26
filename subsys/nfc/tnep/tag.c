@@ -20,8 +20,6 @@ LOG_MODULE_REGISTER(nfc_tnep_tag, CONFIG_NFC_TNEP_TAG_LOG_LEVEL);
 enum tnep_event {
 	TNEP_EVENT_DUMMY,
 	TNEP_EVENT_MSG_RX_NEW,
-	TNEP_EVENT_MSG_TX_NEW,
-	TNEP_EVENT_MSG_TX_FINISH,
 	TNEP_EVENT_TAG_SELECTED,
 };
 
@@ -61,24 +59,16 @@ struct tnep_control {
 	struct k_poll_signal msg_tx;
 };
 
-struct tnep_app_data {
-	const struct nfc_ndef_record_desc *record;
-	size_t cnt;
-	enum nfc_tnep_status_value status;
-};
-
 struct tnep_tag {
 	struct nfc_ndef_msg_desc *msg;
 	struct tnep_buffer tx;
 	struct tnep_rx_buffer rx;
-	struct tnep_app_data app_data;
 	const struct nfc_tnep_tag_service *svc_active;
-	const struct nfc_tnep_tag_service *svc;
-	const struct nfc_ndef_record_desc *records;
 	size_t svc_cnt;
-	size_t records_cnt;
+	size_t max_records_cnt;
 	atomic_t app_data_expected;
 	nfc_payload_set_t data_set;
+	initial_msg_encode_t initial_msg_encode;
 	uint8_t *current_buff;
 };
 
@@ -111,12 +101,12 @@ const struct tnep_state tnep_state_machine[] = {
 	},
 };
 
-static void tnep_tx_msg_clear(void)
+static void tnep_tx_msg_clear(struct nfc_ndef_msg_desc *msg)
 {
-	nfc_ndef_msg_clear(tnep.msg);
+	nfc_ndef_msg_clear(msg);
 }
 
-static int tnep_tx_msg_encode(void)
+static int tnep_tx_msg_encode(struct nfc_ndef_msg_desc *msg)
 {
 	int err = 0;
 	unsigned int key;
@@ -140,8 +130,8 @@ static int tnep_tx_msg_encode(void)
 		data = nfc_t4t_ndef_file_msg_get(data);
 	}
 
-	if (tnep.msg->record_count > 0) {
-		err = nfc_ndef_msg_encode(tnep.msg,
+	if (msg && (msg->record_count > 0)) {
+		err = nfc_ndef_msg_encode(msg,
 					  data,
 					  &len);
 	}
@@ -161,7 +151,8 @@ static int tnep_tx_msg_encode(void)
 	return err;
 }
 
-static int tnep_tx_msg_add_rec(const struct nfc_ndef_record_desc *record)
+static int tnep_tx_msg_add_rec(struct nfc_ndef_msg_desc *msg,
+			       const struct nfc_ndef_record_desc *record)
 {
 	int err = 0;
 
@@ -169,23 +160,25 @@ static int tnep_tx_msg_add_rec(const struct nfc_ndef_record_desc *record)
 		return -EINVAL;
 	}
 
-	err = nfc_ndef_msg_record_add(tnep.msg,
+	err = nfc_ndef_msg_record_add(msg,
 				      record);
 
 	return err;
 }
 
-static int tnep_tx_msg_add_rec_status(enum nfc_tnep_status_value status)
+static int tnep_tx_msg_add_rec_status(struct nfc_ndef_msg_desc *msg,
+				      enum nfc_tnep_status_value status)
 {
 	int err = 0;
 
 	if (status == NFC_TNEP_STATUS_PROTOCOL_ERROR) {
-		tnep_tx_msg_clear();
+		tnep_tx_msg_clear(msg);
 	}
 
 	status_record.status = status;
 
-	err = tnep_tx_msg_add_rec(&NFC_NDEF_TNEP_RECORD_DESC(status_record));
+	err = tnep_tx_msg_add_rec(msg,
+				  &NFC_NDEF_TNEP_RECORD_DESC(status_record));
 
 	return err;
 }
@@ -194,25 +187,26 @@ static int tnep_tx_initial_msg_set(void)
 {
 	int err = 0;
 
-	tnep_tx_msg_clear();
+	NFC_NDEF_MSG_DEF(initial_msg, tnep.svc_cnt + tnep.max_records_cnt);
 
-	if (tnep.records && tnep.records_cnt) {
-		for (size_t i = 0; i < tnep.records_cnt; i++) {
-			err = tnep_tx_msg_add_rec(&tnep.records[i]);
-			if (err) {
-				return err;
-			}
-		}
+	tnep_tx_msg_clear(&NFC_NDEF_MSG(initial_msg));
+
+	/* If initial message callback is available call it to encode
+	 * non-TNEP NDEF Records.
+	 */
+	if (tnep.initial_msg_encode && (tnep.max_records_cnt > 0)) {
+		return tnep.initial_msg_encode(&NFC_NDEF_MSG(initial_msg));
 	}
 
-	for (size_t i = 0; i < tnep.svc_cnt; i++) {
-		err = tnep_tx_msg_add_rec(tnep.svc[i].ndef_record);
+	Z_STRUCT_SECTION_FOREACH(nfc_tnep_tag_service, tnep_svc) {
+		err = tnep_tx_msg_add_rec(&NFC_NDEF_MSG(initial_msg),
+					  tnep_svc->ndef_record);
 		if (err) {
 			return err;
 		}
 	}
 
-	return tnep_tx_msg_encode();
+	return tnep_tx_msg_encode(&NFC_NDEF_MSG(initial_msg));
 }
 
 static bool ndef_check_rec_type(const struct nfc_ndef_record_desc *record,
@@ -232,12 +226,11 @@ static bool ndef_check_rec_type(const struct nfc_ndef_record_desc *record,
 
 static int tnep_svc_set_active(const uint8_t *uri_name, size_t uri_length)
 {
-
-	for (size_t i = 0; i < tnep.svc_cnt; i++) {
-		if ((tnep.svc[i].parameters->uri_length == uri_length) &&
+	Z_STRUCT_SECTION_FOREACH(nfc_tnep_tag_service, tnep_svc) {
+		if ((tnep_svc->parameters->uri_length == uri_length) &&
 		    !memcmp(uri_name,
-			    tnep.svc[i].parameters->uri, uri_length)) {
-			tnep.svc_active = &tnep.svc[i];
+			    tnep_svc->parameters->uri, uri_length)) {
+			tnep.svc_active = tnep_svc;
 
 			return TNEP_SVC_SELECTED;
 		}
@@ -314,31 +307,19 @@ static void tnep_sm_disabled(enum tnep_event event)
 	LOG_DBG("TNEP Disabled!");
 }
 
-static int tnep_new_app_msg_prepare(void)
+static int tnep_new_app_msg_prepare(struct nfc_ndef_msg_desc *msg,
+				    enum nfc_tnep_status_value status)
 {
-	__ASSERT_NO_MSG(tnep.app_data.record);
-	__ASSERT_NO_MSG(tnep.app_data.cnt > 0);
+	__ASSERT_NO_MSG(msg);
 
 	int err;
-	size_t cnt = tnep.app_data.cnt;
 
-	tnep_tx_msg_clear();
-
-	err = tnep_tx_msg_add_rec_status(tnep.app_data.status);
+	err = tnep_tx_msg_add_rec_status(msg, status);
 	if (err) {
 		return err;
 	}
 
-	for (size_t i = 0; i < cnt; i++) {
-		err = tnep_tx_msg_add_rec(&tnep.app_data.record[i]);
-		if (err) {
-			return err;
-		}
-	}
-
-	memset(&tnep.app_data, 0, sizeof(tnep.app_data));
-
-	return tnep_tx_msg_encode();
+	return tnep_tx_msg_encode(msg);
 }
 
 static int service_ready_rx_status_process(enum tnep_svc_record_status status)
@@ -382,10 +363,8 @@ static void tnep_sm_service_ready(enum tnep_event event)
 
 	switch (event) {
 	case TNEP_EVENT_MSG_RX_NEW:
-		tnep_tx_msg_clear();
-
 		/* Encode empty RX message. */
-		err = tnep_tx_msg_encode();
+		err = tnep_tx_msg_encode(NULL);
 		if (err) {
 			break;
 		}
@@ -398,11 +377,6 @@ static void tnep_sm_service_ready(enum tnep_event event)
 	case TNEP_EVENT_TAG_SELECTED:
 		err = tnep_tx_initial_msg_set();
 
-		break;
-
-	case TNEP_EVENT_MSG_TX_NEW:
-	case TNEP_EVENT_MSG_TX_FINISH:
-		LOG_DBG("Operation not enable in Service Ready.");
 		break;
 
 	default:
@@ -475,10 +449,8 @@ static void tnep_sm_service_selected(enum tnep_event event)
 
 	switch (event) {
 	case TNEP_EVENT_MSG_RX_NEW:
-		tnep_tx_msg_clear();
-
 		/* Encode empty RX message. */
-		err = tnep_tx_msg_encode();
+		err = tnep_tx_msg_encode(NULL);
 		if (err) {
 			break;
 		}
@@ -486,24 +458,6 @@ static void tnep_sm_service_selected(enum tnep_event event)
 		status = tnep_svc_select_from_msg();
 		err = service_selected_rx_status_process(last_service,
 							 status);
-
-		break;
-
-	case TNEP_EVENT_MSG_TX_NEW:
-		LOG_DBG("New Application Data");
-		err = tnep_new_app_msg_prepare();
-
-		break;
-
-	case TNEP_EVENT_MSG_TX_FINISH:
-		tnep_tx_msg_clear();
-
-		err = tnep_tx_msg_add_rec_status(NFC_TNEP_STATUS_SUCCESS);
-		if (err) {
-			break;
-		}
-
-		err = tnep_tx_msg_encode();
 
 		break;
 
@@ -551,18 +505,17 @@ void nfc_tnep_tag_rx_msg_indicate(const uint8_t *rx_buffer, size_t len)
 }
 
 int nfc_tnep_tag_init(struct k_poll_event *events, uint8_t event_cnt,
-		      struct nfc_ndef_msg_desc *msg,
 		      nfc_payload_set_t payload_set)
 {
+	extern struct nfc_tnep_tag_service
+			_nfc_tnep_tag_service_list_start[];
+	extern struct nfc_tnep_tag_service
+			_nfc_tnep_tag_service_list_end[];
+
 	LOG_DBG("TNEP initialization");
 
-	if (!events || !msg) {
+	if (!events) {
 		return -EINVAL;
-	}
-
-	if (msg->max_record_count < 1) {
-		LOG_ERR("NDEF Message have to have at leat one place for NDEF Record");
-		return -ENOMEM;
 	}
 
 	if (!payload_set) {
@@ -590,8 +543,9 @@ int nfc_tnep_tag_init(struct k_poll_event *events, uint8_t event_cnt,
 
 	tnep_ctrl.events = events;
 	tnep.current_buff = tnep.tx.data;
-	tnep.msg = msg;
 	tnep.data_set = payload_set;
+	tnep.svc_cnt = _nfc_tnep_tag_service_list_end -
+		       _nfc_tnep_tag_service_list_start;
 
 	LOG_DBG("k_pool signals initialization");
 
@@ -609,21 +563,23 @@ int nfc_tnep_tag_init(struct k_poll_event *events, uint8_t event_cnt,
 	return 0;
 }
 
-int nfc_tnep_tag_initial_msg_create(const struct nfc_tnep_tag_service *svc,
-				    size_t svc_cnt,
-				    const struct nfc_ndef_record_desc *records,
-				    size_t records_cnt)
+int nfc_tnep_tag_initial_msg_create(size_t max_record_cnt,
+				    initial_msg_encode_t msg_encode_cb)
 {
 	int err;
 
-	if (!svc || !svc_cnt) {
+	if (max_record_cnt && !msg_encode_cb) {
+		LOG_ERR("No callback provides when maximum NDEF Record count id greater than 0");
 		return -EINVAL;
 	}
 
-	tnep.svc = svc;
-	tnep.svc_cnt = svc_cnt;
-	tnep.records = records;
-	tnep.records_cnt = records_cnt;
+	if (tnep.svc_cnt < 1) {
+		LOG_ERR("TNEP Tag services are not defined");
+		return -EFAULT;
+	}
+
+	tnep.max_records_cnt = max_record_cnt;
+	tnep.initial_msg_encode = msg_encode_cb;
 
 	LOG_DBG("NDEF message init");
 	err = tnep_tx_initial_msg_set();
@@ -635,6 +591,46 @@ int nfc_tnep_tag_initial_msg_create(const struct nfc_tnep_tag_service *svc,
 	atomic_set(&current_state, TNEP_STATE_SERVICE_READY);
 
 	return err;
+}
+
+int nfc_tnep_initial_msg_encode(struct nfc_ndef_msg_desc *msg,
+				const struct nfc_ndef_record_desc *records,
+				size_t records_cnt)
+{
+	int err;
+	size_t used_records;
+
+	if (!msg) {
+		return -EINVAL;
+	}
+
+	if (records && (records_cnt < 1)) {
+		return -EINVAL;
+	}
+
+	used_records = msg->record_count + tnep.svc_cnt;
+
+	if (records_cnt > (tnep.max_records_cnt - used_records)) {
+		return -ENOMEM;
+	}
+
+	for (size_t i = 0; i < records_cnt; i++) {
+		err = tnep_tx_msg_add_rec(msg,
+					  &records[i]);
+		if (err) {
+			return err;
+		}
+	}
+
+	Z_STRUCT_SECTION_FOREACH(nfc_tnep_tag_service, tnep_svc) {
+		err = tnep_tx_msg_add_rec(msg,
+					  tnep_svc->ndef_record);
+		if (err) {
+			return err;
+		}
+	}
+
+	return tnep_tx_msg_encode(msg);
 }
 
 void nfc_tnep_tag_process(void)
@@ -655,11 +651,11 @@ void nfc_tnep_tag_process(void)
 	}
 }
 
-int nfc_tnep_tag_tx_msg_app_data(const struct nfc_ndef_record_desc *record,
-				 size_t cnt, enum nfc_tnep_status_value status)
+int nfc_tnep_tag_tx_msg_app_data(struct nfc_ndef_msg_desc *msg,
+				 enum nfc_tnep_status_value status)
 {
-	if (!record || (cnt < 1)) {
-		LOG_ERR("No data in record");
+	if (!msg) {
+		LOG_ERR("No application data NDEF Message");
 		return -EINVAL;
 	};
 
@@ -676,17 +672,15 @@ int nfc_tnep_tag_tx_msg_app_data(const struct nfc_ndef_record_desc *record,
 		return -EACCES;
 	}
 
-	tnep.app_data.record = record;
-	tnep.app_data.cnt = cnt;
-	tnep.app_data.status = status;
-
-	k_poll_signal_raise(&tnep_ctrl.msg_tx, TNEP_EVENT_MSG_TX_NEW);
-
-	return 0;
+	return tnep_new_app_msg_prepare(msg, status);
 }
 
 int nfc_tnep_tag_tx_msg_no_app_data(void)
 {
+	int err;
+
+	NFC_NDEF_MSG_DEF(app_msg, 1);
+
 	/* Check the state of TNEP service. */
 	if (!atomic_cas(&current_state, TNEP_STATE_SERVICE_SELECTED,
 			TNEP_STATE_SERVICE_SELECTED)) {
@@ -700,12 +694,23 @@ int nfc_tnep_tag_tx_msg_no_app_data(void)
 		return -EACCES;
 	}
 
-	k_poll_signal_raise(&tnep_ctrl.msg_tx, TNEP_EVENT_MSG_TX_FINISH);
+	tnep_tx_msg_clear(&NFC_NDEF_MSG(app_msg));
 
-	return 0;
+	err = tnep_tx_msg_add_rec_status(&NFC_NDEF_MSG(app_msg),
+					 NFC_TNEP_STATUS_SUCCESS);
+	if (err) {
+		return err;
+	}
+
+	return tnep_tx_msg_encode(&NFC_NDEF_MSG(app_msg));
 }
 
 void nfc_tnep_tag_on_selected(void)
 {
 	k_poll_signal_raise(&tnep_ctrl.msg_tx, TNEP_EVENT_TAG_SELECTED);
+}
+
+size_t nfc_tnep_tag_svc_count_get(void)
+{
+	return tnep.svc_cnt;
 }
