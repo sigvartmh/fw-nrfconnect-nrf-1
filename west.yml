@@ -87,8 +87,8 @@ manifest:
     # Some of these are also Zephyr modules which have NCS-specific
     # changes.
     - name: mcuboot
-      repo-path: sdk-mcuboot
-      revision: 92992c0cc46c19fd698b6a1e7ca06dea37e19bf7
+      repo-path: fw-nrfconnect-mcuboot-1
+      revision: pull/118/head 
       path: bootloader/mcuboot
     - name: mcumgr
       repo-path: sdk-mcumgr
