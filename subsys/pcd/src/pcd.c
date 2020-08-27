@@ -19,11 +19,14 @@ LOG_MODULE_REGISTER(pcd, CONFIG_PCD_LOG_LEVEL);
 /** Magic value written to indicate that a copy is done. */
 #define PCD_CMD_MAGIC_DONE 0xf103ce5d
 
-/** @brief PCD command structure.
- *
- *  The command is used to communicate information between the sender
- *  and the receiver of the DFU image.
- */
+struct pcd_cmd {
+	uint32_t magic;   /* Magic value to identify this structure in memory */
+	void *src_addr;   /* Source address to copy from */
+	size_t len;       /* Number of bytes to copy */
+	size_t offset;    /* Offset to store the flash image in */
+} __attribute__ ((aligned(4)));
+
+
 struct pcd_cmd *pcd_cmd_get(void *addr)
 {
 	struct pcd_cmd *cmd = (struct pcd_cmd *)addr;

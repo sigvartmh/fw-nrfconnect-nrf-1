@@ -192,11 +192,10 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
     # Load the shared vars to get the path to the hex file to sign.
     include(${CMAKE_BINARY_DIR}/hci_rpmsg/shared_vars.cmake)
 
-    # TODO I think we need to depend on the CPUNET_PM_APP_HEX file as well
     sign(${CPUNET_PM_APP_HEX}
       ${PROJECT_BINARY_DIR}/net_core_app
       $<TARGET_PROPERTY:partition_manager,net_app_TO_SECONDARY>
-      hci_rpmsg_subimage
+      "hci_rpmsg_subimage;${CPUNET_PM_APP_HEX}"
       net_core_app_signed_hex
       )
 

@@ -22,14 +22,8 @@ extern "C" {
 #endif
 #include <device.h>
 
-struct pcd_cmd {
-	uint32_t magic;   /* Magic value to identify this structure in memory */
-	void *src_addr;   /* Source address to copy from */
-	size_t len;       /* Number of bytes to copy */
-	size_t offset;    /* Offset to store the flash image in */
-} __attribute__ ((aligned(4)));
-
 #ifdef CONFIG_SOC_SERIES_NRF53X
+
 /* These must be hard coded as this code is preprocessed for both net and app
  * core.
  */
@@ -44,6 +38,8 @@ struct pcd_cmd {
 #endif
 
 
+/** @brief Opaque type */
+struct pcd_cmd;
 
 /** @brief Get a PCD CMD from the specified address.
 
@@ -54,6 +50,16 @@ struct pcd_cmd {
  */
 struct pcd_cmd *pcd_cmd_get(void *addr);
 
+/** @brief Write a PCD CMD to a specified address.
+
+ * @param cmd_addr The address to write the CMD to.
+ * @param src_addr The address to which the CMD copy data from.
+ * @param len      The number of bytes that should be copied.
+ * @param offset   The offset within the flash device to write the data to.
+ *
+ * @retval A pointer to the written PCD CMD if successful.
+ *           Otherwise, NULL is returned.
+ */
 struct pcd_cmd *pcd_cmd_write(void *cmd_addr, void *src_addr, size_t len,
 		  size_t offset);
 
@@ -66,6 +72,15 @@ struct pcd_cmd *pcd_cmd_write(void *cmd_addr, void *src_addr, size_t len,
  */
 int pcd_invalidate(struct pcd_cmd *cmd);
 
+/** @brief Update the PCD CMD to invalidate the magic value, indicating that
+ * the copy failed.
+ *
+ * @param cmd The PCD CMD to invalidate.
+ *
+ * @return 0 if operation is not complete
+ * @return negative integer on failure
+ * @return non-negative integer on success
+ */
 int pcd_status(struct pcd_cmd *cmd);
 
 /** @brief Perform the DFU image transfer.

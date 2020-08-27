@@ -410,9 +410,6 @@ else()
             CPUNET_PM_APP_ADDRESS
             )
 
-          print(PM_MCUBOOT_SECONDARY_ADDRESS)
-          print(net_app_addr)
-          print(PM_MCUBOOT_PAD_SIZE)
           # There is no padding in front of the network core application.
           math(EXPR net_app_TO_SECONDARY
             "${PM_MCUBOOT_SECONDARY_ADDRESS} - ${net_app_addr} + ${PM_MCUBOOT_PAD_SIZE}")

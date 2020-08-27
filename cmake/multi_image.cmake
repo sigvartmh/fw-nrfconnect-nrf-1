@@ -93,7 +93,6 @@ function(add_child_image_from_source)
     # No BOARD is given as argument, this triggers automatic conversion of
     # *.ns board from parent image.
     get_board_without_ns_suffix(${BOARD} ACI_BOARD)
-
   endif()
 
   if (NOT ACI_DOMAIN AND DOMAIN)
