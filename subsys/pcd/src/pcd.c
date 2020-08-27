@@ -20,10 +20,10 @@ LOG_MODULE_REGISTER(pcd, CONFIG_PCD_LOG_LEVEL);
 #define PCD_CMD_MAGIC_DONE 0xf103ce5d
 
 struct pcd_cmd {
-	uint32_t magic;   /* Magic value to identify this structure in memory */
-	void *src_addr;   /* Source address to copy from */
-	size_t len;       /* Number of bytes to copy */
-	size_t offset;    /* Offset to store the flash image in */
+	uint32_t magic;       /* Magic value to identify this structure in memory */
+	const void *src_addr; /* Source address to copy from */
+	size_t len;           /* Number of bytes to copy */
+	size_t offset;        /* Offset to store the flash image in */
 } __aligned(4);
 
 
@@ -38,7 +38,7 @@ struct pcd_cmd *pcd_cmd_get(void *addr)
 	return cmd;
 }
 
-struct pcd_cmd *pcd_cmd_write(void *cmd_addr, void *src_addr, size_t len,
+struct pcd_cmd *pcd_cmd_write(void *cmd_addr, const void *src_addr, size_t len,
 			      size_t offset)
 {
 	struct pcd_cmd *cmd = (struct pcd_cmd *)cmd_addr;

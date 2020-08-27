@@ -33,8 +33,6 @@ extern "C" {
 #define PCD_CMD_ADDRESS (APP_CORE_SRAM_START \
 			+ APP_CORE_SRAM_SIZE \
 			- RAM_SECURE_ATTRIBUTION_REGION_SIZE)
-#else
-#error "Unsupported architecture"
 #endif
 
 
@@ -60,7 +58,7 @@ struct pcd_cmd *pcd_cmd_get(void *addr);
  * @retval A pointer to the written PCD CMD if successful.
  *           Otherwise, NULL is returned.
  */
-struct pcd_cmd *pcd_cmd_write(void *cmd_addr, void *src_addr, size_t len,
+struct pcd_cmd *pcd_cmd_write(void *cmd_addr, const void *src_addr, size_t len,
 		  size_t offset);
 
 /** @brief Update the PCD CMD to invalidate the magic value, indicating that
@@ -79,7 +77,7 @@ int pcd_invalidate(struct pcd_cmd *cmd);
  *
  * @return 0 if operation is not complete
  * @return negative integer on failure
- * @return non-negative integer on success
+ * @return positive integer on success
  */
 int pcd_status(struct pcd_cmd *cmd);
 
