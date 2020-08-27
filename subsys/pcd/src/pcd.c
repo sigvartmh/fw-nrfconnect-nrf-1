@@ -20,7 +20,7 @@ LOG_MODULE_REGISTER(pcd, CONFIG_PCD_LOG_LEVEL);
 #define PCD_CMD_MAGIC_DONE 0xf103ce5d
 
 struct pcd_cmd {
-	uint32_t magic;       /* Magic value to identify this structure in memory */
+	uint32_t magic; /* Magic value to identify this structure in memory */
 	const void *src_addr; /* Source address to copy from */
 	size_t len;           /* Number of bytes to copy */
 	size_t offset;        /* Offset to store the flash image in */

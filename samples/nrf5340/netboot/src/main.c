@@ -65,5 +65,4 @@ void main(void)
 
 failure:
 	pcd_invalidate(cmd);
-	return;
 }
