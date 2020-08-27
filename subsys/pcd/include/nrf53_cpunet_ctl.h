@@ -13,7 +13,7 @@ extern "C" {
 /**
  * Initiate a network core update
  *
- * @param addr Adress to PCD_CMD structure set to PCD_CMD_ADDRESS if not
+ * @param addr Address to PCD_CMD structure set to PCD_CMD_ADDRESS if not
  *	       provided.
  *
  * @param src_addr Start address of the data which is to be copied into the
@@ -26,7 +26,7 @@ int do_network_core_update(void *src_addr, size_t len);
 /**
  * Lock RAM used to communicate with network bootloader
  */
-void lock_ipc_ram_with_spu();
+void lock_ipc_ram_with_spu(void);
 #ifdef __cplusplus
 }
 #endif
