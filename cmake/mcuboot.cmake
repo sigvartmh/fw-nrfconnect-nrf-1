@@ -195,7 +195,7 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
     sign(${CPUNET_PM_APP_HEX}
       ${PROJECT_BINARY_DIR}/net_core_app
       $<TARGET_PROPERTY:partition_manager,net_app_TO_SECONDARY>
-      "hci_rpmsg_subimage;${CPUNET_PM_APP_HEX}"
+      hci_rpmsg_subimage
       net_core_app_signed_hex
       )
 

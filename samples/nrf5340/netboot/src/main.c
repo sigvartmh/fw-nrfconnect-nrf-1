@@ -20,7 +20,7 @@
 void main(void)
 {
 	struct pcd_cmd *cmd = NULL;
-	int err = fprotect_area(PM_B0N_IMAGE_ADDRESS, PM_B0N_IMAGE_SIZE);
+	int err = fprotect_area(PM_B0N_ADDRESS, PM_B0N_SIZE);
 	struct device *fdev = device_get_binding(FLASH_NAME);
 
 	if (err) {
