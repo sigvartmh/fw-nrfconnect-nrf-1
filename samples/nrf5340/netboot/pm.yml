@@ -1,0 +1,19 @@
+#include <autoconf.h>
+#include <devicetree_legacy_unfixed.h>
+
+b0n_image:
+#if CONFIG_NETBOOT_MIN_PARTITION_SIZE
+  size: 0x1600
+#else
+  size: 0x4600
+#endif
+  placement:
+    after: start
+
+b0n:
+  span: [b0n_image, provision]
+
+provision:
+  size: 0x200
+  placement:
+    after: b0n_image
