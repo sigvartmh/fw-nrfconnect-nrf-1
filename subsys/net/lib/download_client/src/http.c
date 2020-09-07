@@ -142,9 +142,7 @@ static int http_header_parse(struct download_client *client, size_t *hdr_len)
 		}
 	}
 
-	/* The file size is returned via "Content-Length" in case of HTTP,
-	 * and via "Content-Range" in case of HTTPS with range requests.
-	 */
+	/* Parse file size */
 	if (client->file_size == 0) {
 		if (client->proto == IPPROTO_TLS_1_2) {
 			p = strstr(client->buf, "content-range");
@@ -154,6 +152,10 @@ static int http_header_parse(struct download_client *client, size_t *hdr_len)
 				return -1;
 			}
 			p = strstr(p, "/");
+			if (!p) {
+				LOG_ERR("No file size in response");
+				return -1;
+			}
 		} else { /* proto == PROTO_HTTP */
 			p = strstr(client->buf, "content-length");
 			if (!p) {
@@ -162,14 +164,17 @@ static int http_header_parse(struct download_client *client, size_t *hdr_len)
 					return -1;
 			}
 			p = strstr(p, ":");
+			if (!p) {
+				LOG_ERR("No file size in response");
+				return -1;
+			}
+			/* Accumulate any eventual progress (starting offset)
+			 * when reading the file size from Content-Length
+			 */
+			client->file_size = client->progress;
 		}
 
-		if (!p) {
-			LOG_ERR("No file size in response");
-			return -1;
-		}
-
-		client->file_size = atoi(p + 1);
+		client->file_size += atoi(p + 1);
 		LOG_DBG("File size = %u", client->file_size);
 	}
 

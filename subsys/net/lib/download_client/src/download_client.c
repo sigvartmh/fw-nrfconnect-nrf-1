@@ -376,8 +376,14 @@ restart_and_suspend:
 		LOG_DBG("Receiving up to %d bytes at %p...",
 			(sizeof(dl->buf) - dl->offset), (dl->buf + dl->offset));
 
-		len = recv(dl->fd, dl->buf + dl->offset,
-			   sizeof(dl->buf) - dl->offset, 0);
+		size_t recv_len = sizeof(dl->buf) - dl->offset;
+
+		if (dl->file_size) {
+			recv_len = MIN((sizeof(dl->buf) - dl->offset),
+					dl->file_size - dl->progress);
+		}
+
+		len = recv(dl->fd, dl->buf + dl->offset, recv_len, 0);
 
 		if ((len == 0) || (len == -1)) {
 			/* We just had an unexpected socket error or closure */
