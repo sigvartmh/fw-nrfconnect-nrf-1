@@ -57,6 +57,7 @@ static void dfu_target_callback_handler(enum dfu_target_evt_id evt)
 	}
 }
 
+/* This is inside the download_client_thread */
 static int download_client_callback(const struct download_client_evt *event)
 {
 	static bool first_fragment = true;

@@ -18,8 +18,22 @@
 #define LED_PORT	DT_GPIO_LABEL(DT_ALIAS(led0), gpios)
 #define TLS_SEC_TAG 42
 
-static struct		device *gpiob;
-static struct		gpio_callback gpio_cb;
+#define SW0_NODE	DT_ALIAS(sw0)
+
+#if DT_NODE_HAS_STATUS(SW0_NODE, okay)
+#define SW0_GPIO_LABEL	DT_GPIO_LABEL(SW0_NODE, gpios)
+#define SW0_GPIO_PIN	DT_GPIO_PIN(SW0_NODE, gpios)
+#define SW0_GPIO_FLAGS	(GPIO_INPUT | DT_GPIO_FLAGS(SW0_NODE, gpios))
+#else
+#error "Unsupported board: sw0 devicetree alias is not defined"
+#define SW0_GPIO_LABEL	""
+#define SW0_GPIO_PIN	0
+#define SW0_GPIO_FLAGS	0
+#endif
+
+#define SLEEP_TIME_MS	1
+
+static struct gpio_callback cb_data;
 static struct k_work	fota_work;
 
 
@@ -93,9 +107,19 @@ static void app_dfu_transfer_start(struct k_work *unused)
 				     0);
 	if (retval != 0) {
 		/* Re-enable button callback */
-		gpio_pin_interrupt_configure(gpiob,
+		struct device *button = device_get_binding(SW0_GPIO_LABEL);
+		if (button == NULL) {
+			printk("Error: didn't find %s device\n", SW0_GPIO_LABEL);
+			return;
+		}
+		int ret = gpio_pin_interrupt_configure(button,
 					     DT_GPIO_PIN(DT_ALIAS(sw0), gpios),
 					     GPIO_INT_EDGE_TO_ACTIVE);
+		if (ret != 0) {
+			printk("Error %d: failed to configure interrupt on %s pin %d\n",
+					ret, SW0_GPIO_LABEL, SW0_GPIO_PIN);
+			return;
+		}
 
 		printk("fota_download_start() failed, err %d\n",
 			retval);
@@ -132,57 +156,99 @@ void dfu_button_pressed(struct device *gpiob, struct gpio_callback *cb,
 			uint32_t pins)
 {
 	k_work_submit(&fota_work);
-	gpio_pin_interrupt_configure(gpiob, DT_GPIO_PIN(DT_ALIAS(sw0), gpios),
+	int ret = gpio_pin_interrupt_configure(gpiob, DT_GPIO_PIN(DT_ALIAS(sw0), gpios),
 				     GPIO_INT_DISABLE);
+	if (ret != 0) {
+		printk("Error %d: failed to disable interrupt on %s pin %d\n",
+			ret, SW0_GPIO_LABEL, SW0_GPIO_PIN);
+		return;
+	}
 }
 
 static int dfu_button_init(void)
 {
-	int err;
+	struct device *button = device_get_binding(SW0_GPIO_LABEL);
+	if (button == NULL) {
+		printk("Error: didn't find %s device\n", SW0_GPIO_LABEL);
+		return -EFAULT;
+	}
 
-	gpiob = device_get_binding(DT_GPIO_LABEL(DT_ALIAS(sw0), gpios));
-	if (gpiob == 0) {
-		printk("Nordic nRF GPIO driver was not found!\n");
-		return 1;
+	int ret = gpio_pin_configure(button, SW0_GPIO_PIN, SW0_GPIO_FLAGS);
+	if (ret != 0) {
+		printk("Error %d: failed to configure %s pin %d\n",
+		       ret, SW0_GPIO_LABEL, SW0_GPIO_PIN);
+		return -EFAULT;
 	}
-	err = gpio_pin_configure(gpiob, DT_GPIO_PIN(DT_ALIAS(sw0), gpios),
-				 GPIO_INPUT |
-				 DT_GPIO_FLAGS(DT_ALIAS(sw0), gpios));
-	if (err == 0) {
-		gpio_init_callback(&gpio_cb, dfu_button_pressed,
-			BIT(DT_GPIO_PIN(DT_ALIAS(sw0), gpios)));
-		err = gpio_add_callback(gpiob, &gpio_cb);
+	
+	ret = gpio_pin_interrupt_configure(button,
+					   SW0_GPIO_PIN,
+					   GPIO_INT_EDGE_TO_ACTIVE);
+	if (ret != 0) {
+		printk("Error %d: failed to configure interrupt on %s pin %d\n",
+			ret, SW0_GPIO_LABEL, SW0_GPIO_PIN);
+		return -EFAULT;
 	}
-	if (err == 0) {
-		err = gpio_pin_interrupt_configure(gpiob,
-						   DT_GPIO_PIN(DT_ALIAS(sw0),
-							       gpios),
-						   GPIO_INT_EDGE_TO_ACTIVE);
-	}
-	if (err != 0) {
-		printk("Unable to configure SW0 GPIO pin!\n");
-		return 1;
-	}
+	gpio_init_callback(&cb_data, dfu_button_pressed, BIT(SW0_GPIO_PIN));
+	gpio_add_callback(button, &cb_data);
+
 	return 0;
 }
 
+static bool link_offline;
 
 void fota_dl_handler(const struct fota_download_evt *evt)
 {
+	int err;
+	struct device *button = device_get_binding(SW0_GPIO_LABEL);
 	switch (evt->id) {
+	case FOTA_DOWNLOAD_EVT_ERASE_PENDING:
+		printk("FOTA_DOWNLOAD_EVT_ERASE_PENDING, reboot or disconnect "
+			"the LTE link\n");
+		err = lte_lc_offline();
+		if (err) {
+			printk("Error turning off the LTE link\n");
+			break;
+		}
+		link_offline = true;
+		printk("LTE LINK disconnected\n");
+		break;
+	case FOTA_DOWNLOAD_EVT_ERASE_DONE:
+		printk("FOTA_DOWNLOAD_EVT_ERASE_DONE\n");
+
+		if (link_offline) {
+			printk("Reconnecting the LTE link\n");
+
+			err = lte_lc_connect();
+			if (err) {
+				printk("Error reconnecting the LTE link\n");
+				break;
+			}
+			link_offline = false;
+		}
+		break;
 	case FOTA_DOWNLOAD_EVT_ERROR:
 		printk("Received error from fota_download\n");
 		/* Fallthrough */
 	case FOTA_DOWNLOAD_EVT_FINISHED:
 		/* Re-enable button callback */
-		gpio_pin_interrupt_configure(gpiob,
+		if (button == NULL) {
+			printk("Error: didn't find %s device\n", SW0_GPIO_LABEL);
+			return;
+		}
+		err = gpio_pin_interrupt_configure(button,
 					     DT_GPIO_PIN(DT_ALIAS(sw0), gpios),
 					     GPIO_INT_EDGE_TO_ACTIVE);
+		if (err != 0) {
+			printk("Error %d: failed to configure %s pin %d\n",
+					err, SW0_GPIO_LABEL, SW0_GPIO_PIN);
+			return;
+		}
 		break;
 
 	default:
 		break;
 	}
+	return;
 }
 
 /**@brief Configures modem to provide LTE link.
@@ -288,4 +354,7 @@ void main(void)
 	}
 
 	printk("Press Button 1 to start the FOTA download\n");
+	while (1) {
+		k_msleep(SLEEP_TIME_MS);
+	}
 }
