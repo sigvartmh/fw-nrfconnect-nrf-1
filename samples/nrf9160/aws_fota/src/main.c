@@ -62,6 +62,7 @@ static bool do_reboot;
 
 /* Set to true when application should reconnect the LTE link*/
 static bool link_offline;
+K_SEM_DEFINE(lte_connected, 1, 1);
 
 #if defined(CONFIG_BSD_LIBRARY)
 /**@brief Recoverable BSD library error. */
@@ -496,6 +497,7 @@ static void aws_fota_cb_handler(struct aws_fota_event *fota_evt)
 			printk("Error turning off the LTE link\n");
 			break;
 		}
+		k_sem_take(&lte_connected, K_FOREVER);
 		link_offline = true;
 		break;
 
@@ -511,6 +513,7 @@ static void aws_fota_cb_handler(struct aws_fota_event *fota_evt)
 				break;
 			}
 			link_offline = false;
+			k_sem_give(&lte_connected);
 		}
 		break;
 
@@ -588,43 +591,52 @@ void main(void)
 	 * will not revert upon reboot.
 	 */
 	boot_write_img_confirmed();
+	int sem_val = k_sem_count_get(&lte_connected);
+	printk("Semaphore value: %d\n", sem_val);
 
 	while (1) {
-		err = poll(&fds, 1, MQTT_KEEPALIVE);
-		if (err < 0) {
-			printk("ERROR: poll %d\n", errno);
-			break;
-		}
-
-		err = mqtt_live(&client);
-		if ((err != 0) && (err != -EAGAIN)) {
-			printk("ERROR: mqtt_live %d\n", err);
-			break;
-		}
-
-		if ((fds.revents & POLLIN) == POLLIN) {
-			err = mqtt_input(&client);
-			if (err != 0) {
-				printk("ERROR: mqtt_input %d\n", err);
+		if(k_sem_take(&lte_connected, K_FOREVER) == 0) {
+			err = poll(&fds, 1, MQTT_KEEPALIVE);
+			if (err < 0) {
+				printk("ERROR: poll %d\n", errno);
 				break;
 			}
-		}
 
-		if ((fds.revents & POLLERR) == POLLERR) {
-			printk("POLLERR\n");
-			break;
-		}
+			err = mqtt_live(&client);
+			if ((err != 0) && (err != -EAGAIN)) {
+				printk("ERROR: mqtt_live %d\n", err);
+				break;
+			}
 
-		if ((fds.revents & POLLNVAL) == POLLNVAL) {
-			printk("POLLNVAL\n");
-			break;
-		}
+			if ((fds.revents & POLLIN) == POLLIN) {
+				err = mqtt_input(&client);
+				if (err != -128){
+					mqtt_connect(&client);
+				} else if (err != 0) {
+					printk("ERROR: mqtt_input %d\n", err);
+					break;
+				}
+			}
 
-		if (do_reboot) {
-			/* Teardown */
-			mqtt_disconnect(&client);
-			sys_reboot(0);
+			if ((fds.revents & POLLERR) == POLLERR) {
+				printk("POLLERR\n");
+				break;
+			}
+
+			if ((fds.revents & POLLNVAL) == POLLNVAL) {
+				printk("POLLNVAL\n");
+				break;
+			}
+
+			if (do_reboot) {
+				/* Teardown */
+				mqtt_disconnect(&client);
+				sys_reboot(0);
+			}
+			k_sem_give(&lte_connected);
 		}
+		sem_val = k_sem_count_get(&lte_connected);
+		printk("Semaphore value in loop: %d\n", sem_val);
 	}
 
 	printk("Disconnecting MQTT client...\n");
