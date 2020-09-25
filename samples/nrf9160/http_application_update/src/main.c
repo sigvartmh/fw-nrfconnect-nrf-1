@@ -179,6 +179,12 @@ void fota_dl_handler(const struct fota_download_evt *evt)
 					     DT_GPIO_PIN(DT_ALIAS(sw0), gpios),
 					     GPIO_INT_EDGE_TO_ACTIVE);
 		break;
+	case FOTA_DOWNLOAD_EVT_ERASE_PENDING:
+		printk("Recived FOTA erase pending evt\n");
+		break;
+	case FOTA_DOWNLOAD_EVT_ERASE_DONE:
+		printk("Recived FOTA erase done evt\n");
+		break;
 
 	default:
 		break;
@@ -288,4 +294,7 @@ void main(void)
 	}
 
 	printk("Press Button 1 to start the FOTA download\n");
+	while(1) {
+		k_sleep(K_MSEC(10));
+	}
 }
