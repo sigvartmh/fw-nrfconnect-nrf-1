@@ -6,6 +6,12 @@
 #include <logging/log.h>
 #include <dfu/dfu_target.h>
 
+#define DELETE_WORK_QUEUE_STACK 2048
+#define DELETE_WORK_QUEUE_PRIORITY 5
+struct k_work_q delete_work_q;
+K_THREAD_STACK_DEFINE(delete_work_stack_area, DELETE_WORK_QUEUE_STACK);
+
+
 LOG_MODULE_REGISTER(dfu_target_modem, CONFIG_DFU_TARGET_LOG_LEVEL);
 
 #define DIRTY_IMAGE 0x280000
@@ -69,7 +75,7 @@ int start_delete_work(void)
 		LOG_ERR("Failed to delete backup, errno %d", errno);
 		return -EFAULT;
 	}
-	err = k_delayed_work_submit(&delete_mfw_w, K_MSEC(500));
+	err = k_delayed_work_submit_to_queue(&delete_work_q, &delete_mfw_w, K_MSEC(500));
 	if (err < 0) {
 		LOG_ERR("Failed to submit delete work, err %d", err);
 		return err;
@@ -88,7 +94,7 @@ void delete_banked_modem_fw_work(struct k_work *unused)
 			LOG_INF("Firing callback: %d", timeout);
 			callback(DFU_TARGET_EVT_TIMEOUT);
 			timeout = CONFIG_DFU_TARGET_MODEM_TIMEOUT;
-			err = k_delayed_work_submit(&delete_mfw_w, K_MSEC(500));
+			err = k_delayed_work_submit_to_queue(&delete_work_q, &delete_mfw_w, K_MSEC(500));
 			if (err < 0) {
 				LOG_ERR("Failed to submit delete work, err %d", err);
 			}
@@ -99,7 +105,7 @@ void delete_banked_modem_fw_work(struct k_work *unused)
 			if (err != DFU_ERASE_PENDING) {
 				LOG_ERR("DFU error: %d", err);
 			}
-			err = k_delayed_work_submit(&delete_mfw_w, K_MSEC(500));
+			err = k_delayed_work_submit_to_queue(&delete_work_q, &delete_mfw_w, K_MSEC(500));
 			if (err < 0) {
 				LOG_ERR("Failed to submit delete work, err %d", err);
 			}
@@ -195,6 +201,10 @@ bool dfu_target_modem_identify(const void *const buf)
 
 int dfu_target_modem_init(size_t file_size, dfu_target_callback_t cb)
 {
+	k_work_q_start(&delete_work_q,
+			delete_work_stack_area,
+			K_THREAD_STACK_SIZEOF(delete_work_stack_area),
+			DELETE_WORK_QUEUE_PRIORITY);
 	int err;
 	size_t scratch_space;
 	socklen_t len = sizeof(offset);

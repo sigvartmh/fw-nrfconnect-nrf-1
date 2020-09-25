@@ -295,6 +295,6 @@ void main(void)
 
 	printk("Press Button 1 to start the FOTA download\n");
 	while(1) {
-		k_sleep(K_MSEC(10));
+		k_msleep(1000);
 	}
 }
