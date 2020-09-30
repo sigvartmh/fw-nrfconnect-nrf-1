@@ -7,7 +7,7 @@
 #include <dfu/dfu_target.h>
 
 #define DELETE_WORK_QUEUE_STACK 2048
-#define DELETE_WORK_QUEUE_PRIORITY 5
+#define DELETE_WORK_QUEUE_PRIORITY -16
 struct k_work_q delete_work_q;
 K_THREAD_STACK_DEFINE(delete_work_stack_area, DELETE_WORK_QUEUE_STACK);
 
@@ -62,7 +62,7 @@ static int apply_modem_upgrade(void)
 static int delete_error;
 static int timeout;
 static bool done;
-static struct k_delayed_work delete_mfw_w;
+struct k_delayed_work delete_mfw_w;
 #define SLEEP_TIME 1
 
 int start_delete_work(void)
@@ -73,9 +73,9 @@ int start_delete_work(void)
 	int err = setsockopt(fd, SOL_DFU, SO_DFU_BACKUP_DELETE, NULL, 0);
 	if (err < 0) {
 		LOG_ERR("Failed to delete backup, errno %d", errno);
-		return -EFAULT;
+		return err;
 	}
-	err = k_delayed_work_submit_to_queue(&delete_work_q, &delete_mfw_w, K_MSEC(500));
+	err = k_delayed_work_submit(&delete_mfw_w, K_MSEC(500));
 	if (err < 0) {
 		LOG_ERR("Failed to submit delete work, err %d", err);
 		return err;
@@ -88,24 +88,29 @@ void delete_banked_modem_fw_work(struct k_work *unused)
 	LOG_INF("Delete work called timeout: %d", timeout);
 	socklen_t len = sizeof(offset);
 	int err = getsockopt(fd, SOL_DFU, SO_DFU_OFFSET, &offset, &len);
+	LOG_INF("socket opt err: %d", err);
 
 	if (err < 0) {
 		if (timeout < 0) {
 			LOG_INF("Firing callback: %d", timeout);
 			callback(DFU_TARGET_EVT_TIMEOUT);
 			timeout = CONFIG_DFU_TARGET_MODEM_TIMEOUT;
-			err = k_delayed_work_submit_to_queue(&delete_work_q, &delete_mfw_w, K_MSEC(500));
+			err = k_delayed_work_submit(&delete_mfw_w, K_SECONDS(2));
 			if (err < 0) {
 				LOG_ERR("Failed to submit delete work, err %d", err);
 			}
+			LOG_INF("Delete work error: %d", err);
+
 			return;
 		}
 		if (errno == ENOEXEC) {
+			LOG_INF("getting modem error: %d", timeout);
 			err = get_modem_error();
 			if (err != DFU_ERASE_PENDING) {
 				LOG_ERR("DFU error: %d", err);
 			}
-			err = k_delayed_work_submit_to_queue(&delete_work_q, &delete_mfw_w, K_MSEC(500));
+			LOG_INF("Resubmit work item");
+			err = k_delayed_work_submit(&delete_mfw_w, K_SECONDS(2));
 			if (err < 0) {
 				LOG_ERR("Failed to submit delete work, err %d", err);
 			}
@@ -201,10 +206,6 @@ bool dfu_target_modem_identify(const void *const buf)
 
 int dfu_target_modem_init(size_t file_size, dfu_target_callback_t cb)
 {
-	k_work_q_start(&delete_work_q,
-			delete_work_stack_area,
-			K_THREAD_STACK_SIZEOF(delete_work_stack_area),
-			DELETE_WORK_QUEUE_PRIORITY);
 	int err;
 	size_t scratch_space;
 	socklen_t len = sizeof(offset);

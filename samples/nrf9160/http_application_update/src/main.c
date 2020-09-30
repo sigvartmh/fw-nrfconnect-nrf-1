@@ -21,6 +21,7 @@
 static struct		device *gpiob;
 static struct		gpio_callback gpio_cb;
 static struct k_work	fota_work;
+extern struct k_delayed_work delete_mfw_w;
 
 
 /**@brief Recoverable BSD library error. */
@@ -296,5 +297,8 @@ void main(void)
 	printk("Press Button 1 to start the FOTA download\n");
 	while(1) {
 		k_msleep(1000);
+		k_ticks_t remain = k_delayed_work_remaining_ticks(&delete_mfw_w);
+		bool pending = k_delayed_work_pending(&delete_mfw_w);
+		printk("Remaning ticks for workqueue item: %lld, pending: %d\n", remain, pending);
 	}
 }

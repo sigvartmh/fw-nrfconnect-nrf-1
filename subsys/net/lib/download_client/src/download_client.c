@@ -361,6 +361,7 @@ void download_thread(void *client, void *a, void *b)
 	struct download_client *const dl = client;
 
 restart_and_suspend:
+	LOG_INF("thread id: %p", (dl->tid));
 	k_thread_suspend(dl->tid);
 
 	while (true) {
