@@ -5,15 +5,14 @@
  */
 
 #include <string.h>
-#include <bsd_os.h>
-#include <bsd_platform.h>
-
-#include <nrf.h>
-#include <nrf_errno.h>
-
 #include <init.h>
 #include <zephyr.h>
 #include <zephyr/types.h>
+#include <bsd_os.h>
+#include <bsd_platform.h>
+#include <nrf.h>
+#include <nrfx_ipc.h>
+#include <nrf_errno.h>
 #include <errno.h>
 #include <logging/log.h>
 
@@ -355,15 +354,6 @@ void bsd_os_trace_irq_set(void)
 void bsd_os_trace_irq_clear(void)
 {
 	NVIC_ClearPendingIRQ(TRACE_IRQ);
-}
-
-ISR_DIRECT_DECLARE(ipc_proxy_irq_handler)
-{
-	IPC_IRQHandler();
-	ISR_DIRECT_PM(); /* PM done after servicing interrupt for best latency
-			  */
-
-	return 1; /* We should check if scheduling decision should be made */
 }
 
 ISR_DIRECT_DECLARE(rpc_proxy_irq_handler)

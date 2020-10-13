@@ -12,6 +12,7 @@ config BSD_LIBRARY
 	imply FPU_SHARING
 	select NET_SOCKETS_POSIX_NAMES
 	imply NET_SOCKETS_OFFLOAD
+	imply NRFX_IPC
 	depends on TRUSTED_EXECUTION_NONSECURE
 	help
 	  Use Nordic BSD Socket library.
