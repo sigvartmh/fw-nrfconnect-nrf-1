@@ -12,9 +12,9 @@
 int mfu_ext_init(uint8_t *buf_in, size_t buf_len);
 
 int mfu_ext_prevalidate(const struct device *fdev, size_t offset, bool *valid,
-			uint32_t *seg_offset);
+			uint32_t *seg_offset, uint32_t *blob_offset);
 
 
-int mfu_ext_load(const struct device *fdev, size_t offset);
+int mfu_ext_load(const struct device *fdev, size_t seg_offset, size_t blob_offset);
 
 #endif /* MFU_EXT_H__ */
