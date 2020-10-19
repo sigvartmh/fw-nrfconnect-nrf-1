@@ -32,8 +32,7 @@ extern "C" {
  *                           that the space separator can be replaced by a NULL
  *                           terminator.
  * @param[in]      s0_active bool indicating if S0 is the currently active slot.
- * @param[out]     update    pointer to correct file MCUBoot bootloader upgrade.
- *                           Will be set to NULL if no space separator is found.
+ * @param[out]     update    pointer to correct file MCUBoot bootloader upgrade. *                           Will be set to NULL if no space separator is found.
  *
  * @retval 0 If successful (note that this does not imply that a space
  *           separator was found) negative errno otherwise.
@@ -51,12 +50,11 @@ bool dfu_target_mcuboot_identify(const void *const buf);
 /**
  * @brief Initialize dfu target, perform steps necessary to receive firmware.
  *
- * @param[in] file_size Size of the current file being downloaded.
  * @param[in] cb Callback for signaling events(unused).
  *
  * @retval 0 If successful, negative errno otherwise.
  */
-int dfu_target_mcuboot_init(size_t file_size, dfu_target_callback_t cb);
+int dfu_target_mcuboot_init(dfu_target_callback_t cb);
 
 /**
  * @brief Get offset of firmware

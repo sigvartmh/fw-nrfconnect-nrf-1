@@ -117,6 +117,15 @@ bool dfu_target_mcuboot_identify(const void *const buf)
 	return *((const uint32_t *)buf) == MCUBOOT_HEADER_MAGIC;
 }
 
+int dfu_target_mcuboot_bank(size_t file_size)
+{
+	if (file_size > PM_MCUBOOT_SECONDARY_SIZE) {
+		LOG_ERR("Requested file too big to fit in flash %zu > 0x%x",
+			file_size, PM_MCUBOOT_SECONDARY_SIZE);
+		return -EFBIG;
+	}
+}
+
 int dfu_target_mcuboot_init(size_t file_size, dfu_target_callback_t cb)
 {
 	ARG_UNUSED(cb);
@@ -125,12 +134,6 @@ int dfu_target_mcuboot_init(size_t file_size, dfu_target_callback_t cb)
 	if (err != 0) {
 		LOG_ERR("flash_img_init error %d", err);
 		return err;
-	}
-
-	if (file_size > PM_MCUBOOT_SECONDARY_SIZE) {
-		LOG_ERR("Requested file too big to fit in flash %zu > 0x%x",
-			file_size, PM_MCUBOOT_SECONDARY_SIZE);
-		return -EFBIG;
 	}
 
 	if (IS_ENABLED(CONFIG_DFU_TARGET_MCUBOOT_SAVE_PROGRESS)) {

@@ -14,6 +14,7 @@
 #include <modem/modem_key_mgmt.h>
 #include <net/fota_download.h>
 #include <dfu/mcuboot.h>
+#include <dfu/dfu_target.h>
 
 #define LED_PORT	DT_GPIO_LABEL(DT_ALIAS(led0), gpios)
 #define TLS_SEC_TAG 42
@@ -239,6 +240,20 @@ static int application_init(void)
 	return 0;
 }
 
+static void dfu_target_callback_handler(enum dfu_target_evt_id evt)
+{
+	switch (evt) {
+	case DFU_TARGET_EVT_TIMEOUT:
+		printk("Modem erase timedout\n\r");
+		break;
+	case DFU_TARGET_EVT_ERASE_DONE:
+		printk("Modem erase done\n\r");
+		break;
+	default:
+		printk("error\n\r");
+	}
+}
+
 void main(void)
 {
 	int err;
@@ -277,6 +292,11 @@ void main(void)
 		break;
 	}
 	printk("Initialized bsdlib\n");
+	printk("Erasing dirty modem bank\n");
+	dfu_target_init(DFU_TARGET_IMAGE_TYPE_MODEM_DELTA,
+			dfu_target_callback_handler);
+	dfu_target_done(false);
+	
 
 	modem_configure();
 

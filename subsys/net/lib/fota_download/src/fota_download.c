@@ -90,40 +90,10 @@ static int download_client_callback(const struct download_client_evt *event)
 				return err;
 			}
 			first_fragment = false;
+			/*
 			int img_type = dfu_target_img_type(event->fragment.buf,
 							event->fragment.len);
-			err = dfu_target_init(img_type, file_size,
-					      dfu_target_callback_handler);
-			if ((err < 0) && (err != -EBUSY)) {
-				LOG_ERR("dfu_target_init error %d", err);
-				send_error_evt(FOTA_DOWNLOAD_ERROR_CAUSE_DOWNLOAD_FAILED);
-				int res = dfu_target_reset();
-
-				if (res != 0) {
-					LOG_ERR("Unable to reset DFU target");
-				}
-				first_fragment = true;
-				return err;
-			}
-
-			err = dfu_target_offset_get(&offset);
-			if (err != 0) {
-				LOG_DBG("unable to get dfu target offset err: "
-					"%d", err);
-				send_error_evt(FOTA_DOWNLOAD_ERROR_CAUSE_DOWNLOAD_FAILED);
-			}
-
-			if (offset != 0) {
-				/* Abort current download procedure, and
-				 * schedule new download from offset.
-				 */
-				(void)download_client_disconnect(&dlc);
-				k_delayed_work_submit(&dlc_with_offset_work,
-						K_SECONDS(1));
-				LOG_INF("Refuse fragment, restart with offset");
-
-				return -1;
-			}
+			*/
 		}
 
 		err = dfu_target_write(event->fragment.buf,
@@ -243,7 +213,25 @@ static void download_with_offset(struct k_work *unused)
 int fota_download_start(const char *host, const char *file, int sec_tag,
 			const char *apn, size_t fragment_size)
 {
+	size_t offset;
 	int err = -1;
+
+	err = dfu_target_init(DFU_TARGET_IMAGE_TYPE_MODEM_DELTA, dfu_target_callback_handler);
+	if ((err < 0) && (err != -EBUSY)) {
+		LOG_ERR("dfu_target_init error %d", err);
+		int res = dfu_target_reset();
+
+		if (res != 0) {
+			LOG_ERR("Unable to reset DFU target");
+		}
+		return err;
+	}
+
+	err = dfu_target_offset_get(&offset);
+	if (err != 0) {
+		LOG_DBG("unable to get dfu target offset err: "
+				"%d", err);
+	}
 
 	struct download_client_cfg config = {
 		.sec_tag = sec_tag,
@@ -294,7 +282,7 @@ int fota_download_start(const char *host, const char *file, int sec_tag,
 		return err;
 	}
 
-	err = download_client_start(&dlc, file, 0);
+	err = download_client_start(&dlc, file, offset);
 	if (err != 0) {
 		download_client_disconnect(&dlc);
 		return err;

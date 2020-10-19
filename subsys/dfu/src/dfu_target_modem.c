@@ -130,20 +130,10 @@ bool dfu_target_modem_identify(const void *const buf)
 
 }
 
-int dfu_target_modem_init(size_t file_size, dfu_target_callback_t cb)
-{
-	int err;
+int dfu_target_modem_bank_size(size_t file_size) {
 	size_t scratch_space;
 	socklen_t len = sizeof(offset);
-
-	callback = cb;
-
-	err = modem_dfu_socket_init();
-	if (err < 0) {
-		return err;
-	}
-
-	err = getsockopt(fd, SOL_DFU, SO_DFU_RESOURCES, &scratch_space, &len);
+	int err = getsockopt(fd, SOL_DFU, SO_DFU_RESOURCES, &scratch_space, &len);
 	if (err < 0) {
 		if (errno == ENOEXEC) {
 			LOG_ERR("Modem error: %d", get_modem_error());
@@ -151,11 +141,24 @@ int dfu_target_modem_init(size_t file_size, dfu_target_callback_t cb)
 			LOG_ERR("getsockopt(OFFSET) errno: %d", errno);
 		}
 	}
-
 	if (file_size > scratch_space) {
 		LOG_ERR("Requested file too big to fit in flash %d > %d",
 			file_size, scratch_space);
 		return -EFBIG;
+	}
+	return 0;
+}
+
+int dfu_target_modem_init(dfu_target_callback_t cb)
+{
+	int err;
+	socklen_t len = sizeof(offset);
+
+	callback = cb;
+
+	err = modem_dfu_socket_init();
+	if (err < 0) {
+		return err;
 	}
 
 	/* Check offset, store to local variable */
