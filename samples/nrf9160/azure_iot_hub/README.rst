@@ -146,7 +146,7 @@ This sample uses the following |NCS| libraries and drivers:
 
 It uses the following `nrfxlib`_ libraries:
 
-* :ref:`nrfxlib:bsdlib`
+* :ref:`nrfxlib:nrf_modem`
 
 In addition, it uses the following |NCS| sample:
 

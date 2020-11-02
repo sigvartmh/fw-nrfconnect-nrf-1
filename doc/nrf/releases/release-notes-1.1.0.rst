@@ -221,15 +221,15 @@ Updated drivers
   * Fixed detection of CME / CMS errors.
 
 
-BSD library
------------
+Modem library
+-------------
 
-* Updated the :ref:`nrfxlib:bsdlib` to version 0.5.0.
-* Updated bsdlib_init() to return the value of :c:func:`bsd_init` instead of (only) zero.
-* Added functionality that overrides untranslated errnos set by the BSD library with a magic word (0xBAADBAAD), instead of EINVAL, and prints a log message.
+* Updated the :ref:`nrfxlib:nrf_modem` to version 0.5.0.
+* Updated libmodem_init() to return the value of :c:func:`nrf_modem_init` instead of (only) zero.
+* Added functionality that overrides untranslated errnos set by the Modem library with a magic word (0xBAADBAAD), instead of EINVAL, and prints a log message.
   If ASSERTs are enabled, the application will assert.
 * Made DFU, PDN, and RAW socket available through the socket offloading mechanism.
-* Updated samples that use the BSD library to use ``CONFIG_NET_NATIVE=n`` to save RAM and ROM.
+* Updated samples that use the Modem library to use ``CONFIG_NET_NATIVE=n`` to save RAM and ROM.
 
 Board support
 -------------
@@ -483,7 +483,7 @@ Documentation
   * :ref:`dev-model`
   * :ref:`ug_nrf9160`
   * :ref:`nrfxlib:softdevice_controller`
-  * :ref:`nrfxlib:bsdlib`
+  * :ref:`nrfxlib:nrf_modem`
   * :ref:`nrfxlib:nrf_cc310_platform_readme`
   * :ref:`nrfxlib:nrf_security`
   * :ref:`mcuboot:mcuboot_wrapper`
@@ -497,7 +497,7 @@ Known issues
 nRF9160
 =======
 
-* Deprecation warning: The nrf_inbuilt_key API in the :ref:`nrfxlib:bsdlib` will be removed in a future release.
+* Deprecation warning: The nrf_inbuilt_key API in the :ref:`nrfxlib:nrf_modem` will be removed in a future release.
   A replacement library that wraps the AT commands for ``AT%CMNG`` will be available in the |NCS|.
 * The :ref:`asset_tracker` sample might show up to 2.5 mA current consumption in idle mode with ``CONFIG_POWER_OPTIMIZATION_ENABLE=y``.
 * The SEGGER Control Block cannot be found by automatic search by the RTT Viewer/Logger.
@@ -572,7 +572,7 @@ Build system
 nrfxlib
 =======
 
-* In the BSD library, the GNSS sockets implementation is experimental.
+* In the Modem library, the GNSS sockets implementation is experimental.
 
 
 nrfx v1.8.1

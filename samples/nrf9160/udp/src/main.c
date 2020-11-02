@@ -45,7 +45,7 @@ static void work_init(void)
 			    server_transmission_work_fn);
 }
 
-#if defined(CONFIG_BSD_LIBRARY)
+#if defined(CONFIG_LIBMODEM)
 static void lte_handler(const struct lte_lc_evt *const evt)
 {
 	switch (evt->type) {
@@ -198,7 +198,7 @@ void main(void)
 
 	work_init();
 
-#if defined(CONFIG_BSD_LIBRARY)
+#if defined(CONFIG_LIBMODEM)
 	err = configure_low_power();
 	if (err) {
 		printk("Unable to set low power configuration, error: %d\n",

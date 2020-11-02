@@ -278,7 +278,7 @@ From |NCS|
   * ``drivers/lte_link_control``
 
 From nrfxlib
-  * :ref:`nrfxlib:bsdlib`
+  * :ref:`nrfxlib:nrf_modem`
 
 From Zephyr
   * :ref:`MQTT <zephyr:networking_api>`

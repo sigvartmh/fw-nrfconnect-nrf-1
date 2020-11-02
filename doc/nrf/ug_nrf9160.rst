@@ -79,11 +79,11 @@ Some also include the :ref:`bootloader` sample (:option:`CONFIG_SECURE_BOOT`) an
 BSD socket
 ----------
 
-All nRF9160 applications must include the BSD library.
-The BSD library is the primary interface for operating the nRF9160 modem to establish LTE-M, NBIOT, and GNSS connections.
+All nRF9160 applications must include the Modem library.
+The Modem library is the primary interface for operating the nRF9160 modem to establish LTE-M, NBIOT, and GNSS connections.
 
-The BSD library is Nordic Semiconductor's implementation of the BSD Socket API.
-See :ref:`nrfxlib:bsdlib` for detailed information.
+The Modem library is Nordic Semiconductor's implementation of the BSD Socket API.
+See :ref:`nrfxlib:nrf_modem` for detailed information.
 
 LTE modem
 =========

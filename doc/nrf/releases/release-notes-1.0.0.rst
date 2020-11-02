@@ -112,11 +112,11 @@ nRF9160
 * nRF Connect SDK now uses upstream CoAP implementation. The :ref:`mqtt_simple_sample` sample was rewritten to use the upstream library, and the downstream CoAP was removed.
 * The :ref:`http_application_update_sample` sample has been updated to use the :ref:`lib_fota_download` library.
 
-BSD library
------------
+Modem library
+-------------
 
-* Updated bsdlib to version 0.3.3.
-* Introduced a new header :file:`bsdlib.h` to be used by the application to initialize and shut down the library.
+* Updated Modem library to version 0.3.3.
+* Introduced a new header :file:`libmodem.h` to be used by the application to initialize and shut down the library.
 * Library initialization during system initialization (``SYS_INIT``) is now optional, and controlled via ``Kconfig``. The default behavior is unchanged.
 
 Secure Partition Manager (SPM) library
@@ -318,7 +318,7 @@ Zephyr
 nrfxlib
 =======
 
-* In the BSD library, the GNSS sockets implementation is experimental.
+* In the Modem library, the GNSS sockets implementation is experimental.
 
  * Forcing a cold start and writing AGPS data is not yet supported.
 

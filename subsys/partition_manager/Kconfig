@@ -64,8 +64,8 @@ endmenu # Zephyr samples configurations
 
 menu "NCS subsystem configurations"
 
-if BSD_LIBRARY
-partition=BSDLIB_SRAM
+if LIBMODEM
+partition=LIBMODEM_SRAM
 partition-size=0x10000
 rsource "Kconfig.template.partition_size"
 endif

@@ -112,7 +112,7 @@ nRF9160
     This library helps creating an AT command socket and forwards requests and responses from and to the modem.
   * :ref:`lib_nrf_cloud`:
     This library implements features to connect and send data to nRF Cloud services.
-  * **bsdlib**:
+  * **nrf_modem**:
     This library is a porting library for the BSD socket library that is located in the nrfxlib repository.
   * **mqtt_socket**:
     This library uses the MQTT protocol over BSD sockets.

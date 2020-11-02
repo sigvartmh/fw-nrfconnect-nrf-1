@@ -129,7 +129,7 @@ This sample uses the following libraries:
 From |NCS|
   * :ref:`lib_nrf_cloud`
   * ``drivers/gps_sim``
-  * ``lib/bsd_lib``
+  * ``lib/libmodem``
   * ``drivers/sensor/sensor_sim``
   * :ref:`dk_buttons_and_leds_readme`
   * ``drivers/lte_link_control``

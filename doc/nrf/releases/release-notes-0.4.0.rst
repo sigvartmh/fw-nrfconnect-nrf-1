@@ -16,10 +16,10 @@ Highlights
 **********
 
 * Added support for the new triple mode (LTE-M/NB-IoT/GPS) with ``mfw_nrf9160_0.7.0-29.alpha`` (see :ref:`nrf9160_ug_network_mode` for instructions for changing the network mode)
-* Updated BSD library:
+* Updated Modem library:
 
   * Added API supporting GPS
-  * Fixed various issues (see the :ref:`nrfxlib:bsdlib_changelog`)
+  * Fixed various issues (see the :ref:`nrfxlib:nrf_modem_changelog`)
 
 * Added sample showing how to use the new GPS API (tested on nRF9160 DK v0.8.5)
 * Added sample showing how to download a new image via HTTP
@@ -98,10 +98,10 @@ nRF9160
 * Fixed an issue in the :ref:`lte_sensor_gateway` sample where the host and the controller would go out of sync after a reset
 * Various fixes and updates to BSD Library, sockets offloading layer, and OS adaption:
 
-  * Updated the :ref:`nrfxlib:bsdlib` (in nrfxlib) library to version 0.3.0 (see the :ref:`nrfxlib:bsdlib_changelog` for details)
+  * Updated the :ref:`nrfxlib:nrf_modem` (in nrfxlib) library to version 0.3.0 (see the :ref:`nrfxlib:nrf_modem_changelog` for details)
   * Added support for GNSS supporting GPS as a socket (in nrfxlib)
-  * Implemented :c:func:`bsd_os_timedwait` (in ``lib/bsdlib/bsd_os.c`` in sdk-nrf), allowing a proper poll operation and blocking sockets
-  * Minor fixes to the nRF91 sockets offloading layer (in ``lib/bsdlib/nrf91_sockets.c`` in sdk-nrf)
+  * Implemented :c:func:`nrf_modem_os_timedwait` (in ``lib/libmodem/nrf_modem_os.c`` in sdk-nrf), allowing a proper poll operation and blocking sockets
+  * Minor fixes to the nRF91 sockets offloading layer (in ``lib/libmodem/nrf91_sockets.c`` in sdk-nrf)
 
 
 Common libraries

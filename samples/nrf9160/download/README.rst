@@ -25,7 +25,7 @@ The sample supports the following development kit:
 Overview
 ********
 
-The sample first initializes the :ref:`nrfxlib:bsdlib` and AT communications.
+The sample first initializes the :ref:`nrfxlib:nrf_modem` and AT communications.
 Next, it provisions a certificate to the modem using the :ref:`modem_key_mgmt` library if the :option:`CONFIG_SAMPLE_SECURE_SOCKET` option is set.
 The provisioning of the certificates must be done before connecting to the LTE network since the certificates can only be provisioned when the device is not connected.
 The certificate file name and security tag can be configured via the :option:`CONFIG_SAMPLE_SEC_TAG` and the :option:`CONFIG_SAMPLE_CERT_FILE` options, respectively.
@@ -121,7 +121,7 @@ From |NCS|
   * ``lib/lte_link_control``
 
 From nrfxlib
-  * :ref:`nrfxlib:bsdlib`
+  * :ref:`nrfxlib:nrf_modem`
 
 In addition, it uses the following samples:
 

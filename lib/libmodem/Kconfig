@@ -3,31 +3,26 @@
 # SPDX-License-Identifier: LicenseRef-BSD-5-Clause-Nordic
 #
 
-menu "BSD Library for nrf91"
-
-config BSD_LIBRARY
-	bool
-	prompt "Use BSD Socket library for IP/TLS/DTLS"
-	imply FPU
-	imply FPU_SHARING
-	select NET_SOCKETS_POSIX_NAMES
-	imply NET_SOCKETS_OFFLOAD
+menuconfig LIBMODEM
+	bool "Enable Modem library"
 	imply NRFX_IPC
-	depends on TRUSTED_EXECUTION_NONSECURE
+	imply NET_SOCKETS_OFFLOAD
+	imply NET_SOCKETS_POSIX_NAMES
+	select NRF_MODEM
 	help
-	  Use Nordic BSD Socket library.
+	  Use Nordic libmodem library.
 
-if BSD_LIBRARY
+if LIBMODEM
 
-config BSD_LIBRARY_SYS_INIT
+config LIBMODEM_SYS_INIT
 	bool "Initialize during SYS_INIT"
 	default y
 	help
-	  Initialize BSD library automatically during the SYS_INIT sequence.
-	  Please note that BSD library initialization is synchronous and can
+	  Initialize libmodem automatically during the SYS_INIT sequence.
+	  Please note that libmodem initialization is synchronous and can
 	  take up to one minute in case the modem firmware is updated.
 
-config BSD_LIBRARY_TRACE_ENABLED
+config LIBMODEM_TRACE_ENABLED
 	bool
 	prompt "Enable proprietary traces over UART"
 	# Modem tracing over UART use the UARTE1 as dedicated peripheral.
@@ -38,7 +33,7 @@ config NRF91_SOCKET_SEND_SPLIT_LARGE_BLOCKS
 	bool "Split large blocks passed to send() or sendto()"
 	default n
 	help
-	  Workaround a limitation in the nRF91 modem firmware's bsdlib
+	  Workaround a limitation in the nRF91 modem firmware's libmodem
 	  implementation regarding return value for send() or sendto()
 	  calls larger than the module can handle. It should send the data
 	  up to the maximum, and return that as the return value. Instead,
@@ -52,7 +47,7 @@ config NRF91_SOCKET_BLOCK_LIMIT
 	  send() or sendto() calls. This may not work for certain kinds
 	  of sockets or certain flag parameter values.
 
-config BSD_LIBRARY_SENDMSG_BUF_SIZE
+config LIBMODEM_SENDMSG_BUF_SIZE
 	int "Size of the sendmsg intermediate buffer"
 	default 128
 	help
@@ -62,6 +57,4 @@ config BSD_LIBRARY_SENDMSG_BUF_SIZE
 	  the repacked message would not fit into the buffer, `sendmsg` sends
 	  each message part separately.
 
-endif # BSD_LIBRARY
-
-endmenu
+endif # LIBMODEM

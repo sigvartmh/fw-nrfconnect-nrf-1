@@ -116,7 +116,7 @@ From |NCS|
     * :ref:`at_notif_readme`
 
 From nrfxlib
-  * :ref:`nrfxlib:bsdlib`
+  * :ref:`nrfxlib:nrf_modem`
 
 In addition, it uses the following samples:
 

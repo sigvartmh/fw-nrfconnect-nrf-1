@@ -185,7 +185,7 @@ static void lte_handler(const struct lte_lc_evt *const evt)
 
 static void modem_configure(void)
 {
-#if defined(CONFIG_BSD_LIBRARY)
+#if defined(CONFIG_LIBMODEM)
 	if (IS_ENABLED(CONFIG_LTE_AUTO_INIT_AND_CONNECT)) {
 		/* Do nothing, modem is already configured and LTE connected. */
 	} else {

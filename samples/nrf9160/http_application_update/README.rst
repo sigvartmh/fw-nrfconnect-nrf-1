@@ -113,7 +113,7 @@ From |NCS|
   * :ref:`secure_partition_manager`
 
 From nrfxlib
-  * :ref:`nrfxlib:bsdlib`
+  * :ref:`nrfxlib:nrf_modem`
 
 From Zephyr
   * :ref:`zephyr:flash_api`

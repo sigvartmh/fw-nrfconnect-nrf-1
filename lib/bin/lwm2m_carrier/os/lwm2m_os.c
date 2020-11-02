@@ -16,8 +16,9 @@
 #include <modem/at_notif.h>
 #include <modem/at_cmd_parser.h>
 #include <modem/at_params.h>
+#include <nrf_modem.h>
 #include <modem/lte_lc.h>
-#include <modem/bsdlib.h>
+#include <modem/libmodem.h>
 #include <modem/modem_key_mgmt.h>
 #include <net/download_client.h>
 #include <power/reboot.h>
@@ -296,7 +297,7 @@ int lwm2m_os_bsdlib_init(void)
 {
 	int err;
 
-	err = bsdlib_init();
+	err = libmodem_init();
 
 	switch (err) {
 	case MODEM_DFU_RESULT_OK:
@@ -317,7 +318,7 @@ int lwm2m_os_bsdlib_init(void)
 		lwm2m_os_log(LOG_LEVEL_ERR, "Fatal error.");
 		break;
 	case -1:
-		lwm2m_os_log(LOG_LEVEL_ERR, "Could not initialize bsdlib.");
+		lwm2m_os_log(LOG_LEVEL_ERR, "Could not initialize modem library.");
 		lwm2m_os_log(LOG_LEVEL_ERR, "Fatal error.");
 		break;
 	default:
@@ -329,7 +330,7 @@ int lwm2m_os_bsdlib_init(void)
 
 int lwm2m_os_bsdlib_shutdown(void)
 {
-	return bsdlib_shutdown();
+	return libmodem_shutdown();
 }
 
 /* AT command module abstractions. */

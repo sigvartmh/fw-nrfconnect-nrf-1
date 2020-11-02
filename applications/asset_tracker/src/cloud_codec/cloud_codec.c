@@ -12,9 +12,9 @@
 #include <zephyr.h>
 #include <zephyr/types.h>
 #include <net/cloud.h>
-#if defined(CONFIG_BSD_LIBRARY)
+#if defined(CONFIG_LIBMODEM)
 #include <modem/modem_info.h>
-#endif /* CONFIG_BSD_LIBRARY */
+#endif /* CONFIG_LIBMODEM */
 #include <date_time.h>
 
 #include "cJSON.h"

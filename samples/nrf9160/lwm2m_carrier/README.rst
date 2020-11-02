@@ -62,7 +62,7 @@ From |NCS|
     :end-before: lwm2m_osal_mod_list_end
 
 From nrfxlib
-  * :ref:`nrfxlib:bsdlib`
+  * :ref:`nrfxlib:nrf_modem`
 
 In addition, it uses the following samples:
 

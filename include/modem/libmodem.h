@@ -9,7 +9,7 @@ extern "C" {
 #endif
 
 /**
- * @brief Initialize bsdlib.
+ * @brief Initialize the Modem library.
  *
  * This function is synchrounous and it could block
  * for a few minutes when the modem firmware is being updated.
@@ -20,33 +20,33 @@ extern "C" {
  *
  * @return int Zero on success, non-zero otherwise.
  */
-int bsdlib_init(void);
+int libmodem_init(void);
 
 /**
- * @brief Makes a thread sleep until next time bsdlib_init() is called.
+ * @brief Makes a thread sleep until next time libmodem_init() is called.
  *
- * When bsdlib_shutdown() is called a thread can call this function to be
- * woken up next time bsdlib_init() is called.
+ * When libmodem_shutdown() is called a thread can call this function to be
+ * woken up next time libmodem_init() is called.
  */
-void bsdlib_shutdown_wait(void);
+void libmodem_shutdown_wait(void);
 
 /**
- * @brief Get the last return value of bsdlib_init.
+ * @brief Get the last return value of libmodem_init.
  *
  * This function can be used to access the last return value of
- * bsdlib_init. This can be used to check the state of a modem
- * firmware exchange when bsdlib was initialized at boot-time.
+ * libmodem_init. This can be used to check the state of a modem
+ * firmware exchange when the Modem library was initialized at boot-time.
  *
- * @return int The last return value of bsdlib_init.
+ * @return int The last return value of libmodem_init.
  */
-int bsdlib_get_init_ret(void);
+int libmodem_get_init_ret(void);
 
 /**
- * @brief Shutdown bsdlib, releasing its resources.
+ * @brief Shutdown the Modem library, releasing its resources.
  *
  * @return int Zero on success, non-zero otherwise.
  */
-int bsdlib_shutdown(void);
+int libmodem_shutdown(void);
 
 #ifdef __cplusplus
 }

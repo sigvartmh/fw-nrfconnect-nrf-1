@@ -181,7 +181,7 @@ This sample uses the following |NCS| libraries and drivers:
 * :ref:`lib_aws_iot`
 * :ref:`dk_buttons_and_leds_readme`
 * :ref:`cloud_api_readme`
-* ``lib/bsd_lib``
+* ``lib/libmodem``
 * ``lib/lte_link_control``
 
 In addition, it uses the Secure Partition Manager sample:

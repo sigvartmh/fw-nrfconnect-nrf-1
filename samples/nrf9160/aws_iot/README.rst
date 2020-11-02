@@ -148,7 +148,7 @@ This sample uses the following |NCS| libraries and drivers:
 
 * :ref:`lib_aws_iot`
 * :ref:`lib_date_time`
-* ``lib/bsd_lib``
+* ``lib/libmodem``
 * ``lib/lte_link_control``
 * ``lib/modem_info``
 

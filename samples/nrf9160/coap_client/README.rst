@@ -91,7 +91,7 @@ From |NCS|
   * ``drivers/lte_link_control``
 
 From nrfxlib
-  * :ref:`nrfxlib:bsdlib`
+  * :ref:`nrfxlib:nrf_modem`
 
 From Zephyr
   * :ref:`CoAP <zephyr:networking_api>`

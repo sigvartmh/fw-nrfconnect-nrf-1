@@ -160,7 +160,7 @@ From |NCS|
   * :ref:`supl_client`
 
 From nrfxlib
-  * :ref:`nrfxlib:bsdlib`
+  * :ref:`nrfxlib:nrf_modem`
 
 From Zephyr
   * :ref:`net_socket_offloading`
