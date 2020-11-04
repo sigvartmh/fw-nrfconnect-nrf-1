@@ -35,6 +35,8 @@ manifest:
       url-base: https://github.com/alexa
     - name: hakonfam
       url-base: https://github.com/hakonfam
+    - name: sigvartmh
+      url-base: https://github.com/sigvartmh
 
   # If not otherwise specified, the projects below should be obtained
   # from the ncs remote.
@@ -101,9 +103,10 @@ manifest:
       revision: v0.1.0-ncs1
       path: modules/lib/mcumgr
     - name: nrfxlib
-      repo-path: sdk-nrfxlib
+      remote: sigvartmh
+      repo-path: nrfxlib
       path: nrfxlib
-      revision: a28d68f925b10887daf006a833cebddb00323017
+      revision: modem-dfu-bsdlib
     # Other third-party repositories.
     - name: cmock
       path: test/cmock
