@@ -33,8 +33,12 @@ manifest:
       url-base: https://github.com/nanopb
     - name: alexa
       url-base: https://github.com/alexa
-    - name: hakonfam
-      url-base: https://github.com/hakonfam
+    - name: oyro
+      url-base: https://github.com/oyvindronningstad
+    - name: lemrey
+      url-base: https://github.com/lemrey
+    - name: playground
+      url-base: https://github.com/NordicPlayground
 
   # If not otherwise specified, the projects below should be obtained
   # from the ncs remote.
@@ -101,9 +105,8 @@ manifest:
       revision: v0.1.0-ncs1
       path: modules/lib/mcumgr
     - name: nrfxlib
-      repo-path: sdk-nrfxlib
-      path: nrfxlib
-      revision: 31c4bf8bc789beed0d5eb4f6e7b2995cb3ffa909
+      revision: libmodem
+      remote: lemrey
     # Other third-party repositories.
     - name: cmock
       path: test/cmock
@@ -127,10 +130,16 @@ manifest:
       revision: face92d8c62184832793f518bb1f19379538c5c1
       remote: alexa
     - name: cddl-gen
-      remote: hakonfam
+      remote: oyro
       repo-path: cddl_gen
-      revision: 9b7aeceae415fe24ad6f9074f455041e138dd3b2
+      revision: master
       path: modules/lib/cddl_gen
+    - name: libmodem
+      remote: playground
+      repo-path: libmodem
+      revision: pull/14/head
+      path: libmodem
+
 
   # West-related configuration for the nrf repository.
   self:
