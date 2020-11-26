@@ -10,6 +10,7 @@
 /* Define modem mgmt spesific SMP return codes */
 #define MGMT_ERR_EMODEM_INVALID_COMMAND 200
 #define MGMT_ERR_EMODEM_FAULT           201
+#define MGMT_ERR_EBADSTATE	        202
 
 /* Define the buffer sizes used for smp server */
 #define SMP_PACKET_MAXIMUM_TRANSMISSION_UNIT \

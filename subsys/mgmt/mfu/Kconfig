@@ -16,3 +16,4 @@ module=MGMT_MFU
 module-dep=LOG
 module-str=MFU
 source "${ZEPHYR_BASE}/subsys/logging/Kconfig.template.log_config"
+endmenu

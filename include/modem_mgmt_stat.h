@@ -1,3 +1,6 @@
+#ifndef __MODEM_MGMT_STAT_H__
+#define __MODEM_MGMT_STAT_H__
+
 /* Copyright (c) 2010 - 2020, Nordic Semiconductor ASA
  * 
  * All rights reserved.
@@ -35,32 +38,8 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. */
 
-#include "modem_mgmt_stat.h"
-#include "mgmt_mfu.h"
-#include <zephyr.h>
-#include <stats/stats.h>
-#include "modem_mgmt_stat.h"
 
-STATS_SECT_START(smp_com_param)
-STATS_SECT_ENTRY(frame_max)
-STATS_SECT_ENTRY(pack_max)
-STATS_SECT_END;
+void modem_mgmt_stat_init(void);
 
-/* Assign a name to each stat. */
-STATS_NAME_START(smp_com_param)
-STATS_NAME(smp_com_param, frame_max)
-STATS_NAME(smp_com_param, pack_max)
-STATS_NAME_END(smp_com_param);
 
-/* Define an instance of the stats group. */
-STATS_SECT_DECL(smp_com_param) smp_com_param;
-
-void modem_mgmt_stat_init(void){
-    /* Register/start the stat service */
-    stat_mgmt_register_group();
-
-    int rc;
-    rc = STATS_INIT_AND_REG(smp_com_param, STATS_SIZE_32 , "smp_com");
-    STATS_INCN( smp_com_param, frame_max, SMP_UART_BUFFER_SIZE);
-    STATS_INCN( smp_com_param, pack_max, SMP_PACKET_MAXIMUM_TRANSMISSION_UNIT);
-}
+#endif /* __MODEM_MGMT_STAT_H__ */
