@@ -51,7 +51,6 @@ void fmfu_button_pressed(const struct device *gpiob, struct gpio_callback *cb,
 	k_work_submit(&fmfu_work);
 	fmfu_button_irq_disable();
 }
-
 static void apply_fmfu_from_ext_flash(bool valid_init)
 {
 	int err;
@@ -71,7 +70,7 @@ static void apply_fmfu_from_ext_flash(bool valid_init)
 		printk("nrf_modem_lib_init(FULL_DFU_MODE) failed: %d\n", err);
 		return;
 	}
-
+	
 	err = fmfu_fdev_load(fmfu_buf, sizeof(fmfu_buf), flash_dev, 0);
 	if (err != 0) {
 		printk("fmfu_fdev_load failed: %d\n", err);
@@ -97,6 +96,10 @@ static void fmfu_work_cb(struct k_work *work)
 {
 	ARG_UNUSED(work);
 
+	const struct device *dev;
+	dev = device_get_binding(DT_GPIO_LABEL(DT_ALIAS(sw1), gpios));
+	gpio_pin_set(dev, 21, 0);
+	gpio_pin_set(dev, 21, 1);
 	apply_fmfu_from_ext_flash(true);
 
 	modem_info_string_get(MODEM_INFO_FW_VERSION, modem_version,
@@ -114,6 +117,10 @@ static int button_init(void)
 		return 1;
 	}
 	err = gpio_pin_configure(gpiob, SW1_PIN, GPIO_INPUT | SW1_FLAGS);
+	err = gpio_pin_configure(gpiob, 21, GPIO_OUTPUT_ACTIVE | SW1_FLAGS);
+	err = gpio_pin_configure(gpiob, 22, GPIO_OUTPUT_ACTIVE | SW1_FLAGS);
+	err = gpio_pin_configure(gpiob, 23, GPIO_OUTPUT_ACTIVE | SW1_FLAGS);
+	err = gpio_pin_configure(gpiob, 24, GPIO_OUTPUT_ACTIVE | SW1_FLAGS);
 	if (err == 0) {
 		gpio_init_callback(&gpio_cb, fmfu_button_pressed, BIT(SW1_PIN));
 		err = gpio_add_callback(gpiob, &gpio_cb);
@@ -165,7 +172,7 @@ void update_start(void)
 	int err;
 
 	/* Functions for getting the host and file */
-	err = fota_download_start(CONFIG_DOWNLOAD_HOST, get_file(), SEC_TAG,
+	err = fota_download_start(CONFIG_DOWNLOAD_HOST, "fmfu_1.3.0.bin", SEC_TAG,
 				  NULL, 0);
 	if (err != 0) {
 		update_sample_done();

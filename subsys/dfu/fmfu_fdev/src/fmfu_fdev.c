@@ -11,6 +11,9 @@
 #include <nrf_modem_full_dfu.h>
 #include <mbedtls/sha256.h>
 #include <stdio.h>
+#include <device.h>
+#include <devicetree.h>
+#include <drivers/gpio.h>
 
 LOG_MODULE_REGISTER(fmfu_fdev, CONFIG_FMFU_FDEV_LOG_LEVEL);
 
@@ -61,19 +64,25 @@ static int write_chunk(uint8_t *buf, size_t buf_len, uint32_t address,
 {
 	int err;
 
+	const struct device *dev;
+	dev = device_get_binding(DT_GPIO_LABEL(DT_ALIAS(sw1), gpios));
 	if (is_bootloader) {
+		gpio_pin_set(dev, 23, 0);
 		err = nrf_modem_full_dfu_bl_write(buf_len, buf);
 		if (err != 0) {
 			LOG_ERR("nrf_...dfu_bl_write failed, errno: %d", errno);
 			return err;
 		}
+		gpio_pin_set(dev, 23, 1);
 	} else {
+		gpio_pin_set(dev, 21, 0);
 		err = nrf_modem_full_dfu_fw_write(address, buf_len, buf);
 		if (err != 0) {
 			LOG_ERR("nrf...full_dfu_fw_write failed, err!: %d",
 				err);
 			return err;
 		}
+		gpio_pin_set(dev, 21, 1);
 	}
 
 	return 0;
@@ -86,15 +95,20 @@ static int load_segment(const struct device *fdev, size_t seg_size,
 	int err;
 	uint32_t read_addr = seg_offset;
 	size_t bytes_left = seg_size;
+	
+	const struct device *dev;
+	dev = device_get_binding(DT_GPIO_LABEL(DT_ALIAS(sw1), gpios));
 
 	while (bytes_left) {
 		uint32_t read_len = MIN(buf_len, bytes_left);
 
+		gpio_pin_set(dev, 22, 0);
 		err = flash_read(fdev, read_addr, buf, read_len);
 		if (err != 0) {
 			LOG_ERR("flash_read failed: %d", err);
 			return err;
 		}
+		gpio_pin_set(dev, 22, 1);
 
 		err = write_chunk(buf, read_len, seg_target_addr,
 				  is_bootloader);
@@ -115,12 +129,14 @@ static int load_segment(const struct device *fdev, size_t seg_size,
 		/* We need to explicitly call _apply() once all chunks of the
 		 * bootloader has been written.
 		 */
+		gpio_pin_set(dev, 23, 0);
 		err = nrf_modem_full_dfu_apply();
 		if (err != 0) {
 			LOG_ERR("nrf_..._full_dfu_apply (bl) failed, errno: %d",
 				errno);
 			return err;
 		}
+		gpio_pin_set(dev, 23, 1);
 	}
 
 	return 0;
@@ -133,6 +149,8 @@ static int load_segments(const struct device *fdev, uint8_t *meta_buf,
 	int err;
 	size_t prev_segments_len = 0;
 
+	const struct device *dev;
+	dev = device_get_binding(DT_GPIO_LABEL(DT_ALIAS(sw1), gpios));
 	for (int i = 0; i < seg->_Segments__Segment_count; i++) {
 		size_t seg_size = seg->_Segments__Segment[i]._Segment_len;
 		uint32_t seg_addr =
@@ -173,11 +191,13 @@ static int load_segments(const struct device *fdev, uint8_t *meta_buf,
 		prev_segments_len += seg_size;
 	}
 
+	gpio_pin_set(dev, 24, 0);
 	err = nrf_modem_full_dfu_apply();
 	if (err != 0) {
 		LOG_ERR("nrf_..._full_dfu_apply (fw) failed, errno: %d", errno);
 		return err;
 	}
+	gpio_pin_set(dev, 24, 1);
 
 	LOG_INF("FMFU finished");
 
