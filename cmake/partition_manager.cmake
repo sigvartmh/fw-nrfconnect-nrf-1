@@ -166,6 +166,17 @@ if (CONFIG_SOC_NRF9160 OR CONFIG_SOC_NRF5340_CPUAPP)
     BASE ${otp_start_addr}
     PLACEMENT start_to_end
     )
+
+# Define whole ram as 0x80000
+# Could use 0x40000 for 256kb
+# then do 0x2000_0000 + 0x40000 = 0x20040000
+add_region(
+	NAME ram_flash
+	SIZE 0x40000
+	BASE 0x20040000
+	PLACEMENT start_to_end 
+	DEVICE "nordic_ram_flash"
+	)
 endif()
 add_region(
   NAME flash_primary
