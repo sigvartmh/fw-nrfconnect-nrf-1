@@ -77,7 +77,11 @@ __TZ_NONSECURE_ENTRY_FUNC
 int spm_request_read_nse(void *destination, uint32_t addr, size_t len)
 {
 	static const struct read_range ranges[] = {
-#ifdef PM_MCUBOOT_ADDRESS
+#if defined(PM_MCUBOOT_PAD_0_ADDRESS)
+		/* Allow reads of mcuboot metadata */
+		{.start = PM_MCUBOOT_PAD_0_ADDRESS,
+		 .size = PM_MCUBOOT_PAD_0_SIZE},
+#elif defined(PM_MCUBOOT_ADDRESS)
 		/* Allow reads of mcuboot metadata */
 		{.start = PM_MCUBOOT_PAD_ADDRESS,
 		 .size = PM_MCUBOOT_PAD_SIZE},

@@ -735,6 +735,8 @@ def solve_simple_region(pm_config, start, size, placement_strategy, region_name,
         pm_config[partition_name]['address'] = address
 
         if placement_strategy == START_TO_END:
+            print(partition_name)
+            print(pm_config[partition_name])
             address += pm_config[partition_name]['size']
 
         if device:
