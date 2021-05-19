@@ -175,7 +175,7 @@ add_region(
 	SIZE 0x40000
 	BASE 0x20040000
 	PLACEMENT start_to_end 
-	DEVICE "nordic_ram_flash"
+	DEVICE "NORDIC_RAM_FLASH"
 	)
 endif()
 add_region(
