@@ -184,6 +184,13 @@ if (CONFIG_PM_EXTERNAL_FLASH)
     DEVICE ${CONFIG_PM_EXTERNAL_FLASH_DEV_NAME}
     )
 endif()
+  add_region(
+    NAME ram_flash
+    SIZE 0x40000
+    BASE 0x20040000
+    PLACEMENT start_to_end
+    DEVICE "simulated_flash"
+    )
 
 if (DOMAIN)
   set(UNDERSCORE_DOMAIN _${DOMAIN})
