@@ -189,7 +189,7 @@ endif()
     SIZE 0x40000
     BASE 0x20040000
     PLACEMENT start_to_end
-    DEVICE "simulated_flash"
+    DEVICE "flash_ctrl"
     )
 
 if (DOMAIN)
@@ -445,7 +445,7 @@ else()
 
           # There is no padding in front of the network core application.
           math(EXPR net_app_TO_SECONDARY
-            "${PM_MCUBOOT_SECONDARY_ADDRESS} - ${net_app_addr} + ${PM_MCUBOOT_PAD_SIZE}")
+            "${PM_MCUBOOT_SECONDARY_1_ADDRESS} - ${net_app_addr} + ${PM_MCUBOOT_PAD_1_SIZE}")
 
           set_property(
             TARGET partition_manager
