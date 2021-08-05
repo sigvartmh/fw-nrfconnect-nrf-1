@@ -1,0 +1,15 @@
+/*
+ * Copyright (c) 2020 Nordic Semiconductor ASA.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/* Modify the SRAM partitioning to accommodate the requirements
+ * for the Secure (TF-M) firmware for the configuration that is
+ * used in this sample.
+ */
+
+/* Disable UART1, because it is used by default in TF-M */
+&uart1 {
+	status = "disabled";
+};
