@@ -10,7 +10,7 @@
 #include <net/download_client.h>
 #include <pm_config.h>
 
-#if defined(PM_S1_ADDRESS) || defined(CONFIG_DFU_TARGET_MCUBOOT)
+#if defined(PM_S1_ADDRESS) && defined(CONFIG_DFU_TARGET_MCUBOOT)
 /* MCUBoot support is required */
 #include <fw_info.h>
 #ifdef CONFIG_TRUSTED_EXECUTION_NONSECURE
