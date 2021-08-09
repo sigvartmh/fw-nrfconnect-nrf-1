@@ -187,7 +187,7 @@ endif()
   add_region(
     NAME ram_flash
     SIZE 0x40000
-    BASE 0x20040000
+    BASE 0x00000000
     PLACEMENT start_to_end
     DEVICE "flash_ctrl"
     )
@@ -446,6 +446,7 @@ else()
           # There is no padding in front of the network core application.
           math(EXPR net_app_TO_SECONDARY
             "${PM_MCUBOOT_SECONDARY_1_ADDRESS} - ${net_app_addr} + ${PM_MCUBOOT_PAD_1_SIZE}")
+	  print(net_app_TO_SECONDARY)
 
           set_property(
             TARGET partition_manager
