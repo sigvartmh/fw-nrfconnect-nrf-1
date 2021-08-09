@@ -253,6 +253,7 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
 
       # Load the shared vars to get the path to the hex file to sign.
       include(${CMAKE_BINARY_DIR}/hci_rpmsg/shared_vars.cmake)
+      print(CPUNET_PM_SIGNED_APP_HEX)
 
       sign(
         SIGNED_BIN_FILE_IN ${CPUNET_PM_SIGNED_APP_HEX}

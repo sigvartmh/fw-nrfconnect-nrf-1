@@ -188,13 +188,13 @@ endif()
 # Define whole ram as 0x80000
 # Could use 0x40000 for 256kb
 # then do 0x2000_0000 + 0x40000 = 0x20040000
-  add_region(
-    NAME ram_flash
-    SIZE 0x40000
-    BASE 0x20040000
-    PLACEMENT start_to_end
-    DEVICE "flash_ctrl"
-    )
+add_region(
+  NAME ram_flash
+  SIZE 0x40000
+  BASE 0x00000000
+  PLACEMENT start_to_end
+  DEVICE "flash_ctrl"
+)
 
 if (DOMAIN)
   set(UNDERSCORE_DOMAIN _${DOMAIN})
@@ -450,7 +450,10 @@ else()
           # There is no padding in front of the network core application.
 	  #TODO: FIX THIS PROPERLY
           math(EXPR net_app_TO_SECONDARY
-            "${PM_MCUBOOT_SECONDARY_1_ADDRESS} - ${net_app_addr} + ${PM_MCUBOOT_PAD_1_SIZE}")
+            "${PM_MCUBOOT_SECONDARY_1_ADDRESS} - ${net_app_addr} + ${PM_MCUBOOT_PAD_0_SIZE}")
+	  print(net_app_TO_SECONDARY)
+	  print(PM_MCUBOOT_SECONDARY_1_ADDRESS)
+	  print(PM_MCUBOOT_SECONDARY_0_ADDRESS)
 
           set_property(
             TARGET partition_manager

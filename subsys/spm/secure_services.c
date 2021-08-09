@@ -73,8 +73,10 @@ int spm_request_read_nse(void *destination, uint32_t addr, size_t len)
 	static const struct read_range ranges[] = {
 #ifdef PM_MCUBOOT_ADDRESS
 		/* Allow reads of mcuboot metadata */
-		{.start = PM_MCUBOOT_PAD_ADDRESS,
-		 .size = PM_MCUBOOT_PAD_SIZE},
+		{.start = PM_MCUBOOT_PAD_0_ADDRESS,
+		 .size = PM_MCUBOOT_PAD_0_SIZE},
+		{.start = PM_MCUBOOT_PAD_1_ADDRESS,
+		 .size = PM_MCUBOOT_PAD_1_SIZE},
 #endif
 		{.start = FICR_PUBLIC_ADDR,
 		 .size = FICR_PUBLIC_SIZE},
