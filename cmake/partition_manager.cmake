@@ -184,6 +184,18 @@ if (CONFIG_PM_EXTERNAL_FLASH)
     DEVICE ${CONFIG_PM_EXTERNAL_FLASH_DEV_NAME}
     )
 endif()
+if (CONFIG_NRF53_UPGRADE_NETWORK_CORE
+  AND CONFIG_HCI_RPMSG_BUILD_STRATEGY_FROM_SOURCE
+  AND CONFIG_FLASH_SIMULATOR)
+endif()
+  add_region(
+    NAME ram_flash
+    SIZE 0x40000 
+    BASE 0x00000000 
+    PLACEMENT start_to_end
+    DEVICE "flash_ctrl"
+    )
+
 
 if (DOMAIN)
   set(UNDERSCORE_DOMAIN _${DOMAIN})
@@ -437,8 +449,14 @@ else()
             )
 
           # There is no padding in front of the network core application.
+	  if(CONFIG_UPDATEABLE_IMAGE_NUMBER EQUAL 2)
           math(EXPR net_app_TO_SECONDARY
-            "${PM_MCUBOOT_SECONDARY_ADDRESS} - ${net_app_addr} + ${PM_MCUBOOT_PAD_SIZE}")
+            "${PM_MCUBOOT_SECONDARY_1_ADDRESS} - ${net_app_addr} + ${PM_MCUBOOT_PAD_1_SIZE}")
+	  else()
+          math(EXPR net_app_TO_SECONDARY
+            "${PM_MCUBOOT_SECONDARY_1_ADDRESS} - ${net_app_addr} + ${PM_MCUBOOT_PAD_1_SIZE}")
+	  endif()
+	  print(net_app_TO_SECONDARY)
 
           set_property(
             TARGET partition_manager

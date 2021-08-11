@@ -114,10 +114,11 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
     SOURCE_DIR ${ZEPHYR_MCUBOOT_MODULE_DIR}/boot/zephyr
     )
 
+#TODO: ADD if statement
   set(merged_hex_file
-    ${PROJECT_BINARY_DIR}/mcuboot_primary_app.hex)
+    ${PROJECT_BINARY_DIR}/mcuboot_primary_0_app.hex)
   set(merged_hex_file_depends
-    mcuboot_primary_app_hex$<SEMICOLON>${PROJECT_BINARY_DIR}/mcuboot_primary_app.hex)
+    mcuboot_primary_0_app_hex$<SEMICOLON>${PROJECT_BINARY_DIR}/mcuboot_primary_0_app.hex)
   set(sign_merged
     $<TARGET_EXISTS:partition_manager>)
   set(app_to_sign_hex
@@ -175,15 +176,16 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
       return()
     endif()
 
+    
     set(sign_cmd
       ${PYTHON_EXECUTABLE}
       ${ZEPHYR_MCUBOOT_MODULE_DIR}/scripts/imgtool.py
       sign
       --key ${mcuboot_key_file}
-      --header-size $<TARGET_PROPERTY:partition_manager,PM_MCUBOOT_PAD_SIZE>
+      --header-size $<TARGET_PROPERTY:partition_manager,PM_MCUBOOT_PAD_0_SIZE>
       --align       ${CONFIG_MCUBOOT_FLASH_WRITE_BLOCK_SIZE}
       --version     ${CONFIG_MCUBOOT_IMAGE_VERSION}
-      --slot-size   $<TARGET_PROPERTY:partition_manager,PM_MCUBOOT_PRIMARY_SIZE>
+      --slot-size   $<TARGET_PROPERTY:partition_manager,PM_MCUBOOT_PRIMARY_0_SIZE>
       --pad-header
       )
 
@@ -204,7 +206,7 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
         set(zb_add_ota_header_cmd "")
       endif(CONFIG_ZIGBEE AND CONFIG_ZIGBEE_FOTA)
 
-    set(app_offset $<TARGET_PROPERTY:partition_manager,PM_MCUBOOT_PRIMARY_SIZE>)
+    set(app_offset $<TARGET_PROPERTY:partition_manager,PM_MCUBOOT_PRIMARY_0_SIZE>)
 
     sign(
       SIGNED_BIN_FILE_IN ${app_to_sign_hex}
@@ -217,14 +219,18 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
     add_custom_target(mcuboot_sign_target DEPENDS ${app_signed_hex})
 
     set_property(GLOBAL PROPERTY
-      mcuboot_primary_app_PM_HEX_FILE
+      mcuboot_primary_0_app_PM_HEX_FILE
       ${app_signed_hex}
       )
     set_property(GLOBAL PROPERTY
-      mcuboot_primary_app_PM_TARGET
+      mcuboot_primary_1_app_PM_TARGET
       mcuboot_sign_target
       )
-
+    set_property(GLOBAL PROPERTY
+      mcuboot_primary_0_app_PM_TARGET
+      mcuboot_sign_target
+      )
+    
     generate_dfu_zip(
       TARGET mcuboot_sign_target
       OUTPUT ${PROJECT_BINARY_DIR}/dfu_application.zip
