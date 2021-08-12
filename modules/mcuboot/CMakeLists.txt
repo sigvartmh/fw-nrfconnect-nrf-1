@@ -16,15 +16,16 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
     # SIGNED_HEX_FILE_OUT - (required) Signed hex output image
     # DEPENDS - (optional) One or more dependencies for signing the hex image
 
-    set(oneValueArgs SIGNED_BIN_FILE_IN SIGNED_HEX_FILE_NAME_PREFIX START_ADDRESS_OFFSET SIGNED_HEX_FILE_OUT)
+    set(oneValueArgs SIGNED_BIN_FILE_IN SIGNED_HEX_FILE_NAME_PREFIX SLOT_SIZE START_ADDRESS_OFFSET SIGNED_HEX_FILE_OUT)
     set(multiValueArgs DEPENDS)
     cmake_parse_arguments(SIGN_ARG "" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
     if (NOT DEFINED SIGN_ARG_SIGNED_BIN_FILE_IN
         OR NOT DEFINED SIGN_ARG_SIGNED_HEX_FILE_OUT
         OR NOT DEFINED SIGN_ARG_SIGNED_HEX_FILE_NAME_PREFIX
-        OR NOT DEFINED SIGN_ARG_START_ADDRESS_OFFSET)
-      message(FATAL_ERROR "Missing parameter, required: SIGNED_BIN_FILE_IN SIGNED_HEX_FILE_NAME_PREFIX START_ADDRESS_OFFSET SIGNED_HEX_FILE_OUT")
+        OR NOT DEFINED SIGN_ARG_START_ADDRESS_OFFSET
+        OR NOT DEFINED SIGN_ARG_SLOT_SIZE)
+message(FATAL_ERROR "Missing parameter, required: SIGNED_BIN_FILE_IN SIGNED_HEX_FILE_NAME_PREFIX START_ADDRESS_OFFSET SIGNED_HEX_FILE_OUT SLOT_SIZE")
     endif()
 
     set(signed_hex ${SIGN_ARG_SIGNED_HEX_FILE_NAME_PREFIX}_signed.hex)
@@ -47,6 +48,7 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
       # to be applied by mcuboot, the application is required to write the
       # IMAGE_MAGIC into the image trailer.
       ${sign_cmd}
+      --slot-size ${SIGN_ARG_SLOT_SIZE}
       ${SIGN_ARG_SIGNED_BIN_FILE_IN}
       ${signed_hex}
 
@@ -64,6 +66,7 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
       COMMAND
       # Sign the binary version of the input hex file.
       ${sign_cmd}
+      --slot-size ${SIGN_ARG_SLOT_SIZE}
       ${to_sign_bin}
       ${update_bin}
 
@@ -75,6 +78,7 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
       # as the input hex file, so in order for it to work as a test update,
       # it needs to be moved.
       ${sign_cmd}
+      --slot-size ${SIGN_ARG_SLOT_SIZE}
       --pad # Adds IMAGE_MAGIC to end of slot.
       ${SIGN_ARG_SIGNED_BIN_FILE_IN}
       ${test_update_hex}
@@ -116,9 +120,9 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
 
 #TODO: ADD if statement
   set(merged_hex_file
-    ${PROJECT_BINARY_DIR}/mcuboot_primary_0_app.hex)
+    ${PROJECT_BINARY_DIR}/mcuboot_primary_app.hex)
   set(merged_hex_file_depends
-    mcuboot_primary_0_app_hex$<SEMICOLON>${PROJECT_BINARY_DIR}/mcuboot_primary_0_app.hex)
+    mcuboot_primary_app_hex$<SEMICOLON>${PROJECT_BINARY_DIR}/mcuboot_primary_app.hex)
   set(sign_merged
     $<TARGET_EXISTS:partition_manager>)
   set(app_to_sign_hex
@@ -184,10 +188,9 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
       ${ZEPHYR_MCUBOOT_MODULE_DIR}/scripts/imgtool.py
       sign
       --key ${mcuboot_key_file}
-      --header-size $<TARGET_PROPERTY:partition_manager,PM_MCUBOOT_PAD_0_SIZE>
+      --header-size $<TARGET_PROPERTY:partition_manager,PM_MCUBOOT_PAD_SIZE>
       --align       ${CONFIG_MCUBOOT_FLASH_WRITE_BLOCK_SIZE}
       --version     ${CONFIG_MCUBOOT_IMAGE_VERSION}
-      --slot-size   $<TARGET_PROPERTY:partition_manager,PM_MCUBOOT_PRIMARY_0_SIZE>
       --pad-header
       )
 
@@ -208,11 +211,12 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
         set(zb_add_ota_header_cmd "")
       endif(CONFIG_ZIGBEE AND CONFIG_ZIGBEE_FOTA)
 
-    set(app_offset $<TARGET_PROPERTY:partition_manager,PM_MCUBOOT_PRIMARY_0_SIZE>)
+    set(app_offset $<TARGET_PROPERTY:partition_manager,PM_MCUBOOT_PRIMARY_SIZE>)
 
     sign(
       SIGNED_BIN_FILE_IN ${app_to_sign_hex}
       SIGNED_HEX_FILE_NAME_PREFIX ${PROJECT_BINARY_DIR}/app
+      SLOT_SIZE ${app_offset}
       START_ADDRESS_OFFSET ${app_offset}
       SIGNED_HEX_FILE_OUT app_signed_hex
       DEPENDS ${app_sign_depends}
@@ -221,25 +225,15 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
     add_custom_target(mcuboot_sign_target DEPENDS ${app_signed_hex})
 
     set_property(GLOBAL PROPERTY
-      mcuboot_primary_0_app_PM_HEX_FILE
+      mcuboot_primary_app_PM_HEX_FILE
       ${app_signed_hex}
       )
 
     set_property(GLOBAL PROPERTY
-      mcuboot_primary_0_app_PM_TARGET
+      mcuboot_primary_app_PM_TARGET
       mcuboot_sign_target
       )
     
-    generate_dfu_zip(
-      TARGET mcuboot_sign_target
-      OUTPUT ${PROJECT_BINARY_DIR}/dfu_application.zip
-      BIN_FILES ${PROJECT_BINARY_DIR}/app_update.bin
-      TYPE application
-      SCRIPT_PARAMS
-      "load_address=$<TARGET_PROPERTY:partition_manager,PM_APP_ADDRESS>"
-      "version_MCUBOOT=${CONFIG_MCUBOOT_IMAGE_VERSION}"
-      )
-
     if (CONFIG_NRF53_UPGRADE_NETWORK_CORE
         AND CONFIG_HCI_RPMSG_BUILD_STRATEGY_FROM_SOURCE)
       # Network core application updates are enabled.
@@ -256,6 +250,7 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
       sign(
         SIGNED_BIN_FILE_IN ${CPUNET_PM_SIGNED_APP_HEX}
         SIGNED_HEX_FILE_NAME_PREFIX ${PROJECT_BINARY_DIR}/net_core_app
+	SLOT_SIZE $<TARGET_PROPERTY:partition_manager,net_app_slot_size>
         START_ADDRESS_OFFSET $<TARGET_PROPERTY:partition_manager,net_app_TO_SECONDARY>
         SIGNED_HEX_FILE_OUT net_core_app_signed_hex
         DEPENDS hci_rpmsg_subimage ${hci_rpmsg_BUILD_BYPRODUCTS}
@@ -278,13 +273,13 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
         TYPE application
         SCRIPT_PARAMS
         "${app_core_binary_name}load_address=$<TARGET_PROPERTY:partition_manager,PM_APP_ADDRESS>"
-        "${net_core_binary_name}load_address=missing"
+	"${net_core_binary_name}load_address=$<TARGET_PROPERTY:partition_manager,CPUNET_PM_APP_ADDRESS>"
         "${app_core_binary_name}version_MCUBOOT=${CONFIG_MCUBOOT_IMAGE_VERSION}"
-        "${net_core_binary_name}version_BN0=${hci_rpmsg_CONFIG_FW_INFO_FIRMWARE_VERSION}"
+        "${net_core_binary_name}version_BN0=${hci_rpmsg_fw_info}"
 	"${net_core_binary_name}board=${CONFIG_DOMAIN_CPUNET_BOARD}"
-	"${net_core_binary_name}soc=missing"
+	"${net_core_binary_name}soc=${hci_rpmsg_soc}"
         "${app_core_binary_name}image_slot=2" # image_1
-        "${net_core_binary_name}image_slot=3" # image_2
+        "${net_core_binary_name}image_slot=4" # image_3
         )
 
     else()
@@ -319,10 +314,13 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
           $<TARGET_PROPERTY:partition_manager,${parent_slot}_TO_SECONDARY>)
 
         set(out_path ${PROJECT_BINARY_DIR}/signed_by_mcuboot_and_b0_${slot})
+	set(slot_size $<TARGET_PROPERTY:partition_manager,PM_MCUBOOT_PRIMARY_SIZE>)
+	
 
         sign(
           SIGNED_BIN_FILE_IN ${${slot}_hex}
           SIGNED_HEX_FILE_NAME_PREFIX ${out_path}
+	  SLOT_SIZE ${slot_size}
           START_ADDRESS_OFFSET ${slot_offset}
           SIGNED_HEX_FILE_OUT signed_hex
           DEPENDS ${${slot}_target} ${${slot}_hex}

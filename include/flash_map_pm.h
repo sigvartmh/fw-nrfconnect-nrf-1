@@ -15,7 +15,14 @@
 #define image_1 mcuboot_secondary
 #define image_0_nonsecure mcuboot_primary
 #define image_1_nonsecure mcuboot_secondary
+/* TODO: Add some define guard for this */
+#if CONFIG_FLASH_SIMULATOR
+#define image_2 mcuboot_primary_1
+#endif
+#define image_3 mcuboot_secondary_1
 #define image_scratch mcuboot_scratch
+
+
 
 #if (CONFIG_SETTINGS_FCB || CONFIG_SETTINGS_NVS)
 #define storage settings_storage

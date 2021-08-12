@@ -186,8 +186,7 @@ if (CONFIG_PM_EXTERNAL_FLASH)
 endif()
 if (CONFIG_NRF53_UPGRADE_NETWORK_CORE
   AND CONFIG_HCI_RPMSG_BUILD_STRATEGY_FROM_SOURCE
-  AND CONFIG_FLASH_SIMULATOR)
-endif()
+  AND (mcuboot_UPDATEABLE_IMAGE_NUMBER GREATER 1))
   add_region(
     NAME ram_flash
     SIZE 0x40000 
@@ -195,6 +194,7 @@ endif()
     PLACEMENT start_to_end
     DEVICE "flash_ctrl"
     )
+endif()
 
 
 if (DOMAIN)
@@ -449,12 +449,22 @@ else()
             )
 
           # There is no padding in front of the network core application.
-	  if(CONFIG_UPDATEABLE_IMAGE_NUMBER EQUAL 2)
+	  if(mcuboot_UPDATEABLE_IMAGE_NUMBER EQUAL 2)
           math(EXPR net_app_TO_SECONDARY
             "${PM_MCUBOOT_SECONDARY_1_ADDRESS} - ${net_app_addr} + ${PM_MCUBOOT_PAD_1_SIZE}")
+          set_property(
+            TARGET partition_manager
+            PROPERTY net_app_slot_size
+	    ${PM_MCUBOOT_SECONDARY_1_SIZE} #PM_MCUBOOT_SECONDARY
+            )
 	  else()
           math(EXPR net_app_TO_SECONDARY
-            "${PM_MCUBOOT_SECONDARY_1_ADDRESS} - ${net_app_addr} + ${PM_MCUBOOT_PAD_1_SIZE}")
+            "${PM_MCUBOOT_SECONDARY_ADDRESS} - ${net_app_addr} + ${PM_MCUBOOT_PAD_SIZE}")
+          set_property(
+            TARGET partition_manager
+            PROPERTY net_app_slot_size
+	    ${PM_MCUBOOT_SECONDARY_SIZE} #PM_MCUBOOT_SECONDARY
+            )
 	  endif()
 	  print(net_app_TO_SECONDARY)
 

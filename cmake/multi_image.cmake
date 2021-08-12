@@ -29,6 +29,11 @@ if(IMAGE_NAME)
   share("list(APPEND ${IMAGE_NAME}BUILD_BYPRODUCTS ${PROJECT_BINARY_DIR}/${KERNEL_ELF_NAME})")
   # Share the signing key file so that the parent image can use it to
   # generate signed update candidates.
+  print(CONFIG_UPDATEABLE_IMAGE_NUMBER)
+  print(IMAGE_NAME)
+  if(${IMAGE_NAME} STREQUAL "mcuboot_")
+    share("set(${IMAGE_NAME}UPDATEABLE_IMAGE_NUMBER ${CONFIG_UPDATEABLE_IMAGE_NUMBER})")
+  endif()
   if(CONFIG_BOOT_SIGNATURE_KEY_FILE)
    share("set(${IMAGE_NAME}SIGNATURE_KEY_FILE ${CONFIG_BOOT_SIGNATURE_KEY_FILE})")
   endif()

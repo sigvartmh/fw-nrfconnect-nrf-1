@@ -82,6 +82,8 @@ endif()
 
 if (CONFIG_SECURE_BOOT)
   if (CONFIG_SOC_NRF5340_CPUNET)
+    share("set(${IMAGE_NAME}soc ${CONFIG_SOC})")
+    share("set(${IMAGE_NAME}fw_info ${CONFIG_FW_INFO_FIRMWARE_VERSION})")
     add_child_image(
       NAME b0n
       SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/nrf5340/netboot
