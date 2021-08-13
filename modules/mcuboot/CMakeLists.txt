@@ -118,7 +118,6 @@ message(FATAL_ERROR "Missing parameter, required: SIGNED_BIN_FILE_IN SIGNED_HEX_
     SOURCE_DIR ${ZEPHYR_MCUBOOT_MODULE_DIR}/boot/zephyr
     )
 
-#TODO: ADD if statement
   set(merged_hex_file
     ${PROJECT_BINARY_DIR}/mcuboot_primary_app.hex)
   set(merged_hex_file_depends
@@ -211,7 +210,8 @@ message(FATAL_ERROR "Missing parameter, required: SIGNED_BIN_FILE_IN SIGNED_HEX_
         set(zb_add_ota_header_cmd "")
       endif(CONFIG_ZIGBEE AND CONFIG_ZIGBEE_FOTA)
 
-    set(app_offset $<TARGET_PROPERTY:partition_manager,PM_MCUBOOT_PRIMARY_SIZE>)
+      #set(app_offset $<TARGET_PROPERTY:partition_manager,PM_MCUBOOT_PRIMARY_SIZE>)
+    set(app_offset $<TARGET_PROPERTY:partition_manager,app_TO_SECONDARY>)
 
     sign(
       SIGNED_BIN_FILE_IN ${app_to_sign_hex}
