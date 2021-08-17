@@ -18,11 +18,13 @@
 /* TODO: Add some define guard for this */
 #if CONFIG_FLASH_SIMULATOR
 #define image_2 mcuboot_primary_1
+#define PM_image_2_IS_ENABLED 1
+#define PM__image_2_IS_ENABLED 1
 #endif
 #define image_3 mcuboot_secondary_1
 #define image_scratch mcuboot_scratch
-
-
+#define PM_image_3_IS_ENABLED 1
+#define PM__image_3_IS_ENABLED 1
 
 #if (CONFIG_SETTINGS_FCB || CONFIG_SETTINGS_NVS)
 #define storage settings_storage
