@@ -155,6 +155,7 @@ static void hrs_notify(void)
 
 void main(void)
 {
+	printk("Updated app\n\r");
 	int err;
 
 	err = bt_enable(NULL);

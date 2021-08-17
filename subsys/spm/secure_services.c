@@ -75,10 +75,10 @@ int spm_request_read_nse(void *destination, uint32_t addr, size_t len)
 		/* Allow reads of mcuboot metadata */
 		{.start = PM_MCUBOOT_PAD_ADDRESS,
 		 .size = PM_MCUBOOT_PAD_SIZE},
+#endif
 #ifdef PM_MCUBOOT_PAD_1_ADDRESS
 		{.start = PM_MCUBOOT_PAD_1_ADDRESS,
 		 .size = PM_MCUBOOT_PAD_1_SIZE},
-#endif
 #endif
 		{.start = FICR_PUBLIC_ADDR,
 		 .size = FICR_PUBLIC_SIZE},

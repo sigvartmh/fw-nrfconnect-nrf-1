@@ -31,9 +31,14 @@ message(FATAL_ERROR "Missing parameter, required: SIGNED_BIN_FILE_IN SIGNED_HEX_
     set(signed_hex ${SIGN_ARG_SIGNED_HEX_FILE_NAME_PREFIX}_signed.hex)
     set(${SIGN_ARG_SIGNED_HEX_FILE_OUT} ${signed_hex} PARENT_SCOPE)
     set(to_sign_bin ${SIGN_ARG_SIGNED_HEX_FILE_NAME_PREFIX}_to_sign.bin)
+    set(to_sign_hex ${SIGN_ARG_SIGNED_HEX_FILE_NAME_PREFIX}_to_sign.hex)
     set(update_bin ${SIGN_ARG_SIGNED_HEX_FILE_NAME_PREFIX}_update.bin)
     set(moved_test_update_hex ${SIGN_ARG_SIGNED_HEX_FILE_NAME_PREFIX}_moved_test_update.hex)
+    set(moved_test_update_hex_2 ${SIGN_ARG_SIGNED_HEX_FILE_NAME_PREFIX}_moved_test_update_2.hex)
     set(test_update_hex ${SIGN_ARG_SIGNED_HEX_FILE_NAME_PREFIX}_test_update.hex)
+
+    print(SIGN_ARG_SIGNED_BIN_FILE_IN)
+    print(SIGN_ARG_SIGNED_HEX_FILE_OUT)
 
     add_custom_command(
       OUTPUT
@@ -41,6 +46,7 @@ message(FATAL_ERROR "Missing parameter, required: SIGNED_BIN_FILE_IN SIGNED_HEX_
       ${signed_hex}            # Signed hex of input hex.
       ${test_update_hex}       # Signed hex with IMAGE_MAGIC
       ${moved_test_update_hex} # Signed hex with IMAGE_MAGIC located at secondary slot
+      ${moved_test_update_hex_2} # Signed hex with IMAGE_MAGIC located at secondary slot
 
       COMMAND
       # Create signed hex file from input hex file.
@@ -80,6 +86,7 @@ message(FATAL_ERROR "Missing parameter, required: SIGNED_BIN_FILE_IN SIGNED_HEX_
       ${sign_cmd}
       --slot-size ${SIGN_ARG_SLOT_SIZE}
       --pad # Adds IMAGE_MAGIC to end of slot.
+      --hex-addr ${SIGN_ARG_START_ADDRESS_OFFSET}
       ${SIGN_ARG_SIGNED_BIN_FILE_IN}
       ${test_update_hex}
 
@@ -95,6 +102,31 @@ message(FATAL_ERROR "Missing parameter, required: SIGNED_BIN_FILE_IN SIGNED_HEX_
       --gap-fill=0xff
       ${test_update_hex}
       ${moved_test_update_hex}
+
+      COMMAND
+      # Create binary version of the input hex file, this is done so that we
+      # can create a signed binary file which will be transferred in OTA
+      # updates.
+      ${CMAKE_OBJCOPY}
+      --input-target=ihex
+      --output-target=ihex
+      --change-address ${SIGN_ARG_START_ADDRESS_OFFSET}
+      --gap-fill=0xff
+      ${SIGN_ARG_SIGNED_BIN_FILE_IN}
+      ${to_sign_hex}
+      
+      COMMAND
+      # Create signed hex file from input hex file *with* IMAGE_MAGIC.
+      # As this includes the IMAGE_MAGIC in its image trailer, it will be
+      # swapped in by mcuboot without any invocation from the app. Note,
+      # however, that this this hex file is located in the same address space
+      # as the input hex file, so in order for it to work as a test update,
+      # it needs to be moved.
+      ${sign_cmd}
+      --slot-size ${SIGN_ARG_SLOT_SIZE}
+      --pad # Adds IMAGE_MAGIC to end of slot.
+      ${to_sign_hex}
+      ${moved_test_update_hex_2}
 
       # Add Zigbee OTA header to signed application
       COMMAND
@@ -211,7 +243,7 @@ message(FATAL_ERROR "Missing parameter, required: SIGNED_BIN_FILE_IN SIGNED_HEX_
       endif(CONFIG_ZIGBEE AND CONFIG_ZIGBEE_FOTA)
 
       #set(app_offset $<TARGET_PROPERTY:partition_manager,PM_MCUBOOT_PRIMARY_SIZE>)
-    set(app_offset $<TARGET_PROPERTY:partition_manager,app_TO_SECONDARY>)
+      set(app_offset $<TARGET_PROPERTY:partition_manager,app_TO_SECONDARY>)
 
     sign(
       SIGNED_BIN_FILE_IN ${app_to_sign_hex}

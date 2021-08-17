@@ -450,7 +450,8 @@ else()
 
           # There is no padding in front of the network core application.
 	  if(CONFIG_PM_EXTERNAL_FLASH)
-          math(EXPR net_app_TO_SECONDARY "0x10000000 + ${PM_SECONDARY_1_ADDRESS} - ${net_app_addr} + ${PM_MCUBOOT_PAD_SIZE}")
+		  math(EXPR net_app_TO_SECONDARY "0x10000000 + ${PM_MCUBOOT_SECONDARY_SIZE} - ${net_app_addr} + ${PM_MCUBOOT_PAD_SIZE}")
+		  print(PM_MCUBOOT_SECONDARY_SIZE)
           set_property(
             TARGET partition_manager
             PROPERTY net_app_slot_size
@@ -459,6 +460,7 @@ else()
 
           math(EXPR app_TO_SECONDARY
 	    "0x10000000 - ${PM_MCUBOOT_PRIMARY_ADDRESS}")
+    print(app_TO_SECONDARY)
 
           set_property(
             TARGET partition_manager
@@ -466,14 +468,8 @@ else()
             ${app_TO_SECONDARY}
             )
 
-          set_property(
-            TARGET partition_manager
-            PROPERTY net_app_slot_size
-	    ${PM_MCUBOOT_SECONDARY_1_SIZE}
-            )
-
 	  elseif(mcuboot_UPDATEABLE_IMAGE_NUMBER EQUAL 2)
-	    math(EXPR net_app_TO_SECONDARY "${PM_MCUBOOT_SECONDARY_1_ADDRESS} + ${PM_EXTERNAL_FLASH_OFFSET} + ${PM_MCUBOOT_PAD_1_SIZE}")
+	    math(EXPR net_app_TO_SECONDARY "${PM_MCUBOOT_SECONDARY_1_ADDRESS} + ${PM_MCUBOOT_PAD_1_SIZE}")
             set_property(
               TARGET partition_manager
               PROPERTY net_app_slot_size
@@ -486,6 +482,11 @@ else()
             TARGET partition_manager
             PROPERTY net_app_slot_size
 	    ${PM_MCUBOOT_SECONDARY_SIZE} #PM_MCUBOOT_SECONDARY
+            )
+          set_property(
+            TARGET partition_manager
+            PROPERTY app_TO_SECONDARY
+            ${app_TO_SECONDARY}
             )
 	  endif()
 	  print(net_app_TO_SECONDARY)
