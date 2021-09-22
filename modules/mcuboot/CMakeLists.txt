@@ -74,6 +74,8 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
         ${moved_test_update_hex}
         )
     endif()
+    print(SIGN_ARG_SIGNED_BIN_FILE_IN)
+    print(signed_hex)
 
     add_custom_command(
       OUTPUT
