@@ -219,7 +219,14 @@ if (DEFINED ext_flash_dev)
   dt_prop(num_bits PATH ${ext_flash_dev} PROPERTY size)
   math(EXPR num_bytes "${num_bits} / 8")
 
-  set(external_flash_driver_kconfig CONFIG_PM_EXTERNAL_FLASH_HAS_DRIVER)
+  if (CONFIG_PM_OVERRIDE_EXTERNAL_DRIVER_CHECK)
+    set(external_flash_driver_kconfig CONFIG_PM_OVERRIDE_EXTERNAL_DRIVER_CHECK)
+  else()
+    set(external_flash_driver_kconfig CONFIG_NORDIC_QSPI_NOR)
+    if(CONFIG_SPI_NOR AND !CONFIG_NORDIC_QSPI_NOR)
+      set(external_flash_driver_kconfig CONFIG_SPI_NOR)
+    endif()
+  endif()
 
   add_region(
     NAME external_flash
