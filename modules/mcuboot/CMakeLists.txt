@@ -192,6 +192,12 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
       ${ZEPHYR_NRF_MODULE_DIR}/modules/mcuboot/tfm.conf
       )
   endif()
+  if (CONFIG_SPM)
+    add_overlay_config(
+      mcuboot
+      ${ZEPHYR_NRF_MODULE_DIR}/modules/mcuboot/spm.conf
+      )
+   endif()
 
   if (CONFIG_NRF53_UPGRADE_NETWORK_CORE AND CONFIG_PM_EXTERNAL_FLASH_MCUBOOT_SECONDARY)
     # To allow multi image update of the network core we add a devicetree

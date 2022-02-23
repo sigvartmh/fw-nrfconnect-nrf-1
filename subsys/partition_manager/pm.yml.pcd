@@ -1,8 +1,13 @@
 #include <autoconf.h>
-
 # This block of RAM is used for communicating Network Core firmware update
 # metadata
 pcd_sram:
-  placement: {before: [rpmsg_nrf53_sram, end]}
+  placement: {after: [end]}
+#ifdef CONFIG_TRUSTED_EXECUTION_SECURE
+  placement: {after: [tfm_sram, spm_sram]}
+  inside: sram_secure
+#else
+  placement: {after: [rpmsg_nrf53_sram]}
+#endif
   size: CONFIG_NRF_SPU_RAM_REGION_SIZE
   region: sram_primary
