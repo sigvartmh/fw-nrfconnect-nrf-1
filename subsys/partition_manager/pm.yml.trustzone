@@ -4,6 +4,7 @@ sram_secure:
   region: sram_primary
 
 sram_nonsecure:
+  span: [sram_primary] /* Here, sram_primary refers to the (NS) app's RAM. */
   region: sram_primary
   span:
     - sram_primary /* Here, sram_primary refers to the (NS) app's RAM. */
