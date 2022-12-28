@@ -89,6 +89,10 @@ if (CONFIG_BUILD_WITH_TFM)
   ncs_add_partition_manager_config(pm.yml.tfm)
 endif()
 
+if (CONFIG_PM_SEGGER_RTT_RAM_REGION)
+  ncs_add_partition_manager_config(pm.yml.rtt_ram)
+endif()
+
 if (CONFIG_TRUSTED_EXECUTION_NONSECURE OR CONFIG_TRUSTED_EXECUTION_SECURE)
   ncs_add_partition_manager_config(pm.yml.trustzone)
 endif()
