@@ -61,6 +61,19 @@ config MCUBOOT_FLASH_WRITE_BLOCK_SIZE
 
 endif # BOOTLOADER_MCUBOOT
 
+config USE_CUSTOM_BOOT_IMAGE_ACCESS_HOOKS
+	bool "Custom image access hooks"
+	depends on BOOT_IMAGE_ACCESS_HOOKS
+	help
+	  Enabling this option allows you to use custom hooks
+
+config CUSTOM_BOOT_IMAGE_ACCESS_HOOKS_PATH
+	string "Path to hooks file"
+	default "nrf_custom_hooks.c"
+	depends on USE_CUSTOM_BOOT_IMAGE_ACCESS_HOOKS
+	help
+	  Full path to C file
+
 config DT_FLASH_WRITE_BLOCK_SIZE
 	int
 	default $(dt_node_int_prop_int,$(DT_CHOSEN_ZEPHYR_FLASH),write-block-size)
