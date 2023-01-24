@@ -6,10 +6,10 @@
 
 if(CONFIG_BOOT_IMAGE_ACCESS_HOOKS)
   zephyr_library()
-  if(!CONFIG_USE_CUSTOM_BOOT_IMAGE_ACCESS_HOOKS)
-    zephyr_library_sources(nrf53_hooks.c)
-  else()
+  if(CONFIG_USE_CUSTOM_BOOT_IMAGE_ACCESS_HOOKS)
     zephyr_library_sources(${CONFIG_CUSTOM_BOOT_IMAGE_ACCESS_HOOKS_PATH})
+  else()
+    zephyr_library_sources(nrf53_hooks.c)
   endif()
   zephyr_library_link_libraries(MCUBOOT_BOOTUTIL)
 endif()
