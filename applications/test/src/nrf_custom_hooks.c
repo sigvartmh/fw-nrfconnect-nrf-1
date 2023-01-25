@@ -22,30 +22,23 @@
 int boot_read_image_header_hook(int img_index, int slot,
 		struct image_header *img_head)
 {
-	if (img_index == 1 && slot == 0) {
+	if (img_index == 1) {
 		img_head->ih_magic = IMAGE_MAGIC;
-		img_head->ih_hdr_size = PM_MCUBOOT_PAD_SIZE;
-		img_head->ih_load_addr = PM_MCUBOOT_PRIMARY_1_ADDRESS;
-		img_head->ih_img_size = PM_MCUBOOT_PRIMARY_1_SIZE-PM_MCUBOOT_PAD_SIZE - sizeof(IMAGE_MAGIC);
 		img_head->ih_flags = 0;
 		img_head->ih_ver.iv_major = 0;
 		img_head->ih_ver.iv_minor = 0;
 		img_head->ih_ver.iv_revision = 0;
 		img_head->ih_ver.iv_build_num = 0;
 		img_head->_pad1 = 0;
-		return 0;
-	}
-	else if (img_index == 1 && slot == 1) {
-		img_head->ih_magic = IMAGE_MAGIC;
-		img_head->ih_hdr_size = PM_MCUBOOT_PAD_SIZE;
-		img_head->ih_load_addr = PM_MCUBOOT_SECONDARY_1_ADDRESS;
-		img_head->ih_img_size = PM_MCUBOOT_SECONDARY_1_SIZE-PM_MCUBOOT_PAD_SIZE - sizeof(IMAGE_MAGIC);
-		img_head->ih_flags = 0;
-		img_head->ih_ver.iv_major = 0;
-		img_head->ih_ver.iv_minor = 0;
-		img_head->ih_ver.iv_revision = 0;
-		img_head->ih_ver.iv_build_num = 0;
-		img_head->_pad1 = 0;
+		if (slot == 0) {
+			img_head->ih_hdr_size = PM_MCUBOOT_PAD_SIZE;
+			img_head->ih_load_addr = PM_MCUBOOT_PRIMARY_1_ADDRESS;
+			img_head->ih_img_size = PM_MCUBOOT_PRIMARY_1_SIZE-PM_MCUBOOT_PAD_SIZE - sizeof(IMAGE_MAGIC);
+		} else if (slot == 1) {
+			img_head->ih_hdr_size = PM_MCUBOOT_PAD_SIZE;
+			img_head->ih_load_addr = PM_MCUBOOT_SECONDARY_1_ADDRESS;
+			img_head->ih_img_size = PM_MCUBOOT_SECONDARY_1_SIZE-PM_MCUBOOT_PAD_SIZE - sizeof(IMAGE_MAGIC);
+		}
 		return 0;
 	}
 
