@@ -54,7 +54,8 @@ extern "C" {
 enum pcd_status {
 	PCD_STATUS_COPY = 0,
 	PCD_STATUS_COPY_DONE = 1,
-	PCD_STATUS_COPY_FAILED = 2
+	PCD_STATUS_COPY_FAILED = 2,
+	PCD_STATUS_READ_VERSION = 3,
 };
 
 /** @brief Sets up the PCD command structure with the location and size of the

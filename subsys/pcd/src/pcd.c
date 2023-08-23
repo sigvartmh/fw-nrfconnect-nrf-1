@@ -196,6 +196,10 @@ static int network_core_pcd_cmdset(const void *src_addr, size_t len, bool wait)
 	return 0;
 }
 
+static uint32_t network_core_read_version(void) {
+
+}
+
 static int network_core_update(const void *src_addr, size_t len, bool wait)
 {
 	/* Configure nRF5340 Network MCU into Secure domain (bus
