@@ -5,6 +5,7 @@
  */
 #include <errno.h>
 #include <zephyr/init.h>
+#include <zephyr/logging/log.h>
 #include <string.h>
 
 #include <nrf_rpc/nrf_rpc_ipc.h>
@@ -13,11 +14,12 @@
 #include "../../common_ids.h"
 #include <zcbor_common.h>
 #include <zcbor_decode.h>
+
 #include <zcbor_encode.h>
 
+LOG_MODULE_REGISTER(app_rpc, 4);
 
-#define CBOR_BUF_SIZE 16
-
+#define CBOR_BUF_SIZE 64 /*Page erase size*/
 
 struct entropy_get_result {
 	uint8_t *buffer;
@@ -28,8 +30,9 @@ struct entropy_get_result {
 
 static void (*result_callback)(int result, uint8_t *buffer, size_t length);
 
-NRF_RPC_IPC_TRANSPORT(entropy_group_tr, DEVICE_DT_GET(DT_NODELABEL(ipc0)), "nrf_rpc_ept");
-NRF_RPC_GROUP_DEFINE(entropy_group, "nrf_sample_entropy", &entropy_group_tr, NULL, NULL, NULL);
+NRF_RPC_IPC_TRANSPORT(flash_netcore_api_tr, DEVICE_DT_GET(DT_NODELABEL(ipc0)), "nrf_rpc_ept");
+NRF_RPC_GROUP_DEFINE(flash_netcore_api, "flash_api_network_core", &flash_netcore_api_tr, NULL, NULL,
+		     NULL);
 
 
 void rsp_error_code_handle(const struct nrf_rpc_group *group, struct nrf_rpc_cbor_ctx *ctx,
@@ -44,16 +47,15 @@ void rsp_error_code_handle(const struct nrf_rpc_group *group, struct nrf_rpc_cbo
 	}
 }
 
-
-int entropy_remote_init(void)
+int flash_remote_api_init(void)
 {
 	int result;
 	int err;
 	struct nrf_rpc_cbor_ctx ctx;
 
-	NRF_RPC_CBOR_ALLOC(&entropy_group, ctx, CBOR_BUF_SIZE);
+	NRF_RPC_CBOR_ALLOC(&flash_netcore_api, ctx, CBOR_BUF_SIZE);
 
-	err = nrf_rpc_cbor_cmd(&entropy_group, RPC_COMMAND_ENTROPY_INIT, &ctx,
+	err = nrf_rpc_cbor_cmd(&flash_netcore_api, RPC_COMMAND_FLASH_INIT, &ctx,
 			       rsp_error_code_handle, &result);
 	if (err < 0) {
 		return err;
@@ -62,10 +64,8 @@ int entropy_remote_init(void)
 	return result;
 }
 
-
 static void entropy_get_rsp(const struct nrf_rpc_group *group, struct nrf_rpc_cbor_ctx *ctx,
-			    void *handler_data)
-{
+			    void *handler_data) {
 	struct zcbor_string zst;
 	struct entropy_get_result *result =
 		(struct entropy_get_result *)handler_data;
@@ -83,6 +83,37 @@ cbor_error_exit:
 	result->result = -NRF_EINVAL;
 }
 
+int flash_remote_write(int offset, const void *data, size_t len)
+{
+	int err;
+	struct nrf_rpc_cbor_ctx ctx;
+	LOG_INF("Length sent: %d", len);
+
+	NRF_RPC_CBOR_ALLOC(&flash_netcore_api, ctx, CBOR_BUF_SIZE);
+	struct entropy_get_result result = {
+		.buffer = (void *)data,
+		.length = len,
+	};
+	LOG_INF("Remote flash write");
+
+	if (!data || len < 1) {
+		return -NRF_EINVAL;
+	}
+
+	zcbor_int32_put(ctx.zs, offset);
+	zcbor_bstr_encode_ptr(ctx.zs, data, len);
+	LOG_INF("Sending command");
+
+	err = nrf_rpc_cbor_cmd(&flash_netcore_api, RPC_COMMAND_FLASH_WRITE, &ctx, entropy_get_rsp,
+			&result);
+	if (err) {
+		LOG_ERR("Failed to send command");
+		return -NRF_EINVAL;
+	}
+	LOG_INF("Command sent");
+
+	return result.result;
+}
 
 int entropy_remote_get(uint8_t *buffer, size_t length)
 {
@@ -97,10 +128,10 @@ int entropy_remote_get(uint8_t *buffer, size_t length)
 		return -NRF_EINVAL;
 	}
 
-	NRF_RPC_CBOR_ALLOC(&entropy_group, ctx, CBOR_BUF_SIZE);
+	NRF_RPC_CBOR_ALLOC(&flash_netcore_api, ctx, CBOR_BUF_SIZE);
 
 	if (zcbor_uint32_put(ctx.zs, length)) {
-		err = nrf_rpc_cbor_cmd(&entropy_group, RPC_COMMAND_ENTROPY_GET, &ctx,
+		err = nrf_rpc_cbor_cmd(&flash_netcore_api, RPC_COMMAND_ENTROPY_GET, &ctx,
 			       entropy_get_rsp, &result);
 		if (err) {
 			return -NRF_EINVAL;
@@ -122,13 +153,13 @@ int entropy_remote_get_inline(uint8_t *buffer, size_t length)
 		return -NRF_EINVAL;
 	}
 
-	NRF_RPC_CBOR_ALLOC(&entropy_group, ctx, CBOR_BUF_SIZE);
+	NRF_RPC_CBOR_ALLOC(&flash_netcore_api, ctx, CBOR_BUF_SIZE);
 
 	if (!zcbor_int32_put(ctx.zs, (int)length)) {
 		return -NRF_EINVAL;
 	}
 
-	err = nrf_rpc_cbor_cmd_rsp(&entropy_group, RPC_COMMAND_ENTROPY_GET,
+	err = nrf_rpc_cbor_cmd_rsp(&flash_netcore_api, RPC_COMMAND_ENTROPY_GET,
 				   &ctx);
 	if (err) {
 		return -NRF_EINVAL;
@@ -146,7 +177,7 @@ int entropy_remote_get_inline(uint8_t *buffer, size_t length)
 	result = 0;
 
 cbor_error_exit:
-	nrf_rpc_cbor_decoding_done(&entropy_group, &ctx);
+	nrf_rpc_cbor_decoding_done(&flash_netcore_api, &ctx);
 	return result;
 }
 
@@ -164,13 +195,13 @@ int entropy_remote_get_async(uint16_t length, void (*callback)(int result,
 
 	result_callback = callback;
 
-	NRF_RPC_CBOR_ALLOC(&entropy_group, ctx, CBOR_BUF_SIZE);
+	NRF_RPC_CBOR_ALLOC(&flash_netcore_api, ctx, CBOR_BUF_SIZE);
 
 	if (!zcbor_int32_put(ctx.zs, (int)length)) {
 		return -NRF_EINVAL;
 	}
 
-	err = nrf_rpc_cbor_evt(&entropy_group, RPC_EVENT_ENTROPY_GET_ASYNC,
+	err = nrf_rpc_cbor_evt(&flash_netcore_api, RPC_EVENT_ENTROPY_GET_ASYNC,
 			       &ctx);
 	if (err) {
 		return -NRF_EINVAL;
@@ -194,13 +225,13 @@ int entropy_remote_get_cbk(uint16_t length, void (*callback)(int result,
 
 	result_callback = callback;
 
-	NRF_RPC_CBOR_ALLOC(&entropy_group, ctx, CBOR_BUF_SIZE);
+	NRF_RPC_CBOR_ALLOC(&flash_netcore_api, ctx, CBOR_BUF_SIZE);
 
 	if (!zcbor_int32_put(ctx.zs, (int)length)) {
 		return -NRF_EINVAL;
 	}
 
-	err = nrf_rpc_cbor_cmd(&entropy_group, RPC_COMMAND_ENTROPY_GET_CBK,
+	err = nrf_rpc_cbor_cmd(&flash_netcore_api, RPC_COMMAND_ENTROPY_GET_CBK,
 			       &ctx, rsp_error_code_handle, &result);
 	if (err) {
 		return -NRF_EINVAL;
@@ -257,37 +288,35 @@ cbor_error_exit:
 }
 
 
-NRF_RPC_CBOR_CMD_DECODER(entropy_group, entropy_get_cbk_result,
+NRF_RPC_CBOR_CMD_DECODER(flash_netcore_api, entropy_get_cbk_result,
 			 RPC_COMMAND_ENTROPY_GET_CBK_RESULT,
 			 entropy_get_result_handler, (void *)1);
 
-NRF_RPC_CBOR_EVT_DECODER(entropy_group, entropy_get_async_result,
+NRF_RPC_CBOR_EVT_DECODER(flash_netcore_api, entropy_get_async_result,
 			 RPC_EVENT_ENTROPY_GET_ASYNC_RESULT,
 			 entropy_get_result_handler, NULL);
 
 
 static void err_handler(const struct nrf_rpc_err_report *report)
 {
-	printk("nRF RPC error %d ocurred. See nRF RPC logs for more details.",
+	LOG_ERR("nRF RPC error %d ocurred. See nRF RPC logs for more details.",
 	       report->code);
 	k_oops();
 }
 
-
 static int serialization_init(void)
 {
-
 	int err;
 
-	printk("Init begin\n");
+	LOG_INF("Init begin");
 
 	err = nrf_rpc_init(err_handler);
 	if (err) {
+		LOG_ERR("Something went wrong");
 		return -NRF_EINVAL;
 	}
 
-	printk("Init done\n");
-
+	LOG_INF("Init done");
 	return 0;
 }
 

@@ -6,6 +6,8 @@
 #include <errno.h>
 #include <zephyr/init.h>
 #include <zephyr/drivers/entropy.h>
+#include <zephyr/drivers/flash.h>
+#include <zephyr/logging/log.h>
 
 #include <nrf_rpc/nrf_rpc_ipc.h>
 #include <nrf_rpc_cbor.h>
@@ -14,8 +16,16 @@
 
 #include "../../common_ids.h"
 
+LOG_MODULE_REGISTER(net_rpc, 4);
 
-#define CBOR_BUF_SIZE 16
+//#define CBOR_BUF_SIZE 16
+#define CBOR_BUF_SIZE 64 /*Page erase size*/
+
+struct entropy_get_result {
+	uint8_t *buffer;
+	size_t length;
+	int result;
+};
 
 enum call_type {
 	CALL_TYPE_STANDARD,
@@ -23,10 +33,12 @@ enum call_type {
 	CALL_TYPE_ASYNC,
 };
 
-NRF_RPC_IPC_TRANSPORT(entropy_group_tr, DEVICE_DT_GET(DT_NODELABEL(ipc0)), "nrf_rpc_ept");
-NRF_RPC_GROUP_DEFINE(entropy_group, "nrf_sample_entropy", &entropy_group_tr, NULL, NULL, NULL);
+NRF_RPC_IPC_TRANSPORT(flash_netcore_api_tr, DEVICE_DT_GET(DT_NODELABEL(ipc0)), "nrf_rpc_ept");
+NRF_RPC_GROUP_DEFINE(flash_netcore_api, "flash_api_network_core", &flash_netcore_api_tr, NULL, NULL,
+		     NULL);
 
-static const struct device *entropy = DEVICE_DT_GET(DT_CHOSEN(zephyr_entropy));
+static const struct device *const flash_controller =
+	DEVICE_DT_GET_OR_NULL(DT_CHOSEN(zephyr_flash_controller));
 
 static void entropy_print(const uint8_t *buffer, size_t length)
 {
@@ -48,23 +60,27 @@ static void rsp_error_code_send(const struct nrf_rpc_group *group, int err_code)
 	nrf_rpc_cbor_rsp_no_err(group, &ctx);
 }
 
-
-static void entropy_init_handler(const struct nrf_rpc_group *group, struct nrf_rpc_cbor_ctx *ctx,
-				 void *handler_data)
+static void flash_netcore_api_init_handler(const struct nrf_rpc_group *group,
+					   struct nrf_rpc_cbor_ctx *ctx, void *handler_data)
 {
+	ARG_UNUSED(handler_data);
+	LOG_INF("flash Init begin");
 	nrf_rpc_cbor_decoding_done(group, ctx);
 
-	if (!device_is_ready(entropy)) {
+	if (!device_is_ready(flash_controller)) {
+		LOG_ERR("Flash Init failure");
 		rsp_error_code_send(group, -NRF_EINVAL);
 		return;
 	}
+
+	LOG_INF("Flash Init Success");
 
 	rsp_error_code_send(group, 0);
 }
 
 
-NRF_RPC_CBOR_CMD_DECODER(entropy_group, entropy_init, RPC_COMMAND_ENTROPY_INIT,
-			 entropy_init_handler, NULL);
+NRF_RPC_CBOR_CMD_DECODER(flash_netcore_api, flash_init, RPC_COMMAND_FLASH_INIT,
+			 flash_netcore_api_init_handler, NULL);
 
 
 static void entropy_get_rsp(const struct nrf_rpc_group *group, int err_code, const uint8_t *data,
@@ -84,6 +100,100 @@ static void rsp_empty_handler(const struct nrf_rpc_group *group, struct nrf_rpc_
 			      void *handler_data)
 {
 }
+
+static void flash_write_handler(const struct nrf_rpc_group *group, struct nrf_rpc_cbor_ctx *ctx,
+			void *handler_data)
+{
+	LOG_INF("entering flash write handler");
+	int err;
+	bool ok;
+	int offset;
+	char buff[100];
+	char wr_buff[32] = {0xFF};
+	struct zcbor_string zst;
+	struct nrf_rpc_cbor_ctx rsp_ctx;
+	struct entropy_get_result *result = (struct entropy_get_result *)handler_data;
+
+	err = 0;
+	ok = zcbor_uint32_decode(ctx->zs, &offset);
+	LOG_INF("Got offset: %x", offset);
+
+	if (!zcbor_bstr_decode(ctx->zs, &zst) && (result->length != zst.len)) {
+		LOG_ERR("Bad message");
+		err = -NRF_EBADMSG;
+		goto error_exit;
+	}
+	 /*
+	if (!ok || result->length < 0 || result->length > sizeof(buffer)) {
+		err = -NRF_EBADMSG;
+		goto error_exit;
+	}
+	*/
+	LOG_INF("Reading buff");
+	LOG_INF("Len buff: %d, len zcbor string: %d", result->length, zst.len);
+	for (int i = 0; i < zst.len; i++){
+		printk("%c", zst.value[i]);
+	}
+	printk("\n");
+	memcpy(wr_buff, zst.value, zst.len);
+	err = flash_write(flash_controller, offset, wr_buff, 32);
+	LOG_INF("Flash write err: %d", err);
+	flash_read(flash_controller, offset, buff, zst.len);
+	LOG_INF("FLASH_READ");
+	for (int i = 0; i < zst.len; i++) {
+		printk("%c", zst.value[i]);
+	}
+	printk("\n");
+
+error_exit:
+	nrf_rpc_cbor_decoding_done(group, ctx);
+	LOG_INF("Decoding done");
+	NRF_RPC_CBOR_ALLOC(group, rsp_ctx, 32);
+	zcbor_int32_put(rsp_ctx.zs, err);
+	nrf_rpc_cbor_rsp_no_err(group, &rsp_ctx);
+	return;
+}
+
+/*
+static void flash_read(const struct nrf_rpc_group *group, struct nrf_rpc_cbor_ctx *ctx,
+		       void *handler_data)
+{
+	int err;
+	bool ok;
+	size_t addr;
+	uint8_t buf[4096];
+	struct entropy_get_result *result =
+		(struct entropy_get_result *)handler_data;
+
+	ok = zcbor_uint32_decode(ctx->zs, &addr);
+
+	if (!zcbor_bstr_decode(ctx->zs, &zst) && result->length == zst.len) {
+		memcpy(buffer, zst.value, zst.len);
+		goto error_exit;
+	}
+
+	nrf_rpc_cbor_decoding_done(group, ctx);
+	if (!ok || length < 0 || length > sizeof(buf)) {
+		err = -NRF_EBADMSG;
+		goto error_exit;
+	}
+
+	struct nrf_rpc_cbor_ctx ctx;
+
+error_exit:
+	entropy_get_rsp(group, err, "", 0);
+}
+
+NRF_RPC_CBOR_CMD_DECODER(flash_netcore_api, flash_erase,
+		RPC_COMMAND_FLASH_ERASE, flash_erase_handler, NULL);
+
+NRF_RPC_CBOR_CMD_DECODER(flash_netcore_api, flash_read, RPC_COMMAND_FLASH_READ, flash_read_handler,
+			NULL);
+*/
+
+NRF_RPC_CBOR_CMD_DECODER(flash_netcore_api, flash_write,
+			 RPC_COMMAND_FLASH_WRITE, flash_write_handler,
+			 NULL);
 
 static void entropy_get_result(const struct nrf_rpc_group *group, int err_code, const uint8_t *data,
 			       size_t length, enum call_type type)
@@ -115,6 +225,8 @@ static void entropy_get_handler(const struct nrf_rpc_group *group, struct nrf_rp
 	int length;
 	uint8_t buf[64];
 	enum call_type type = (enum call_type)handler_data;
+	
+	err = 0;
 
 	ok = zcbor_int32_decode(ctx->zs, &length);
 
@@ -124,11 +236,12 @@ static void entropy_get_handler(const struct nrf_rpc_group *group, struct nrf_rp
 		err = -NRF_EBADMSG;
 		goto error_exit;
 	}
-
+/*
 	err = entropy_get_entropy(entropy, buf, length);
 	if (!err) {
 		entropy_print(buf, length);
 	}
+	*/
 
 	switch (type) {
 	case CALL_TYPE_STANDARD:
@@ -162,7 +275,6 @@ error_exit:
 		break;
 	}
 }
-
 
 NRF_RPC_CBOR_CMD_DECODER(entropy_group, entropy_get,
 			 RPC_COMMAND_ENTROPY_GET, entropy_get_handler,
