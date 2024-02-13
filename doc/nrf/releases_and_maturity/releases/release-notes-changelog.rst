@@ -510,12 +510,18 @@ Other samples
 Drivers
 =======
 
+
 This section provides detailed lists of changes by :ref:`driver <drivers>`.
 
 Wi-Fi drivers
 -------------
 
 |no_changes_yet_note|
+
+Flash drivers
+-------------
+
+* Added experimental Flash RPC driver which is intended to be used to write to network core flash on nRF53.
 
 Libraries
 =========
