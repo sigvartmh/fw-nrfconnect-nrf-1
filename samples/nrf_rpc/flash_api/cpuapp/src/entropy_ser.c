@@ -19,21 +19,11 @@
 
 LOG_MODULE_REGISTER(app_rpc, 4);
 
-#define CBOR_BUF_SIZE 64 /*Page erase size*/
-
-struct entropy_get_result {
-	uint8_t *buffer;
-	size_t length;
-	int result;
-};
-
-
-static void (*result_callback)(int result, uint8_t *buffer, size_t length);
-
-NRF_RPC_IPC_TRANSPORT(flash_netcore_api_tr, DEVICE_DT_GET(DT_NODELABEL(ipc0)), "nrf_rpc_ept");
+NRF_RPC_IPC_TRANSPORT(flash_netcore_api_tr, DEVICE_DT_GET(DT_NODELABEL(ipc0)), "flash_api_net_ept");
 NRF_RPC_GROUP_DEFINE(flash_netcore_api, "flash_api_network_core", &flash_netcore_api_tr, NULL, NULL,
 		     NULL);
 
+#define CBOR_BUF_FLASH_MSG_SIZE (sizeof(void *) + sizeof(size_t) + sizeof(off_t))
 
 void rsp_error_code_handle(const struct nrf_rpc_group *group, struct nrf_rpc_cbor_ctx *ctx,
 			   void *handler_data)
@@ -53,7 +43,8 @@ int flash_remote_api_init(void)
 	int err;
 	struct nrf_rpc_cbor_ctx ctx;
 
-	NRF_RPC_CBOR_ALLOC(&flash_netcore_api, ctx, CBOR_BUF_SIZE);
+	/* TODO: Check Size */
+	NRF_RPC_CBOR_ALLOC(&flash_netcore_api, ctx, CBOR_BUF_FLASH_MSG_SIZE);
 
 	err = nrf_rpc_cbor_cmd(&flash_netcore_api, RPC_COMMAND_FLASH_INIT, &ctx,
 			       rsp_error_code_handle, &result);
@@ -64,238 +55,110 @@ int flash_remote_api_init(void)
 	return result;
 }
 
-static void entropy_get_rsp(const struct nrf_rpc_group *group, struct nrf_rpc_cbor_ctx *ctx,
-			    void *handler_data) {
-	struct zcbor_string zst;
-	struct entropy_get_result *result =
-		(struct entropy_get_result *)handler_data;
-
-	if (!zcbor_int32_decode(ctx->zs, &result->result)) {
-		goto cbor_error_exit;
-	}
-
-	if (zcbor_bstr_decode(ctx->zs, &zst) && result->length == zst.len) {
-		memcpy(result->buffer, zst.value, zst.len);
-		return;
-	}
-
-cbor_error_exit:
-	result->result = -NRF_EINVAL;
-}
-
-int flash_remote_write(int offset, const void *data, size_t len)
+static void flash_remote_get_rsp(const struct nrf_rpc_group *group, struct nrf_rpc_cbor_ctx *ctx,
+				 void *handler_data)
 {
-	int err;
-	struct nrf_rpc_cbor_ctx ctx;
-	LOG_INF("Length sent: %d", len);
+	int *result = (int *)handler_data;
 
-	NRF_RPC_CBOR_ALLOC(&flash_netcore_api, ctx, CBOR_BUF_SIZE);
-	struct entropy_get_result result = {
-		.buffer = (void *)data,
-		.length = len,
-	};
-	LOG_INF("Remote flash write");
-
-	if (!data || len < 1) {
-		return -NRF_EINVAL;
+	if (!zcbor_int32_decode(ctx->zs, result)) {
+		LOG_ERR("Unable to decode result");
+		*result = -EINVAL;
 	}
-
-	zcbor_int32_put(ctx.zs, offset);
-	zcbor_bstr_encode_ptr(ctx.zs, data, len);
-	LOG_INF("Sending command");
-
-	err = nrf_rpc_cbor_cmd(&flash_netcore_api, RPC_COMMAND_FLASH_WRITE, &ctx, entropy_get_rsp,
-			&result);
-	if (err) {
-		LOG_ERR("Failed to send command");
-		return -NRF_EINVAL;
-	}
-	LOG_INF("Command sent");
-
-	return result.result;
 }
 
-int entropy_remote_get(uint8_t *buffer, size_t length)
+static bool encode_flash_msg(struct nrf_rpc_cbor_ctx *ctx, off_t *offset, void *ptr, size_t *len)
 {
-	int err;
-	struct nrf_rpc_cbor_ctx ctx;
-	struct entropy_get_result result = {
-		.buffer = buffer,
-		.length = length,
-	};
+	NRF_RPC_CBOR_ALLOC(&flash_netcore_api, *ctx, CBOR_BUF_FLASH_MSG_SIZE);
 
-	if (!buffer || length < 1) {
-		return -NRF_EINVAL;
+	if (!zcbor_uint32_put(ctx->zs, (uint32_t)*offset)) {
+		return false;
 	}
 
-	NRF_RPC_CBOR_ALLOC(&flash_netcore_api, ctx, CBOR_BUF_SIZE);
-
-	if (zcbor_uint32_put(ctx.zs, length)) {
-		err = nrf_rpc_cbor_cmd(&flash_netcore_api, RPC_COMMAND_ENTROPY_GET, &ctx,
-			       entropy_get_rsp, &result);
-		if (err) {
-			return -NRF_EINVAL;
-		}
-		return result.result;
+	if (!zcbor_uint32_put(ctx->zs, (uint32_t)ptr)) {
+		return false;
 	}
-	return -NRF_EINVAL;
+
+	return zcbor_uint32_put(ctx->zs, (uint32_t)*len);
 }
 
-
-int entropy_remote_get_inline(uint8_t *buffer, size_t length)
-{
-	int err;
-	struct nrf_rpc_cbor_ctx ctx;
-	struct zcbor_string zst;
-	int result = -NRF_EINVAL;
-
-	if (!buffer || length < 1) {
-		return -NRF_EINVAL;
-	}
-
-	NRF_RPC_CBOR_ALLOC(&flash_netcore_api, ctx, CBOR_BUF_SIZE);
-
-	if (!zcbor_int32_put(ctx.zs, (int)length)) {
-		return -NRF_EINVAL;
-	}
-
-	err = nrf_rpc_cbor_cmd_rsp(&flash_netcore_api, RPC_COMMAND_ENTROPY_GET,
-				   &ctx);
-	if (err) {
-		return -NRF_EINVAL;
-	}
-
-	if (!zcbor_int32_decode(ctx.zs, &result)) {
-		goto cbor_error_exit;
-	}
-
-	if (!zcbor_bstr_decode(ctx.zs, &zst) || length != zst.len) {
-		goto cbor_error_exit;
-	}
-
-	memcpy(buffer, zst.value, zst.len);
-	result = 0;
-
-cbor_error_exit:
-	nrf_rpc_cbor_decoding_done(&flash_netcore_api, &ctx);
-	return result;
-}
-
-
-int entropy_remote_get_async(uint16_t length, void (*callback)(int result,
-							       uint8_t *buffer,
-							       size_t length))
-{
-	int err;
-	struct nrf_rpc_cbor_ctx ctx;
-
-	if (length < 1 || callback == NULL) {
-		return -NRF_EINVAL;
-	}
-
-	result_callback = callback;
-
-	NRF_RPC_CBOR_ALLOC(&flash_netcore_api, ctx, CBOR_BUF_SIZE);
-
-	if (!zcbor_int32_put(ctx.zs, (int)length)) {
-		return -NRF_EINVAL;
-	}
-
-	err = nrf_rpc_cbor_evt(&flash_netcore_api, RPC_EVENT_ENTROPY_GET_ASYNC,
-			       &ctx);
-	if (err) {
-		return -NRF_EINVAL;
-	}
-
-	return 0;
-}
-
-
-int entropy_remote_get_cbk(uint16_t length, void (*callback)(int result,
-							     uint8_t *buffer,
-							     size_t length))
+int flash_remote_write(off_t offset, const void *data, size_t len)
 {
 	int err;
 	int result;
+
 	struct nrf_rpc_cbor_ctx ctx;
 
-	if (length < 1 || callback == NULL) {
-		return -NRF_EINVAL;
+	if (data == NULL || len == 0) {
+		return -EINVAL;
 	}
 
-	result_callback = callback;
-
-	NRF_RPC_CBOR_ALLOC(&flash_netcore_api, ctx, CBOR_BUF_SIZE);
-
-	if (!zcbor_int32_put(ctx.zs, (int)length)) {
-		return -NRF_EINVAL;
+	if (!encode_flash_msg(&ctx, &offset, (void *)data, &len)) {
+		return -EINVAL;
 	}
 
-	err = nrf_rpc_cbor_cmd(&flash_netcore_api, RPC_COMMAND_ENTROPY_GET_CBK,
-			       &ctx, rsp_error_code_handle, &result);
+	err = nrf_rpc_cbor_cmd(&flash_netcore_api, RPC_COMMAND_FLASH_WRITE, &ctx,
+			flash_remote_get_rsp, &result);
+
+	LOG_DBG("offset: %x, data_ptr: %p, len: %d", (uint32_t)offset, data, (uint32_t)len);
 	if (err) {
+		LOG_ERR("Failed to send command: %d", err);
 		return -NRF_EINVAL;
 	}
+
+	LOG_DBG("Write command sent: %d", result);
 
 	return result;
 }
 
-
-
-static void entropy_get_result_handler(const struct nrf_rpc_group *group,
-				       struct nrf_rpc_cbor_ctx *ctx, void *handler_data)
+int flash_remote_read(off_t offset, void *buffer, size_t len)
 {
-	bool is_command = (handler_data != NULL);
-	int err_code;
-	size_t length;
-	uint8_t buf[32];
-	struct zcbor_string zst;
+	int err;
+	int result;
 
-	if (result_callback == NULL) {
-		nrf_rpc_cbor_decoding_done(group, ctx);
-		return;
+	struct nrf_rpc_cbor_ctx ctx;
+
+	if (buffer == NULL || len == 0) {
+		return -EINVAL;
 	}
 
-	if (!zcbor_int32_decode(ctx->zs, &err_code)) {
-		goto cbor_error_exit;
+	if (!encode_flash_msg(&ctx, &offset, buffer, &len)) {
+		return -EINVAL;
 	}
 
-	length = ARRAY_SIZE(buf);
+	LOG_DBG("offset: %x, buffer_ptr: %p, len: %d", (uint32_t)offset, buffer, (uint32_t)len);
 
-	if (!zcbor_bstr_decode(ctx->zs, &zst) || zst.len > length) {
-		goto cbor_error_exit;
+	err = nrf_rpc_cbor_cmd(&flash_netcore_api, RPC_COMMAND_FLASH_READ, &ctx,
+				flash_remote_get_rsp, &result);
+	if (err) {
+		return -EINVAL;
 	}
 
-	memcpy(buf, zst.value, zst.len);
-	length = zst.len;
+	LOG_DBG("Read command sent: %d", result);
 
-	nrf_rpc_cbor_decoding_done(group, ctx);
-
-	result_callback(err_code, buf, length);
-
-	if (is_command) {
-		struct nrf_rpc_cbor_ctx nctx;
-
-		NRF_RPC_CBOR_ALLOC(group, nctx, 0);
-		nrf_rpc_cbor_rsp_no_err(group, &nctx);
-	}
-
-	return;
-
-cbor_error_exit:
-	nrf_rpc_cbor_decoding_done(group, ctx);
-	result_callback(-NRF_EINVAL, buf, 0);
+	return result;
 }
 
+int flash_remote_erase(off_t offset, size_t size)
+{
+	int err;
+	int result;
 
-NRF_RPC_CBOR_CMD_DECODER(flash_netcore_api, entropy_get_cbk_result,
-			 RPC_COMMAND_ENTROPY_GET_CBK_RESULT,
-			 entropy_get_result_handler, (void *)1);
+	struct nrf_rpc_cbor_ctx ctx;
 
-NRF_RPC_CBOR_EVT_DECODER(flash_netcore_api, entropy_get_async_result,
-			 RPC_EVENT_ENTROPY_GET_ASYNC_RESULT,
-			 entropy_get_result_handler, NULL);
+	if (!encode_flash_msg(&ctx, &offset, NULL, &size)) {
+		return -EINVAL;
+	}
 
+	err = nrf_rpc_cbor_cmd(&flash_netcore_api, RPC_COMMAND_FLASH_ERASE, &ctx,
+				flash_remote_get_rsp, &result);
+	if (err) {
+		return -EINVAL;
+	}
+
+	LOG_DBG("Erase command sent: %d", result);
+
+	return result;
+}
 
 static void err_handler(const struct nrf_rpc_err_report *report)
 {

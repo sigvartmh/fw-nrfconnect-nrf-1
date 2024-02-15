@@ -52,10 +52,40 @@ int main(void)
 
 	LOG_INF("Flash API initialized.");
 
-	flash_remote_write(0x10000, "hello_remote_flash", strlen("hello_remote_flash"));
+	char buff[32] = "this is a 2 recompiled-test";
+
+
+	err = flash_remote_write(0x10000, buff, 32);
+	if (err) {
+		LOG_ERR("Remote flash write failed");
+		return 0;
+	}
+
+	char buff2[32] = "herpa derpa du";
+
+	LOG_INF("Buff addr: 0x%x", (uint32_t)buff2);
+	err = flash_remote_read(0x10000, buff2, 32);
+	if (err) {
+		LOG_ERR("Remote flash read failed");
+		return 0;
+	}
+	LOG_INF("buff2: %s", buff2);
+
+	err = flash_remote_erase(0x10000, 0x1000);
+	if (err) {
+		LOG_ERR("Remote flash erase failed");
+		return 0;
+	}
+
+	err = flash_remote_read(0x10000, buff2, 32);
+	if (err) {
+		LOG_ERR("Remote flash read failed");
+		return 0;
+	}
+	LOG_INF("buff2: %s", buff2);
+
 
 	while (true) {
 		k_sleep(K_MSEC(2000));
 	}
-
 }
