@@ -1,0 +1,13 @@
+common:
+  sysbuild: true
+  tags:
+    - drivers
+    - flash
+
+tests:
+  drivers.flash.flash_rpc:
+    platform_allow: nrf5340dk/nrf5340/cpuapp
+    integration_platforms:
+      - nrf5340dk/nrf5340/cpuapp
+    extra_args:
+      SB_CONF_FILE=sysbuild/nrf5340dk_nrf5340_cpunet.conf
