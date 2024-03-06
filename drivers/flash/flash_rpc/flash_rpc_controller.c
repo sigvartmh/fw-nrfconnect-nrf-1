@@ -6,14 +6,8 @@
 
 #include <zephyr/drivers/flash.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/ipc/ipc_service.h>
 #include <drivers/flash/flash_rpc.h>
-
-#include <nrf_rpc/nrf_rpc_ipc.h>
-#include <nrf_rpc_cbor.h>
-
-#include <zcbor_common.h>
-#include <zcbor_decode.h>
-#include <zcbor_encode.h>
 
 #ifndef CONFIG_FLASH_RPC_SYS_INIT
 LOG_MODULE_REGISTER(FLASH_RPC, CONFIG_FLASH_RPC_LOG_LEVEL);
@@ -21,10 +15,35 @@ LOG_MODULE_REGISTER(FLASH_RPC, CONFIG_FLASH_RPC_LOG_LEVEL);
 LOG_MODULE_DECLARE(FLASH_RPC, CONFIG_FLASH_RPC_LOG_LEVEL);
 #endif
 
-#define CBOR_BUF_FLASH_MSG_SIZE (sizeof(void *) + sizeof(size_t) + sizeof(off_t) + 32)
+#define PROTOCOL_ID 0x5140
 
-NRF_RPC_IPC_TRANSPORT(flash_rpc_api_tr, DEVICE_DT_GET(DT_NODELABEL(ipc0)), "flash_rpc_api_ept");
-NRF_RPC_GROUP_DEFINE(flash_rpc_api, "flash_rpc_api", &flash_rpc_api_tr, NULL, NULL, NULL);
+struct k_event ept_bonded;
+
+const struct device *ipc0_dev = DEVICE_DT_GET(DT_NODELABEL(ipc0));
+struct ipc_ept flash_api_ept0;
+
+static void ept_bound_cb(void *priv)
+{
+	k_event_set(&ept_bonded, 0x01);
+   /* Endpoint bounded */
+}
+
+static void recv_data_cb(const void *data, size_t len, void *priv)
+{
+	if(len != sizeof(int)) {
+		LOG_ERR("Invalid data received");
+	}
+	int *ret = data;
+	LOG_INF("Return value %d", ret);
+}
+
+static struct ipc_ept_cfg flash_api_ept0_cfg = {
+   .name = "flash_api_ept0",
+   .cb = {
+      .bound    = ept_bound_cb,
+      .received = recv_data_cb,
+   },
+};
 
 #if DT_NODE_HAS_STATUS(DT_INST(0, nordic_rpc_flash_controller), okay)
 #define DT_DRV_COMPAT nordic_rpc_flash_controller
@@ -46,70 +65,56 @@ static const struct flash_parameters flash_rpc_parameters = {
 	.erase_value = 0xff,
 };
 
-static void flash_rpc_get_rsp(const struct nrf_rpc_group *group, struct nrf_rpc_cbor_ctx *ctx,
-				 void *handler_data)
-{
-	int *result = (int *)handler_data;
-
-	if (!zcbor_int32_decode(ctx->zs, result)) {
-		LOG_ERR("Unable to decode result");
-		*result = -EINVAL;
-	}
-}
-
-static bool encode_flash_msg(struct nrf_rpc_cbor_ctx *ctx, off_t *offset, void *ptr, size_t *len)
-{
-	NRF_RPC_CBOR_ALLOC(&flash_rpc_api, *ctx, CBOR_BUF_FLASH_MSG_SIZE);
-
-	if (!zcbor_uint32_put(ctx->zs, (uint32_t)*offset)) {
-		return false;
-	}
-	if (!zcbor_uint32_put(ctx->zs, (uint32_t)ptr)) {
-		return false;
-	}
-	if (!zcbor_uint32_put(ctx->zs, (uint32_t)*len)) {
-		return false;
-	}
-
-	return true;
-}
-
 #ifndef CONFIG_FLASH_RPC_SYS_INIT
-static void err_handler(const struct nrf_rpc_err_report *report)
+static void err_handler(void *priv)
 {
 	LOG_ERR("nRF RPC error %d ocurred. See nRF RPC logs for more details.",
-	       report->code);
+	       0);
 	k_oops();
 }
 #endif
+
+#define EPT_BIND_TIMEOUT K_MSEC(100)
 
 int flash_rpc_init(const struct device *dev)
 {
 	int err;
 	int result;
-	struct nrf_rpc_cbor_ctx ctx;
 	const struct rpc_flash_config *dev_config = dev->config;
 
 	ARG_UNUSED(dev_config);
 
 #ifndef CONFIG_FLASH_RPC_SYS_INIT
-	err = nrf_rpc_init(err_handler);
-	if (err) {
-		LOG_ERR("Initializing nRF RPC failed: %d", err);
-		return -EINVAL;
+	err = ipc_service_open_instance(ipc0_dev);
+	if (err && err != -EALREADY) {
+		LOG_ERR("Unable to open IPC instance: %d", err);
+		return err;
 	}
 #endif
+	k_event_init(&ept_bonded);
+	err = ipc_service_register_endpoint(ipc0_dev, &flash_api_ept0, &flash_api_ept0_cfg);
+	if (err) {
+		LOG_ERR("Registering endpoint failed with %d", err);
+		return err;
+	}
 
-	NRF_RPC_CBOR_ALLOC(&flash_rpc_api, ctx, CBOR_BUF_FLASH_MSG_SIZE);
+	if(!k_event_wait(&ept_bonded, 0x01, false, EPT_BIND_TIMEOUT)) {
+		LOG_ERR("IPC endpoint bond timeout");
+		return -EPIPE;
+	}
+	
+	struct flash_rpc_msg message = {
+		.magic = PROTOCOL_ID,
+		.cmd = RPC_COMMAND_FLASH_INIT,
+	};
 
-	err = nrf_rpc_cbor_cmd(&flash_rpc_api, RPC_COMMAND_FLASH_INIT, &ctx,
-			       flash_rpc_get_rsp, &result);
-	if (err != 0) {
+	err = ipc_service_send(&flash_api_ept0, &message, sizeof(message));
+	if (err < 0) {
 		LOG_ERR("Could not send RPC command: %d", err);
 		return err;
 	}
 
-	return result;
+	return 0;
 }
 
 int flash_rpc_read(const struct device *dev, off_t offset, void *buffer, size_t len)
@@ -117,7 +122,6 @@ int flash_rpc_read(const struct device *dev, off_t offset, void *buffer, size_t 
 	ARG_UNUSED(dev);
 	int err;
 	int result;
-	struct nrf_rpc_cbor_ctx ctx;
 
 	if (len == 0) {
 		return 0;
@@ -126,22 +130,23 @@ int flash_rpc_read(const struct device *dev, off_t offset, void *buffer, size_t 
 	if (buffer == NULL) {
 		return -EINVAL;
 	}
+	struct flash_rpc_msg msg = {
+		.magic = PROTOCOL_ID,
+		.cmd = RPC_COMMAND_FLASH_READ,
+		.msg.offset = offset,
+		.msg.data = buffer,
+		.msg.len = len,
+	};
 
-	if (!encode_flash_msg(&ctx, &offset, buffer, &len)) {
-		LOG_ERR("Could not encode flash_rpc message");
-		return -EMSGSIZE;
+	LOG_DBG("buffer_ptr: %p offset: 0x%lu size: %u", msg.msg.data, msg.msg.offset, msg.msg.len);
+	
+	err = ipc_service_send(&flash_api_ept0, &msg, sizeof(msg));
+	if (err < 0) {
+		LOG_ERR("Could not send RPC command: %d", err);
+		return err;
 	}
 
-	LOG_DBG("buffer_ptr: %p offset: 0x%"PRIu32", size: %"PRIx32, buffer, (uint32_t)offset, len);
-
-	err = nrf_rpc_cbor_cmd(&flash_rpc_api, RPC_COMMAND_FLASH_READ, &ctx,
-				flash_rpc_get_rsp, &result);
-	if (err) {
-		LOG_ERR("Failed to send RPC read command: %d", err);
-		return -EIO;
-	}
-
-	return result;
+	return 0;
 }
 
 int flash_rpc_write(const struct device *dev, off_t offset, const void *data, size_t len)
@@ -149,7 +154,6 @@ int flash_rpc_write(const struct device *dev, off_t offset, const void *data, si
 	ARG_UNUSED(dev);
 	int err;
 	int result;
-	struct nrf_rpc_cbor_ctx ctx;
 
 	if (len == 0) {
 		return 0;
@@ -158,13 +162,6 @@ int flash_rpc_write(const struct device *dev, off_t offset, const void *data, si
 	if (data == NULL) {
 		return -EINVAL;
 	}
-
-	if (!encode_flash_msg(&ctx, &offset, (void *)data, &len)) {
-		return -EMSGSIZE;
-	}
-
-	err = nrf_rpc_cbor_cmd(&flash_rpc_api, RPC_COMMAND_FLASH_WRITE, &ctx,
-			flash_rpc_get_rsp, &result);
 
 	LOG_DBG("data_ptr: %p offset: 0x%"PRIu32", size: %"PRIx32, data, (uint32_t)offset, len);
 	if (err) {
@@ -181,14 +178,6 @@ int flash_rpc_erase(const struct device *dev, off_t offset, size_t size)
 	int err;
 	int result;
 
-	struct nrf_rpc_cbor_ctx ctx;
-
-	if (!encode_flash_msg(&ctx, &offset, NULL, &size)) {
-		return -EMSGSIZE;
-	}
-
-	err = nrf_rpc_cbor_cmd(&flash_rpc_api, RPC_COMMAND_FLASH_ERASE, &ctx,
-				flash_rpc_get_rsp, &result);
 	if (err) {
 		LOG_ERR("Failed to send command: %d", err);
 		return -EIO;

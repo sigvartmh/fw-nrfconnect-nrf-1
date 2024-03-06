@@ -18,6 +18,18 @@ enum flash_rpc_command {
 	RPC_COMMAND_FLASH_ERASE = 0x04,
 };
 
+struct flash_rpc_data {
+	off_t offset;
+	void *data;
+	size_t len;
+};
+
+struct flash_rpc_msg{
+	uint16_t magic;
+	uint16_t cmd;
+	struct flash_rpc_data msg;
+};
+
 #ifdef __cplusplus
 }
 #endif
