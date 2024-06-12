@@ -79,8 +79,8 @@ static void work_dummy_data_send(struct k_work *work)
 	static uint8_t channel_index;
 	static uint32_t acl_send_count[CONFIG_BT_MAX_CONN];
 
-	struct peer_device *peer = CONTAINER_OF(work, struct peer_device,
-						dummy_data_send_work.work);
+	struct peer_device *peer =
+		CONTAINER_OF(work, struct peer_device, dummy_data_send_work.work);
 
 	ret = channel_index_get(peer->conn, &channel_index);
 	if (ret) {
@@ -410,12 +410,12 @@ static int argument_check(const struct shell *shell, uint8_t const *const input)
 
 	if (*end != '\0' || (uint8_t *)end == input || (arg_val == 0 && !isdigit(input[0])) ||
 	    arg_val < 0) {
-		shell_error(shell, "Argument must be a positive integer %s", input);
+		LOG_ERR("Argument must be a positive integer %s", input);
 		return -EINVAL;
 	}
 
 	if (running) {
-		shell_error(shell, "Arguments can not be changed while running");
+		LOG_ERR("Arguments can not be changed while running");
 		return -EACCES;
 	}
 
@@ -433,7 +433,7 @@ static int param_set(const struct shell *shell, size_t argc, char **argv)
 	}
 
 	if (running) {
-		shell_error(shell, "Arguments can not be changed while running");
+		LOG_ERR("Arguments can not be changed while running");
 		return -EPERM;
 	}
 
@@ -467,13 +467,13 @@ static int param_set(const struct shell *shell, size_t argc, char **argv)
 			central_print_cfg(shell, 0, NULL);
 			break;
 		case ':':
-			shell_error(shell, "Missing option parameter");
+			LOG_ERR("Missing option parameter");
 			break;
 		case '?':
-			shell_error(shell, "Unknown option: %c", opt);
+			LOG_ERR("Unknown option: %c", opt);
 			break;
 		default:
-			shell_error(shell, "Invalid option: %c", opt);
+			LOG_ERR("Invalid option: %c", opt);
 			break;
 		}
 	}

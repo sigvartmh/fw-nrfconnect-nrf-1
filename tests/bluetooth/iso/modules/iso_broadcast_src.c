@@ -278,7 +278,7 @@ int iso_broadcast_src_start(const struct shell *shell, size_t argc, char **argv)
 		LOG_INF("Waiting for BIG complete chan %u...", chan);
 		ret = k_sem_take(&sem_big_cmplt, K_FOREVER);
 		if (ret) {
-			LOG_ERR("failed (ret %d)", ret);
+			LOG_ERR("k_sem_take failed (ret %d)", ret);
 			return ret;
 		}
 		LOG_INF("BIG create complete chan %u.", chan);
@@ -311,12 +311,12 @@ static int argument_check(const struct shell *shell, uint8_t const *const input)
 
 	if (*end != '\0' || (uint8_t *)end == input || (arg_val == 0 && !isdigit(input[0])) ||
 	    arg_val < 0) {
-		shell_error(shell, "Argument must be a positive integer %s", input);
+		LOG_ERR("Argument must be a positive integer %s", input);
 		return -EINVAL;
 	}
 
 	if (running) {
-		shell_error(shell, "Arguments can not be changed while running");
+		LOG_ERR("Arguments can not be changed while running");
 		return -EACCES;
 	}
 
@@ -368,7 +368,7 @@ static int param_set(const struct shell *shell, size_t argc, char **argv)
 	}
 
 	if (running) {
-		shell_error(shell, "Stop src before changing parameters");
+		LOG_ERR("Stop src before changing parameters");
 		return -EPERM;
 	}
 
@@ -410,13 +410,13 @@ static int param_set(const struct shell *shell, size_t argc, char **argv)
 			broadcaster_print_cfg(shell, 0, NULL);
 			break;
 		case ':':
-			shell_error(shell, "Missing option parameter");
+			LOG_ERR("Missing option parameter");
 			break;
 		case '?':
-			shell_error(shell, "Unknown option: %c", opt);
+			LOG_ERR("Unknown option: %c", opt);
 			break;
 		default:
-			shell_error(shell, "Invalid option: %c", opt);
+			LOG_ERR("Invalid option: %c", opt);
 			break;
 		}
 	}

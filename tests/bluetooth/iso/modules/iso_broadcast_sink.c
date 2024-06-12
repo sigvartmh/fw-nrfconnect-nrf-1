@@ -468,12 +468,12 @@ static int argument_check(const struct shell *shell, uint8_t const *const input)
 
 	if (*end != '\0' || (uint8_t *)end == input || (arg_val == 0 && !isdigit(input[0])) ||
 	    arg_val < 0) {
-		shell_error(shell, "Argument must be a positive integer %s", input);
+		LOG_ERR("Argument must be a positive integer %s", input);
 		return -EINVAL;
 	}
 
 	if (running) {
-		shell_error(shell, "Stop sink before changing parameters");
+		LOG_ERR("Stop sink before changing parameters");
 		return -EPERM;
 	}
 
@@ -495,7 +495,7 @@ static int param_set(const struct shell *shell, size_t argc, char **argv)
 	}
 
 	if (running) {
-		shell_error(shell, "Change sink parameters before starting");
+		LOG_ERR("Change sink parameters before starting");
 		return -EPERM;
 	}
 
@@ -510,13 +510,13 @@ static int param_set(const struct shell *shell, size_t argc, char **argv)
 			shell_print(shell, "num_bis: %d", big_sync_param.num_bis);
 			break;
 		case ':':
-			shell_error(shell, "Missing option parameter");
+			LOG_ERR("Missing option parameter");
 			break;
 		case '?':
-			shell_error(shell, "Unknown option");
+			LOG_ERR("Unknown option");
 			break;
 		default:
-			shell_error(shell, "Invalid option");
+			LOG_ERR("Invalid option");
 			break;
 		}
 	}
