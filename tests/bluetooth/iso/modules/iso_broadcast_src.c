@@ -19,7 +19,7 @@
 #include "iso_broadcast_src.h"
 
 #include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(broadcast_src, CONFIG_ISO_TEST_LOG_LEVEL);
+LOG_MODULE_REGISTER(brcast_src, CONFIG_ISO_TEST_LOG_LEVEL);
 
 K_THREAD_STACK_DEFINE(broadcaster_thread_stack, 4096);
 static struct k_thread broadcaster_thread;
@@ -164,9 +164,9 @@ static void broadcaster_t(void *arg1, void *arg2, void *arg3)
 			initial_send--;
 		}
 
-		if ((iso_send_count % CONFIG_PRINT_CONN_INTERVAL) == 0) {
+		if ((iso_send_count % CONFIG_PRINT_ISO_INTERVAL) == 0) {
 			LOG_INF("Sending value %u", iso_send_count);
-			if ((iso_send_count / CONFIG_PRINT_CONN_INTERVAL) % 2 == 0) {
+			if ((iso_send_count / CONFIG_PRINT_ISO_INTERVAL) % 2 == 0) {
 				ret = gpio_pin_set_dt(&led, 1);
 			} else {
 				ret = gpio_pin_set_dt(&led, 0);
@@ -390,6 +390,10 @@ static int param_set(const struct shell *shell, size_t argc, char **argv)
 			broadcaster_print_cfg(shell, 0, NULL);
 			break;
 		case 'n':
+			if (result != 1) {
+				LOG_ERR("Only 1 BIS is supported for now");
+				return -EINVAL;
+			}
 			big_create_param.num_bis = result;
 			broadcaster_print_cfg(shell, 0, NULL);
 			break;
