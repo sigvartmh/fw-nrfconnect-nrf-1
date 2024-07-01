@@ -2907,6 +2907,14 @@ NRF91-989: Unable to bootstrap after changing SIMs
 
   **Affected platforms:** nRF9160
 
+.. rst-class:: v0-3-0 v2-7-0
+
+NCSDK-28124: Command line parameters or environmental values does not set the private key as signing key for secure boot.
+  In the cases where the private key is provided as CLI parameter or environmental variables they are overwritten by auto-generated keys.
+  This will cause updates to fail if the auto-genrated keys are generated again or lost.
+  A workaround for this is setting the private key in the KConfig variable.
+
+
 DFU and FOTA
 ============
 
