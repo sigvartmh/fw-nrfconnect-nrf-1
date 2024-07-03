@@ -36,8 +36,8 @@ To enable external flash with MCUboot, complete the following steps:
 The Quad Serial Peripheral Interface (QSPI) NOR flash memory driver supports these features, and it can access the QSPI external flash memory of the nRF52840 DK and nRF5340 DK.
 
 See the test in :file:`tests/modules/mcuboot/external_flash` for reference.
-This test passes both devicetree overlay files and Kconfig fragments to the MCUboot child image through its :file:`child_image` folder.
-See also :ref:`ug_multi_image_variables` for more details on how to pass configuration files to a child image.
+This test passes both devicetree overlay files and Kconfig fragments to the MCUboot image its :file:`sysbuild` folder.
+See also :ref:`ug_multi_image_variables` for more details on how to pass configuration files to a image using sysbuild.
 
 Troubleshooting
 ***************

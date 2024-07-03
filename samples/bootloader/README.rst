@@ -157,7 +157,7 @@ Monotonic counter
    :start-after: bootloader_monotonic_counter_nsib_start
    :end-before: bootloader_monotonic_counter_nsib_end
 
-To set options for child images, such as NSIB and MCUboot, see the :ref:`ug_multi_image_variables` section.
+To set options for subimages using sysbuild, such as NSIB and MCUboot, see the :ref:`ug_multi_image_variables` section.
 
 .. _bootloader_build_and_run:
 
@@ -169,13 +169,13 @@ Building and running
 .. include:: /includes/build_and_run.txt
 
 .. caution::
-   |NSIB| should be included as a child image in a multi-image build, rather than being built stand-alone.
+   |NSIB| should be included as a image in a sysbuild build, rather than being built stand-alone.
    While it is technically possible to build the NSIB by itself and merge it into other application images, this process is not supported.
-   To reduce the development time and potential issues with this route, let the existing |NCS| infrastructure for multi-image builds handle the integration.
+   To reduce the development time and potential issues with this route, let the existing |NCS| infrastructure for sysbuild builds handle the integration.
 
-   The NSIB is automatically added as a child image when the :kconfig:option:`CONFIG_SECURE_BOOT` Kconfig option is set in the application.
+   The NSIB is automatically added as a child image when the :kconfig:option:`SB_CONFIG_SECURE_BOOT_APPCORE` Kconfig option is set in sysbuild configuration.
 
-For building and running the NSIB with an application, see :ref:`ug_bootloader_adding_immutable`.
+For building and running the NSIB with an application, see :ref:`ug_bootloader_adding_sysbuild_immutable_b0`.
 
 Building and running using |VSC|
 ================================
