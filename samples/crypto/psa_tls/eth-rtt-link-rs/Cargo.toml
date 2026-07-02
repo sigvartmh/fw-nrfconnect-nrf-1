@@ -1,0 +1,15 @@
+[package]
+name = "eth-rtt-link-rs"
+version = "0.1.0"
+edition = "2021"
+license = "LicenseRef-BSD-5-Clause-Nordic"
+
+[dependencies]
+probe-rs = "0.31"
+clap = { version = "4", features = ["derive"] }
+libc = "0.2"
+tracing-subscriber = "0.3"
+object = { version = "0.39.1", default-features = false, features = ["read_core", "elf"] }
+
+[profile.release]
+strip = true
