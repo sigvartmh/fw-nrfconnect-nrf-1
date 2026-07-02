@@ -49,7 +49,7 @@ LOG_MODULE_REGISTER(repro_sha384, LOG_LEVEL_INF);
  *   3 - + AES-256-GCM record decrypt before each encrypted message
  */
 #ifndef PREAMBLE_LEVEL
-#define PREAMBLE_LEVEL 1
+#define PREAMBLE_LEVEL 2
 #endif
 
 /* Progress markers readable from a debug probe while the core runs. */
@@ -201,6 +201,45 @@ static psa_status_t key_schedule_hkdf(const uint8_t *ikm, size_t ikm_len)
 }
 #endif /* PREAMBLE_LEVEL >= 1 */
 
+#if PREAMBLE_LEVEL >= 2
+/* ECDHE exchange as done while processing ServerHello: generate an
+ * ephemeral P-256 keypair and run raw ECDH. The own public key stands in
+ * for the peer share (the math is valid either way).
+ */
+static psa_status_t ecdhe_exchange(uint8_t *shared, size_t shared_size, size_t *shared_len)
+{
+	psa_key_attributes_t attr = PSA_KEY_ATTRIBUTES_INIT;
+	psa_key_id_t key = PSA_KEY_ID_NULL;
+	uint8_t peer_pub[65];
+	size_t peer_pub_len;
+	psa_status_t status;
+
+	psa_set_key_usage_flags(&attr, PSA_KEY_USAGE_DERIVE);
+	psa_set_key_algorithm(&attr, PSA_ALG_ECDH);
+	psa_set_key_type(&attr, PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_FAMILY_SECP_R1));
+	psa_set_key_bits(&attr, 256);
+
+	status = psa_generate_key(&attr, &key);
+	if (status != PSA_SUCCESS) {
+		LOG_ERR("psa_generate_key failed: %d", status);
+		return status;
+	}
+
+	status = psa_export_public_key(key, peer_pub, sizeof(peer_pub), &peer_pub_len);
+	if (status == PSA_SUCCESS) {
+		status = psa_raw_key_agreement(PSA_ALG_ECDH, key, peer_pub, peer_pub_len,
+					       shared, shared_size, shared_len);
+	}
+	if (status != PSA_SUCCESS) {
+		LOG_ERR("ECDH failed: %d", status);
+	}
+
+	psa_destroy_key(key);
+
+	return status;
+}
+#endif /* PREAMBLE_LEVEL >= 2 */
+
 int main(void)
 {
 	psa_status_t status;
@@ -241,7 +280,22 @@ int main(void)
 			return 0;
 		}
 
+#if PREAMBLE_LEVEL >= 2
+		uint8_t ecdhe_shared[32];
+		size_t ecdhe_shared_len = 0;
+#endif
+
 		for (size_t m = 0; m < ARRAY_SIZE(transcript_msg_sizes); m++) {
+#if PREAMBLE_LEVEL >= 2
+			/* ECDHE runs while processing ServerHello (m == 1). */
+			if (m == 1) {
+				status = ecdhe_exchange(ecdhe_shared, sizeof(ecdhe_shared),
+							&ecdhe_shared_len);
+				if (status != PSA_SUCCESS) {
+					return 0;
+				}
+			}
+#endif
 			status = psa_hash_update(&checksum_256, msg_buf,
 						 transcript_msg_sizes[m]);
 			if (status != PSA_SUCCESS) {
@@ -265,7 +319,18 @@ int main(void)
 					return 0;
 				}
 
-#if PREAMBLE_LEVEL >= 1
+#if PREAMBLE_LEVEL >= 2
+				/* The handshake-secret extraction (m == 1) feeds
+				 * the ECDHE shared secret into HKDF, like the
+				 * TLS 1.3 key schedule.
+				 */
+				status = key_schedule_hkdf(
+					m == 1 ? ecdhe_shared : digest,
+					m == 1 ? ecdhe_shared_len : sizeof(digest));
+				if (status != PSA_SUCCESS) {
+					return 0;
+				}
+#elif PREAMBLE_LEVEL >= 1
 				status = key_schedule_hkdf(digest, sizeof(digest));
 				if (status != PSA_SUCCESS) {
 					return 0;
