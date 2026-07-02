@@ -49,7 +49,23 @@ LOG_MODULE_REGISTER(repro_sha384, LOG_LEVEL_INF);
  *   3 - + AES-256-GCM record decrypt before each encrypted message
  */
 #ifndef PREAMBLE_LEVEL
-#define PREAMBLE_LEVEL 1
+#define PREAMBLE_LEVEL 4
+#endif
+
+/* Fixed-address experiment: issue the finish with the output vectors at
+ * the exact addresses observed in both captured TLS hangs (which froze
+ * at identical addresses for both SHA-256 and SHA-384 ciphersuites).
+ * This RAM is unused in this sample's layout (_image_ram_end is far
+ * below 0x2f013000).
+ */
+#ifndef FIXED_ADDR_OUTPUTS
+#define FIXED_ADDR_OUTPUTS 1
+#endif
+
+#if FIXED_ADDR_OUTPUTS
+#define FIXED_LINE_ADDR   0x2f013940UL
+#define FIXED_OP_ADDR     0x2f01394cUL
+#define FIXED_DIGEST_ADDR 0x2f013978UL
 #endif
 
 /* Progress markers readable from a debug probe while the core runs. */
@@ -91,10 +107,28 @@ BUILD_ASSERT(offsetof(struct finish_layout, digest) == 0x38);
 static psa_status_t transcript_extract(const psa_hash_operation_t *transcript,
 				       uint32_t misalign, uint8_t *digest_out)
 {
+#if FIXED_ADDR_OUTPUTS
+	psa_hash_operation_t *op = (psa_hash_operation_t *)FIXED_OP_ADDR;
+	uint8_t *digest = (uint8_t *)FIXED_DIGEST_ADDR;
+	volatile uint32_t *line = (volatile uint32_t *)FIXED_LINE_ADDR;
+#else
 	struct finish_layout l __aligned(32);
+	psa_hash_operation_t *op = &l.op;
+	uint8_t *digest = l.digest;
+#endif
 	size_t hash_len;
 	psa_status_t status;
 
+#if FIXED_ADDR_OUTPUTS
+	memset(op, 0, sizeof(*op));
+	memset(digest, 0, 48 + 8);
+	/* Reproduce the captured content of the words sharing the cache
+	 * line with the operation handle.
+	 */
+	line[0] = FIXED_DIGEST_ADDR;
+	line[1] = 0x0e048e85;
+	line[2] = 0x2f006b21;
+#else
 	memset(&l, 0, sizeof(l));
 	/* Live app-owned words sharing the cache line with op, like the
 	 * return addresses found there in the captured hang.
@@ -102,8 +136,9 @@ static psa_status_t transcript_extract(const psa_hash_operation_t *transcript,
 	l.live[0] = 0x0e048e85;
 	l.live[1] = (uint32_t)(uintptr_t)&l;
 	l.live[2] = 3;
+#endif
 
-	status = psa_hash_clone(transcript, &l.op);
+	status = psa_hash_clone(transcript, op);
 	if (status != PSA_SUCCESS) {
 		LOG_ERR("psa_hash_clone failed: %d", status);
 		return status;
@@ -114,13 +149,13 @@ static psa_status_t transcript_extract(const psa_hash_operation_t *transcript,
 	 * the digest through the SSF client bounce-buffer path; 0 and 4 stay
 	 * on the in-place path with different mod-8 placement.
 	 */
-	status = psa_hash_finish(&l.op, l.digest + misalign, 48, &hash_len);
+	status = psa_hash_finish(op, digest + misalign, 48, &hash_len);
 	if (status != PSA_SUCCESS) {
 		LOG_ERR("psa_hash_finish failed: %d (misalign %u)", status, misalign);
 		return status;
 	}
 
-	memcpy(digest_out, l.digest + misalign, 48);
+	memcpy(digest_out, digest + misalign, 48);
 
 	return status;
 }
@@ -201,6 +236,162 @@ static psa_status_t key_schedule_hkdf(const uint8_t *ikm, size_t ikm_len)
 }
 #endif /* PREAMBLE_LEVEL >= 1 */
 
+#if PREAMBLE_LEVEL >= 2
+/* ECDHE exchange as done while processing ServerHello: generate an
+ * ephemeral P-256 keypair and run raw ECDH. The own public key stands in
+ * for the peer share (the math is valid either way).
+ */
+static psa_status_t ecdhe_exchange(uint8_t *shared, size_t shared_size, size_t *shared_len)
+{
+	psa_key_attributes_t attr = PSA_KEY_ATTRIBUTES_INIT;
+	psa_key_id_t key = PSA_KEY_ID_NULL;
+	uint8_t peer_pub[65];
+	size_t peer_pub_len;
+	psa_status_t status;
+
+	psa_set_key_usage_flags(&attr, PSA_KEY_USAGE_DERIVE);
+	psa_set_key_algorithm(&attr, PSA_ALG_ECDH);
+	psa_set_key_type(&attr, PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_FAMILY_SECP_R1));
+	psa_set_key_bits(&attr, 256);
+
+	status = psa_generate_key(&attr, &key);
+	if (status != PSA_SUCCESS) {
+		LOG_ERR("psa_generate_key failed: %d", status);
+		return status;
+	}
+
+	status = psa_export_public_key(key, peer_pub, sizeof(peer_pub), &peer_pub_len);
+	if (status == PSA_SUCCESS) {
+		status = psa_raw_key_agreement(PSA_ALG_ECDH, key, peer_pub, peer_pub_len,
+					       shared, shared_size, shared_len);
+	}
+	if (status != PSA_SUCCESS) {
+		LOG_ERR("ECDH failed: %d", status);
+	}
+
+	psa_destroy_key(key);
+
+	return status;
+}
+#endif /* PREAMBLE_LEVEL >= 2 */
+
+#if PREAMBLE_LEVEL >= 3
+/* AES-256-GCM record protection as done for each encrypted handshake
+ * record (EncryptedExtensions, Certificate, CertificateVerify,
+ * Finished): encrypt a record-sized buffer, then decrypt it, like the
+ * peer's record decrypt on the client.
+ */
+static psa_status_t record_aead_roundtrip(psa_key_id_t key, size_t rec_len, uint32_t seq)
+{
+	static uint8_t ciphertext[512 + 16];
+	static uint8_t plaintext[512];
+	uint8_t nonce[12] = { 0 };
+	uint8_t ad[5] = { 0x17, 0x03, 0x03, (uint8_t)((rec_len + 16) >> 8),
+			  (uint8_t)(rec_len + 16) };
+	size_t ct_len;
+	size_t pt_len;
+	psa_status_t status;
+
+	nonce[11] = (uint8_t)seq;
+
+	status = psa_aead_encrypt(key, PSA_ALG_GCM, nonce, sizeof(nonce), ad, sizeof(ad),
+				  msg_buf, rec_len, ciphertext, sizeof(ciphertext), &ct_len);
+	if (status != PSA_SUCCESS) {
+		LOG_ERR("psa_aead_encrypt failed: %d", status);
+		return status;
+	}
+
+	status = psa_aead_decrypt(key, PSA_ALG_GCM, nonce, sizeof(nonce), ad, sizeof(ad),
+				  ciphertext, ct_len, plaintext, sizeof(plaintext), &pt_len);
+	if (status != PSA_SUCCESS) {
+		LOG_ERR("psa_aead_decrypt failed: %d", status);
+	}
+
+	return status;
+}
+
+static psa_status_t record_key_import(psa_key_id_t *key)
+{
+	psa_key_attributes_t attr = PSA_KEY_ATTRIBUTES_INIT;
+	static const uint8_t key_data[32] = { 0x42 };
+
+	psa_set_key_usage_flags(&attr, PSA_KEY_USAGE_ENCRYPT | PSA_KEY_USAGE_DECRYPT);
+	psa_set_key_algorithm(&attr, PSA_ALG_GCM);
+	psa_set_key_type(&attr, PSA_KEY_TYPE_AES);
+	psa_set_key_bits(&attr, 256);
+
+	return psa_import_key(&attr, key_data, sizeof(key_data), key);
+}
+#endif /* PREAMBLE_LEVEL >= 3 */
+
+#if PREAMBLE_LEVEL >= 4
+/* Certificate and CertificateVerify processing: one-shot hash of the
+ * certificate, then ECDSA P-256 signature verification with an imported
+ * public key (the signature is produced locally first so verification
+ * succeeds, standing in for the server's signing).
+ */
+static psa_status_t certificate_verify(void)
+{
+	psa_key_attributes_t attr = PSA_KEY_ATTRIBUTES_INIT;
+	psa_key_id_t sign_key = PSA_KEY_ID_NULL;
+	psa_key_id_t verify_key = PSA_KEY_ID_NULL;
+	uint8_t cert_hash[32];
+	uint8_t sig[72];
+	uint8_t pub[65];
+	size_t cert_hash_len;
+	size_t sig_len;
+	size_t pub_len;
+	psa_status_t status;
+
+	status = psa_hash_compute(PSA_ALG_SHA_256, msg_buf, 442, cert_hash,
+				  sizeof(cert_hash), &cert_hash_len);
+	if (status != PSA_SUCCESS) {
+		LOG_ERR("psa_hash_compute failed: %d", status);
+		return status;
+	}
+
+	psa_set_key_usage_flags(&attr, PSA_KEY_USAGE_SIGN_HASH);
+	psa_set_key_algorithm(&attr, PSA_ALG_ECDSA(PSA_ALG_SHA_256));
+	psa_set_key_type(&attr, PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_FAMILY_SECP_R1));
+	psa_set_key_bits(&attr, 256);
+
+	status = psa_generate_key(&attr, &sign_key);
+	if (status != PSA_SUCCESS) {
+		LOG_ERR("psa_generate_key (sign) failed: %d", status);
+		return status;
+	}
+
+	status = psa_sign_hash(sign_key, PSA_ALG_ECDSA(PSA_ALG_SHA_256), cert_hash,
+			       cert_hash_len, sig, sizeof(sig), &sig_len);
+	if (status == PSA_SUCCESS) {
+		status = psa_export_public_key(sign_key, pub, sizeof(pub), &pub_len);
+	}
+	psa_destroy_key(sign_key);
+	if (status != PSA_SUCCESS) {
+		LOG_ERR("sign/export failed: %d", status);
+		return status;
+	}
+
+	psa_set_key_usage_flags(&attr, PSA_KEY_USAGE_VERIFY_HASH);
+	psa_set_key_type(&attr, PSA_KEY_TYPE_ECC_PUBLIC_KEY(PSA_ECC_FAMILY_SECP_R1));
+
+	status = psa_import_key(&attr, pub, pub_len, &verify_key);
+	if (status != PSA_SUCCESS) {
+		LOG_ERR("psa_import_key (verify) failed: %d", status);
+		return status;
+	}
+
+	status = psa_verify_hash(verify_key, PSA_ALG_ECDSA(PSA_ALG_SHA_256), cert_hash,
+				 cert_hash_len, sig, sig_len);
+	psa_destroy_key(verify_key);
+	if (status != PSA_SUCCESS) {
+		LOG_ERR("psa_verify_hash failed: %d", status);
+	}
+
+	return status;
+}
+#endif /* PREAMBLE_LEVEL >= 4 */
+
 int main(void)
 {
 	psa_status_t status;
@@ -226,8 +417,24 @@ int main(void)
 		psa_hash_operation_t transcript = PSA_HASH_OPERATION_INIT;
 
 		repro_step = 0;
+
+#if PREAMBLE_LEVEL >= 4
+		/* ClientHello random. */
+		uint8_t client_random[32];
+
+		status = psa_generate_random(client_random, sizeof(client_random));
+		if (status != PSA_SUCCESS) {
+			LOG_ERR("psa_generate_random failed: %d", status);
+			return 0;
+		}
+#endif
+#if FIXED_ADDR_OUTPUTS
+		/* Exact captured addresses: no misalignment. */
+		repro_misalign = 0;
+#else
 		/* Sweep digest misalignment 0..7 across iterations. */
 		repro_misalign = repro_iteration % 8;
+#endif
 
 		status = psa_hash_setup(&checksum_256, PSA_ALG_SHA_256);
 		if (status != PSA_SUCCESS) {
@@ -241,7 +448,59 @@ int main(void)
 			return 0;
 		}
 
+#if PREAMBLE_LEVEL >= 2
+		uint8_t ecdhe_shared[32];
+		size_t ecdhe_shared_len = 0;
+#endif
+#if PREAMBLE_LEVEL >= 3
+		psa_key_id_t record_key = PSA_KEY_ID_NULL;
+#endif
+
 		for (size_t m = 0; m < ARRAY_SIZE(transcript_msg_sizes); m++) {
+#if PREAMBLE_LEVEL >= 2
+			/* ECDHE runs while processing ServerHello (m == 1). */
+			if (m == 1) {
+				status = ecdhe_exchange(ecdhe_shared, sizeof(ecdhe_shared),
+							&ecdhe_shared_len);
+				if (status != PSA_SUCCESS) {
+					return 0;
+				}
+#if PREAMBLE_LEVEL >= 3
+				/* Handshake traffic keys come into use here. */
+				status = record_key_import(&record_key);
+				if (status != PSA_SUCCESS) {
+					LOG_ERR("record key import failed: %d", status);
+					return 0;
+				}
+#endif
+			}
+#endif
+#if PREAMBLE_LEVEL >= 3
+			/* Messages from EncryptedExtensions (m == 2) onwards
+			 * arrive in AEAD-protected records, decrypted before
+			 * being hashed into the transcript.
+			 */
+			if (m >= 2) {
+				status = record_aead_roundtrip(record_key,
+							       transcript_msg_sizes[m],
+							       (uint32_t)m);
+				if (status != PSA_SUCCESS) {
+					return 0;
+				}
+			}
+#endif
+#if PREAMBLE_LEVEL >= 4
+			/* Certificate chain and CertificateVerify checks run
+			 * while processing CertificateVerify (m == 4), right
+			 * before the Finished message that hangs.
+			 */
+			if (m == 4) {
+				status = certificate_verify();
+				if (status != PSA_SUCCESS) {
+					return 0;
+				}
+			}
+#endif
 			status = psa_hash_update(&checksum_256, msg_buf,
 						 transcript_msg_sizes[m]);
 			if (status != PSA_SUCCESS) {
@@ -265,7 +524,18 @@ int main(void)
 					return 0;
 				}
 
-#if PREAMBLE_LEVEL >= 1
+#if PREAMBLE_LEVEL >= 2
+				/* The handshake-secret extraction (m == 1) feeds
+				 * the ECDHE shared secret into HKDF, like the
+				 * TLS 1.3 key schedule.
+				 */
+				status = key_schedule_hkdf(
+					m == 1 ? ecdhe_shared : digest,
+					m == 1 ? ecdhe_shared_len : sizeof(digest));
+				if (status != PSA_SUCCESS) {
+					return 0;
+				}
+#elif PREAMBLE_LEVEL >= 1
 				status = key_schedule_hkdf(digest, sizeof(digest));
 				if (status != PSA_SUCCESS) {
 					return 0;
@@ -276,6 +546,9 @@ int main(void)
 
 		psa_hash_abort(&checksum_256);
 		psa_hash_abort(&transcript);
+#if PREAMBLE_LEVEL >= 3
+		psa_destroy_key(record_key);
+#endif
 
 		if (repro_iteration % 100 == 0) {
 			LOG_INF("iteration %u ok", repro_iteration);

@@ -15,6 +15,31 @@ target_include_directories(app PUBLIC ./include)
 target_sources(app PRIVATE src/main.c
                            src/psa_tls_common.c)
 
+if(CONFIG_SAMPLE_PSA_CALL_TRACE)
+  target_sources(app PRIVATE src/psa_call_trace.c)
+  zephyr_link_libraries(-Wl,--wrap=psa_call)
+endif()
+
+if(CONFIG_SAMPLE_PSA_CALL_TRACE_RAM)
+  target_sources(app PRIVATE src/psa_call_trace_ram.c)
+  zephyr_link_libraries(-Wl,--wrap=psa_call)
+endif()
+
+if(CONFIG_SAMPLE_PSA_CALL_TRACE_NULL)
+  target_sources(app PRIVATE src/psa_call_trace_null.c)
+  zephyr_link_libraries(-Wl,--wrap=psa_call)
+endif()
+
+if(CONFIG_SAMPLE_PSA_DATA_PAD)
+  target_sources(app PRIVATE src/psa_data_pad.c)
+endif()
+
+if(CONFIG_SAMPLE_PSA_CALL_PERTURB GREATER 0)
+  target_sources(app PRIVATE src/psa_call_perturb.c)
+  target_compile_definitions(app PRIVATE PERTURB_MODE=${CONFIG_SAMPLE_PSA_CALL_PERTURB})
+  zephyr_link_libraries(-Wl,--wrap=psa_call)
+endif()
+
 if(CONFIG_BUILD_WITH_TFM)
   set(tls_src_path "non-secure")
 else()

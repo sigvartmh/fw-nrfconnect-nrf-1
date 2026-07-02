@@ -142,6 +142,15 @@ fn run_worker(tap: &mut Tap, options: &Options) {
     let mut last_hang_check = now_secs();
     let mut buf = vec![0u8; 65536];
 
+    // Opt-in IronSide SE IPC mailbox watcher: burst-samples slot 0 each loop
+    // iteration and logs every change with a microsecond host timestamp.
+    let mut ipc_log = std::env::var("ETH_RTT_IPC_WATCH").ok().map(|path| {
+        print_info(&format!("IPC watch enabled -> {path}"));
+        std::io::BufWriter::new(std::fs::File::create(path).expect("cannot create IPC watch file"))
+    });
+    let mut ipc_prev = [0u32; 8];
+    let ipc_t0 = std::time::Instant::now();
+
     while !exit_loop() {
         let tap_fd = tap.as_raw_fd();
         let mut readfds: libc::fd_set = unsafe { mem::zeroed() };
@@ -176,6 +185,24 @@ fn run_worker(tap: &mut Tap, options: &Options) {
                 if n > 0 {
                     print_info(&format!("FROM ETH: {n}"));
                     send_frame_to_rtt(&mut rtt, &buf[..n]);
+                }
+            }
+        }
+
+        if let Some(log) = ipc_log.as_mut() {
+            use std::io::Write;
+
+            for _ in 0..8 {
+                let mut cur = [0u32; 8];
+                if rtt.read_ipc_slot(&mut cur) && cur != ipc_prev {
+                    let us = ipc_t0.elapsed().as_micros();
+                    let _ = writeln!(
+                        log,
+                        "{us} {:08x} {:08x} {:08x} {:08x} {:08x} {:08x} {:08x} {:08x}",
+                        cur[0], cur[1], cur[2], cur[3], cur[4], cur[5], cur[6], cur[7]
+                    );
+                    let _ = log.flush();
+                    ipc_prev = cur;
                 }
             }
         }

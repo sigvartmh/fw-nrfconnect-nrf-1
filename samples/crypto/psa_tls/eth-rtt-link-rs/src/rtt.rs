@@ -13,7 +13,7 @@ use probe_rs::config::{
 };
 use probe_rs::probe::list::Lister;
 use probe_rs::rtt::{Rtt, ScanRegion};
-use probe_rs::Permissions;
+use probe_rs::{MemoryInterface, Permissions};
 
 use crate::logs::{print_debug, print_error, print_info, recoverable_fatal};
 use crate::options::Options;
@@ -217,6 +217,15 @@ impl JlinkRtt {
         session
             .core(0)
             .unwrap_or_else(|e| recoverable_fatal(&format!("Cannot access core: {e}")))
+    }
+
+    /// Reads the nRF54H20 cpusec<->cpuapp IronSide SE IPC mailbox slot 0
+    /// (32 bytes at 0x2f88fb80) while the core keeps running. Used by the
+    /// opt-in IPC watcher (`ETH_RTT_IPC_WATCH`) to sample the psa_call
+    /// request stream without modifying the target binary.
+    pub fn read_ipc_slot(&mut self, out: &mut [u32; 8]) -> bool {
+        let mut core = Self::core(&mut self.session);
+        core.read_32(0x2f88_fb80, &mut out[..]).is_ok()
     }
 
     /// Reads whatever is currently available from the up channel. Never blocks.

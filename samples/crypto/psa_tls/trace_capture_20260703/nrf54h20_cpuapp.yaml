@@ -1,0 +1,37 @@
+name: nRF54H20-cpuapp-dbg
+variants:
+  - name: nRF54H20-cpuapp-dbg
+    cores:
+      - name: main
+        type: armv8m
+        core_access_options: !Arm
+          ap: !v1 0
+    memory_map:
+      - !Ram
+        name: APP_RAM0
+        range:
+          start: 0x22000000
+          end: 0x22008000
+        cores:
+          - main
+      - !Ram
+        name: cpuapp_data
+        range:
+          start: 0x2f000000
+          end: 0x2f0be000
+        cores:
+          - main
+      - !Ram
+        name: shared_ram0x
+        range:
+          start: 0x2f880000
+          end: 0x2f890000
+        cores:
+          - main
+      - !Nvm
+        name: cpuapp_mram
+        range:
+          start: 0x0e000000
+          end: 0x0e200000
+        cores:
+          - main

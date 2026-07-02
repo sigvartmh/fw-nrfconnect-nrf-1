@@ -46,4 +46,45 @@ config SAMPLE_PSA_TLS_TYPE_CLIENT
 
 endchoice
 
+config SAMPLE_PSA_CALL_TRACE
+	bool "Trace psa_call requests over the console"
+	help
+	  Wraps psa_call with debug instrumentation that prints every
+	  request (handle, type, io vector addresses, lengths and input
+	  data) before it is dispatched to the crypto service, and its
+	  status when it returns. Used to record the exact PSA call
+	  stream for debugging.
+
+config SAMPLE_PSA_CALL_TRACE_NULL
+	bool "Wrap psa_call with an empty passthrough"
+	help
+	  Debug bisection aid: wraps psa_call with a passthrough that
+	  compiles to a tail branch, isolating the pure text-layout
+	  effect of the tracing wrappers.
+
+config SAMPLE_PSA_DATA_PAD
+	bool "Insert a 32 KiB pad at the front of .data"
+	help
+	  Debug bisection aid: displaces .data/.bss by the same amount
+	  as the RAM ring tracer, without wrapping psa_call.
+
+config SAMPLE_PSA_CALL_PERTURB
+	int "Wrap psa_call with an isolated runtime perturbation"
+	default 0
+	help
+	  Debug bisection aid; see src/psa_call_perturb.c. 0 disables,
+	  1 = busy loop, 2 = static-buffer stores, 3 = timer read.
+
+config SAMPLE_PSA_CALL_TRACE_RAM
+	bool "Trace psa_call requests into a RAM ring buffer"
+	depends on !SAMPLE_PSA_CALL_TRACE
+	help
+	  Wraps psa_call with low-overhead debug instrumentation that
+	  records every request into a RAM ring buffer
+	  (psa_call_trace_ring), leaving the call timing essentially
+	  unperturbed. Intended for capturing the call stream of a run
+	  that hangs; dump the ring over the debug probe afterwards. A
+	  record whose status is 0x7fffffff marks a call that never
+	  returned.
+
 endmenu

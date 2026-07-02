@@ -1,0 +1,259 @@
+magic=50534152 pos=258 size=512 rec_size=64
+    0 dt=0        GENERATE_RANDOM      key=00000000 alg=00000000 op=0  o@2f01baa4:4 | st=0
+    1 dt=69978    GENERATE_RANDOM      key=00000000 alg=00000000 op=0  o@2f01ba46:2 | st=0
+    2 dt=430      IMPORT_KEY           key=00000000 alg=00000000 op=0 i@2f01b6bc:28 i@2f01b8d0:65 o@2f01b6b8:4 | st=0
+    3 dt=338      DESTROY_KEY          key=40000000 alg=00000000 op=0   | st=0
+    4 dt=294      DESTROY_KEY          key=00000000 alg=00000000 op=0   | st=0
+    5 dt=8456     GENERATE_RANDOM      key=00000000 alg=00000000 op=0  o@2f01b9ee:2 | st=0
+    6 dt=361      GENERATE_RANDOM      key=00000000 alg=00000000 op=0  o@2f01b9dc:1 | st=0
+    7 dt=383      GENERATE_RANDOM      key=00000000 alg=00000000 op=0  o@2f01b9dc:4 | st=0
+    8 dt=4016065  GENERATE_RANDOM      key=00000000 alg=00000000 op=0  o@2f01ba46:2 | st=0
+    9 dt=415      IMPORT_KEY           key=00000000 alg=00000000 op=0 i@2f01b6bc:28 i@2f01b8d0:65 o@2f01b6b8:4 | st=0
+   10 dt=334      DESTROY_KEY          key=40000000 alg=00000000 op=0   | st=0
+   11 dt=265      DESTROY_KEY          key=00000000 alg=00000000 op=0   | st=0
+   12 dt=8291     GENERATE_RANDOM      key=00000000 alg=00000000 op=0  o@2f01b9ee:2 | st=0
+   13 dt=357      GENERATE_RANDOM      key=00000000 alg=00000000 op=0  o@2f01b9dc:1 | st=0
+   14 dt=332      GENERATE_RANDOM      key=00000000 alg=00000000 op=0  o@2f01b9dc:4 | st=0
+   15 dt=4015804  GENERATE_RANDOM      key=00000000 alg=00000000 op=0  o@2f01ba46:2 | st=0
+   16 dt=417      IMPORT_KEY           key=00000000 alg=00000000 op=0 i@2f01b6bc:28 i@2f01b8d0:65 o@2f01b6b8:4 | st=0
+   17 dt=335      DESTROY_KEY          key=40000000 alg=00000000 op=0   | st=0
+   18 dt=265      DESTROY_KEY          key=00000000 alg=00000000 op=0   | st=0
+   19 dt=8294     GENERATE_RANDOM      key=00000000 alg=00000000 op=0  o@2f01b9ee:2 | st=0
+   20 dt=355      GENERATE_RANDOM      key=00000000 alg=00000000 op=0  o@2f01b9dc:1 | st=0
+   21 dt=331      GENERATE_RANDOM      key=00000000 alg=00000000 op=0  o@2f01b9dc:4 | st=0
+   22 dt=4015874  GENERATE_RANDOM      key=00000000 alg=00000000 op=0  o@2f01ba46:2 | st=0
+   23 dt=416      IMPORT_KEY           key=00000000 alg=00000000 op=0 i@2f01b6bc:28 i@2f01b8d0:65 o@2f01b6b8:4 | st=0
+   24 dt=334      DESTROY_KEY          key=40000000 alg=00000000 op=0   | st=0
+   25 dt=265      DESTROY_KEY          key=00000000 alg=00000000 op=0   | st=0
+   26 dt=8289     GENERATE_RANDOM      key=00000000 alg=00000000 op=0  o@2f01b9ee:2 | st=0
+   27 dt=355      GENERATE_RANDOM      key=00000000 alg=00000000 op=0  o@2f01b9dc:1 | st=0
+   28 dt=461      GENERATE_RANDOM      key=00000000 alg=00000000 op=0  o@2f01b9dc:4 | st=0
+   29 dt=4015837  GENERATE_RANDOM      key=00000000 alg=00000000 op=0  o@2f01ba46:2 | st=0
+   30 dt=414      IMPORT_KEY           key=00000000 alg=00000000 op=0 i@2f01b6bc:28 i@2f01b8d0:65 o@2f01b6b8:4 | st=0
+   31 dt=334      DESTROY_KEY          key=40000000 alg=00000000 op=0   | st=0
+   32 dt=265      DESTROY_KEY          key=00000000 alg=00000000 op=0   | st=0
+   33 dt=8293     GENERATE_RANDOM      key=00000000 alg=00000000 op=0  o@2f01b9ee:2 | st=0
+   34 dt=355      GENERATE_RANDOM      key=00000000 alg=00000000 op=0  o@2f01b9dc:1 | st=0
+   35 dt=332      GENERATE_RANDOM      key=00000000 alg=00000000 op=0  o@2f01b9dc:4 | st=0
+   36 dt=4015854  GENERATE_RANDOM      key=00000000 alg=00000000 op=0  o@2f01ba46:2 | st=0
+   37 dt=416      IMPORT_KEY           key=00000000 alg=00000000 op=0 i@2f01b6bc:28 i@2f01b8d0:65 o@2f01b6b8:4 | st=0
+   38 dt=335      DESTROY_KEY          key=40000000 alg=00000000 op=0   | st=0
+   39 dt=265      DESTROY_KEY          key=00000000 alg=00000000 op=0   | st=0
+   40 dt=8304     GENERATE_RANDOM      key=00000000 alg=00000000 op=0  o@2f01b9ee:2 | st=0
+   41 dt=359      GENERATE_RANDOM      key=00000000 alg=00000000 op=0  o@2f01b9dc:1 | st=0
+   42 dt=334      GENERATE_RANDOM      key=00000000 alg=00000000 op=0  o@2f01b9dc:4 | st=0
+   43 dt=4015830  GENERATE_RANDOM      key=00000000 alg=00000000 op=0  o@2f01ba46:2 | st=0
+   44 dt=415      IMPORT_KEY           key=00000000 alg=00000000 op=0 i@2f01b6bc:28 i@2f01b8d0:65 o@2f01b6b8:4 | st=0
+   45 dt=334      DESTROY_KEY          key=40000000 alg=00000000 op=0   | st=0
+   46 dt=265      DESTROY_KEY          key=00000000 alg=00000000 op=0   | st=0
+   47 dt=8296     GENERATE_RANDOM      key=00000000 alg=00000000 op=0  o@2f01b9ee:2 | st=0
+   48 dt=356      GENERATE_RANDOM      key=00000000 alg=00000000 op=0  o@2f01b9dc:1 | st=0
+   49 dt=332      GENERATE_RANDOM      key=00000000 alg=00000000 op=0  o@2f01b9dc:4 | st=0
+   50 dt=4015838  GENERATE_RANDOM      key=00000000 alg=00000000 op=0  o@2f01ba46:2 | st=0
+   51 dt=258      IMPORT_KEY           key=00000000 alg=00000000 op=0 i@2f01b6bc:28 i@2f01b8d0:65 o@2f01b6b8:4 | st=0
+   52 dt=176      DESTROY_KEY          key=40000000 alg=00000000 op=0   | st=0
+   53 dt=265      DESTROY_KEY          key=00000000 alg=00000000 op=0   | st=0
+   54 dt=8349     GENERATE_RANDOM      key=00000000 alg=00000000 op=0  o@2f01b9ee:2 | st=0
+   55 dt=199      GENERATE_RANDOM      key=00000000 alg=00000000 op=0  o@2f01b9dc:1 | st=0
+   56 dt=174      GENERATE_RANDOM      key=00000000 alg=00000000 op=0  o@2f01b9dc:4 | st=0
+   57 dt=23772    IMPORT_KEY           key=00000000 alg=00000000 op=0 i@2f01b92c:28 i@2f00918c:65 o@2f01b928:4 | st=0
+   58 dt=183      DESTROY_KEY          key=40000000 alg=00000000 op=0   | st=0
+   59 dt=331      HASH_ABORT           key=00000000 alg=00000000 op=0  o@2f01006c:4 | st=0
+   60 dt=129      HASH_SETUP           key=00000000 alg=02000009 op=0  o@2f01006c:4 | st=0
+   61 dt=269      HASH_ABORT           key=00000000 alg=00000000 op=0  o@2f010070:4 | st=0
+   62 dt=237      HASH_SETUP           key=00000000 alg=0200000a op=0  o@2f010070:4 | st=0
+   63 dt=262      GENERATE_RANDOM      key=00000000 alg=00000000 op=0  o@2f0100b0:32 | st=0
+   64 dt=183      GENERATE_RANDOM      key=00000000 alg=00000000 op=0  o@2f00fe34:32 | st=0
+   65 dt=265      GENERATE_KEY         key=00000000 alg=00000000 op=0 i@2f01b958:28 o@2f00ffc4:4 | st=0
+   66 dt=329      EXPORT_PUBLIC_KEY    key=40000000 alg=00000000 op=0  o@2f00f50b:2166 | st=0
+   67 dt=901      HASH_UPDATE          key=00000000 alg=00000000 op=1 i@2f01b9dc:4  | st=0
+   68 dt=117      HASH_UPDATE          key=00000000 alg=00000000 op=2 i@2f01b9dc:4  | st=0
+   69 dt=237      HASH_UPDATE          key=00000000 alg=00000000 op=1 i@2f00f485:260  | st=0
+   70 dt=148      HASH_UPDATE          key=00000000 alg=00000000 op=2 i@2f00f485:260  | st=0
+   71 dt=271      HASH_CLONE           key=00000000 alg=00000000 op=1 i@2f01b964:4 o@2f01b964:4 | st=0
+   72 dt=282      HASH_FINISH          key=00000000 alg=00000000 op=3  o@2f01b964:4 o@2f01b998:48 | st=0
+   73 dt=339      KD_SETUP             key=00000000 alg=08000409 op=0  o@2f01b864:4 | st=0
+   74 dt=295      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01b868:32  | st=0
+   75 dt=161      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f00eac8:16  | st=0
+   76 dt=317      KD_OUTPUT_BYTES      key=00000000 alg=00000000 op=3  o@2f01b938:32 | st=0
+   77 dt=257      KD_ABORT             key=00000000 alg=00000000 op=3  o@2f01b864:4 | st=0
+   78 dt=377      HASH_COMPUTE         key=00000000 alg=02000009 op=0  o@2f01b898:32 | st=0
+   79 dt=287      KD_SETUP             key=00000000 alg=08000509 op=0  o@2f01b720:4 | st=0
+   80 dt=256      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01b938:32  | st=0
+   81 dt=255      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01b724:52  | st=0
+   82 dt=256      KD_OUTPUT_BYTES      key=00000000 alg=00000000 op=3  o@2f01b908:32 | st=0
+   83 dt=334      KD_ABORT             key=00000000 alg=00000000 op=3  o@2f01b720:4 | st=0
+   84 dt=296      KD_SETUP             key=00000000 alg=08000509 op=0  o@2f01b700:4 | st=0
+   85 dt=161      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01b908:32  | st=0
+   86 dt=142      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01b704:18  | st=0
+   87 dt=142      KD_OUTPUT_BYTES      key=00000000 alg=00000000 op=3  o@2f01b898:32 | st=0
+   88 dt=229      KD_ABORT             key=00000000 alg=00000000 op=3  o@2f01b700:4 | st=0
+   89 dt=295      IMPORT_KEY           key=00000000 alg=00000000 op=0 i@2f01b87c:28 i@2f01b898:32 o@2f01b878:4 | st=0
+   90 dt=155      MAC_COMPUTE          key=40000001 alg=03800009 op=0 i@2f01b998:32 o@2f00f58c:32 | st=0
+   91 dt=261      DESTROY_KEY          key=40000001 alg=00000000 op=0   | st=0
+   92 dt=139      HASH_UPDATE          key=00000000 alg=00000000 op=1 i@2f00f589:35  | st=0
+   93 dt=136      HASH_UPDATE          key=00000000 alg=00000000 op=2 i@2f00f589:35  | st=0
+   94 dt=51578    HASH_UPDATE          key=00000000 alg=00000000 op=2 i@2f01b9dc:4  | st=0
+   95 dt=129      HASH_UPDATE          key=00000000 alg=00000000 op=2 i@2f00eb35:151  | st=0
+   96 dt=268      KD_SETUP             key=00000000 alg=0800040a op=0  o@2f01b94c:4 | st=0
+   97 dt=253      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01b950:48  | st=0
+   98 dt=275      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01b980:48  | st=0
+   99 dt=290      KD_OUTPUT_BYTES      key=00000000 alg=00000000 op=3  o@2f01014c:48 | st=0
+  100 dt=187      KD_ABORT             key=00000000 alg=00000000 op=3  o@2f01b94c:4 | st=0
+  101 dt=277      GET_KEY_ATTRIBUTES   key=40000000 alg=00000000 op=0  o@2f01b968:28 | st=0
+  102 dt=265      RAW_KEY_AGREEMENT    key=40000000 alg=09020000 op=0 i@2f00ffc9:65 o@2f0101fc:32 | st=0
+  103 dt=5533     DESTROY_KEY          key=40000000 alg=00000000 op=0   | st=0
+  104 dt=143      HASH_COMPUTE         key=00000000 alg=0200000a op=0  o@2f01b820:48 | st=0
+  105 dt=240      KD_SETUP             key=00000000 alg=0800050a op=0  o@2f01b6a8:4 | st=0
+  106 dt=162      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01014c:48  | st=0
+  107 dt=143      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01b6ac:65  | st=0
+  108 dt=146      KD_OUTPUT_BYTES      key=00000000 alg=00000000 op=3  o@2f01b890:48 | st=0
+  109 dt=266      KD_ABORT             key=00000000 alg=00000000 op=3  o@2f01b6a8:4 | st=0
+  110 dt=263      KD_SETUP             key=00000000 alg=0800040a op=0  o@2f01b88c:4 | st=0
+  111 dt=183      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01b890:48  | st=0
+  112 dt=193      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f0101fc:32  | st=0
+  113 dt=258      KD_OUTPUT_BYTES      key=00000000 alg=00000000 op=3  o@2f01014c:48 | st=0
+  114 dt=145      KD_ABORT             key=00000000 alg=00000000 op=3  o@2f01b88c:4 | st=0
+  115 dt=321      HASH_CLONE           key=00000000 alg=00000000 op=2 i@2f01b8f4:4 o@2f01b8f4:4 | st=0
+  116 dt=239      HASH_FINISH          key=00000000 alg=00000000 op=3  o@2f01b8f4:4 o@2f01b938:48 | st=0
+  117 dt=337      KD_SETUP             key=00000000 alg=0800050a op=0  o@2f01b740:4 | st=0
+  118 dt=180      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01014c:48  | st=0
+  119 dt=144      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01b744:70  | st=0
+  120 dt=146      KD_OUTPUT_BYTES      key=00000000 alg=00000000 op=3  o@2f01017c:48 | st=0
+  121 dt=236      KD_ABORT             key=00000000 alg=00000000 op=3  o@2f01b740:4 | st=0
+  122 dt=295      KD_SETUP             key=00000000 alg=0800050a op=0  o@2f01b740:4 | st=0
+  123 dt=162      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01014c:48  | st=0
+  124 dt=143      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01b744:70  | st=0
+  125 dt=146      KD_OUTPUT_BYTES      key=00000000 alg=00000000 op=3  o@2f0101ac:48 | st=0
+  126 dt=236      KD_ABORT             key=00000000 alg=00000000 op=3  o@2f01b740:4 | st=0
+  127 dt=296      KD_SETUP             key=00000000 alg=0800050a op=0  o@2f01b770:4 | st=0
+  128 dt=161      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01017c:48  | st=0
+  129 dt=143      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01b774:13  | st=0
+  130 dt=142      KD_OUTPUT_BYTES      key=00000000 alg=00000000 op=3  o@2f01b968:32 | st=0
+  131 dt=265      KD_ABORT             key=00000000 alg=00000000 op=3  o@2f01b770:4 | st=0
+  132 dt=295      KD_SETUP             key=00000000 alg=0800050a op=0  o@2f01b770:4 | st=0
+  133 dt=161      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01017c:48  | st=0
+  134 dt=143      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01b774:12  | st=0
+  135 dt=142      KD_OUTPUT_BYTES      key=00000000 alg=00000000 op=3  o@2f01b9a8:12 | st=0
+  136 dt=233      KD_ABORT             key=00000000 alg=00000000 op=3  o@2f01b770:4 | st=0
+  137 dt=294      KD_SETUP             key=00000000 alg=0800050a op=0  o@2f01b770:4 | st=0
+  138 dt=161      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f0101ac:48  | st=0
+  139 dt=143      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01b774:13  | st=0
+  140 dt=142      KD_OUTPUT_BYTES      key=00000000 alg=00000000 op=3  o@2f01b988:32 | st=0
+  141 dt=235      KD_ABORT             key=00000000 alg=00000000 op=3  o@2f01b770:4 | st=0
+  142 dt=294      KD_SETUP             key=00000000 alg=0800050a op=0  o@2f01b770:4 | st=0
+  143 dt=161      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f0101ac:48  | st=0
+  144 dt=143      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01b774:12  | st=0
+  145 dt=142      KD_OUTPUT_BYTES      key=00000000 alg=00000000 op=3  o@2f01b9b8:12 | st=0
+  146 dt=233      KD_ABORT             key=00000000 alg=00000000 op=3  o@2f01b770:4 | st=0
+  147 dt=300      IMPORT_KEY           key=00000000 alg=00000000 op=0 i@2f01b8d4:28 i@2f01b968:32 o@2f010234:4 | st=0
+  148 dt=284      IMPORT_KEY           key=00000000 alg=00000000 op=0 i@2f01b8d4:28 i@2f01b988:32 o@2f010238:4 | st=0
+  149 dt=287      AEAD_DECRYPT         key=40000001 alg=05500200 op=0 i@2f00eb31:45 i@2f01b980:5 o@2f00eb31:45 | st=0
+  150 dt=372      HASH_UPDATE          key=00000000 alg=00000000 op=2 i@2f01b9dc:4  | st=0
+  151 dt=116      HASH_UPDATE          key=00000000 alg=00000000 op=2 i@2f00eb35:24  | st=0
+  152 dt=256      AEAD_DECRYPT         key=40000001 alg=05500200 op=0 i@2f00eb31:455 i@2f01b998:5 o@2f00eb31:455 | st=0
+  153 dt=462      IMPORT_KEY           key=00000000 alg=00000000 op=0 i@2f01b8a4:28 i@2f010338:65 o@2f01b8a0:4 | st=0
+  154 dt=302      DESTROY_KEY          key=40000002 alg=00000000 op=0   | st=0
+  155 dt=252      HASH_COMPUTE         key=00000000 alg=02000009 op=0 i@2f01046c:336 o@2f01b8d8:48 | st=0
+  156 dt=284      IMPORT_KEY           key=00000000 alg=00000000 op=0 i@2f01b810:28 i@2f00918c:65 o@2f01b808:4 | st=0
+  157 dt=287      VERIFY_HASH          key=40000002 alg=06000600 op=0 i@2f01b8d8:32 i@2f01b830:64  | st=0
+  158 dt=807      DESTROY_KEY          key=40000002 alg=00000000 op=0   | st=0
+  159 dt=269      HASH_UPDATE          key=00000000 alg=00000000 op=2 i@2f01b9dc:4  | st=0
+  160 dt=130      HASH_UPDATE          key=00000000 alg=00000000 op=2 i@2f00eb35:434  | st=0
+  161 dt=238      AEAD_DECRYPT         key=40000001 alg=05500200 op=0 i@2f00eb31:96 i@2f01b858:5 o@2f00eb31:96 | st=0
+  162 dt=367      HASH_CLONE           key=00000000 alg=00000000 op=2 i@2f01b89c:4 o@2f01b89c:4 | st=0
+  163 dt=280      HASH_FINISH          key=00000000 alg=00000000 op=3  o@2f01b89c:4 o@2f01b8dc:48 | st=0
+  164 dt=326      HASH_COMPUTE         key=00000000 alg=02000009 op=0 i@2f01b93c:146 o@2f01b90c:48 | st=0
+  165 dt=240      IMPORT_KEY           key=00000000 alg=00000000 op=0 i@2f01b828:28 i@2f010338:65 o@2f01b820:4 | st=0
+  166 dt=236      VERIFY_HASH          key=40000002 alg=06000600 op=0 i@2f01b90c:32 i@2f01b848:64  | st=0
+  167 dt=784      DESTROY_KEY          key=40000002 alg=00000000 op=0   | st=0
+  168 dt=142      HASH_UPDATE          key=00000000 alg=00000000 op=2 i@2f01b89c:4  | st=0
+  169 dt=135      HASH_UPDATE          key=00000000 alg=00000000 op=2 i@2f00eb35:75  | st=0
+  170 dt=214      AEAD_DECRYPT         key=40000001 alg=05500200 op=0 i@2f00eb31:69 i@2f01b978:5 o@2f00eb31:69 | st=0
+  171 dt=313      HASH_CLONE           key=00000000 alg=00000000 op=2 i@2f01b95c:4 o@2f01b95c:4 | st=0
+  172 dt=280      HASH_FINISH          key=00000000 alg=00000000 op=3  o@2f01b95c:4 o@2f01b988:48 | st=0
+  173 dt=319      KD_SETUP             key=00000000 alg=0800050a op=0  o@2f01b790:4 | st=0
+  174 dt=182      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f0101ac:48  | st=0
+  175 dt=257      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01b794:18  | st=0
+  176 dt=235      KD_OUTPUT_BYTES      key=00000000 alg=00000000 op=3  o@2f01b928:48 | st=0
+  177 dt=236      KD_ABORT             key=00000000 alg=00000000 op=3  o@2f01b790:4 | st=0
+  178 dt=294      IMPORT_KEY           key=00000000 alg=00000000 op=0 i@2f01b90c:28 i@2f01b928:48 o@2f01b908:4 | st=0
+  179 dt=157      MAC_COMPUTE          key=40000002 alg=0380000a op=0 i@2f01b988:48 o@2f010079:48 | st=0
+  180 dt=272      DESTROY_KEY          key=40000002 alg=00000000 op=0   | st=0
+  181 dt=136      HASH_UPDATE          key=00000000 alg=00000000 op=2 i@2f01b9dc:4  | st=0
+  182 dt=130      HASH_UPDATE          key=00000000 alg=00000000 op=2 i@2f00eb35:48  | st=0
+  183 dt=196      HASH_COMPUTE         key=00000000 alg=0200000a op=0  o@2f01b828:48 | st=0
+  184 dt=154      KD_SETUP             key=00000000 alg=0800050a op=0  o@2f01b6b0:4 | st=0
+  185 dt=183      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01014c:48  | st=0
+  186 dt=143      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01b6b4:65  | st=0
+  187 dt=146      KD_OUTPUT_BYTES      key=00000000 alg=00000000 op=3  o@2f01b898:48 | st=0
+  188 dt=267      KD_ABORT             key=00000000 alg=00000000 op=3  o@2f01b6b0:4 | st=0
+  189 dt=263      KD_SETUP             key=00000000 alg=0800040a op=0  o@2f01b894:4 | st=0
+  190 dt=184      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01b898:48  | st=0
+  191 dt=192      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01b8c8:48  | st=0
+  192 dt=259      KD_OUTPUT_BYTES      key=00000000 alg=00000000 op=3  o@2f01014c:48 | st=0
+  193 dt=145      KD_ABORT             key=00000000 alg=00000000 op=3  o@2f01b894:4 | st=0
+  194 dt=301      HASH_CLONE           key=00000000 alg=00000000 op=2 i@2f01b8fc:4 o@2f01b8fc:4 | st=0
+  195 dt=237      HASH_FINISH          key=00000000 alg=00000000 op=3  o@2f01b8fc:4 o@2f01b938:48 | st=0
+  196 dt=246      KD_SETUP             key=00000000 alg=0800050a op=0  o@2f01b748:4 | st=0
+  197 dt=161      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01014c:48  | st=0
+  198 dt=144      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01b74c:70  | st=0
+  199 dt=146      KD_OUTPUT_BYTES      key=00000000 alg=00000000 op=3  o@2f00fe90:48 | st=0
+  200 dt=235      KD_ABORT             key=00000000 alg=00000000 op=3  o@2f01b748:4 | st=0
+  201 dt=328      KD_SETUP             key=00000000 alg=0800050a op=0  o@2f01b748:4 | st=0
+  202 dt=246      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01014c:48  | st=0
+  203 dt=131      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01b74c:70  | st=0
+  204 dt=146      KD_OUTPUT_BYTES      key=00000000 alg=00000000 op=3  o@2f00fec0:48 | st=0
+  205 dt=236      KD_ABORT             key=00000000 alg=00000000 op=3  o@2f01b748:4 | st=0
+  206 dt=295      KD_SETUP             key=00000000 alg=0800050a op=0  o@2f01b748:4 | st=0
+  207 dt=163      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01014c:48  | st=0
+  208 dt=143      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01b74c:68  | st=0
+  209 dt=146      KD_OUTPUT_BYTES      key=00000000 alg=00000000 op=3  o@2f00fef0:48 | st=0
+  210 dt=235      KD_ABORT             key=00000000 alg=00000000 op=3  o@2f01b748:4 | st=0
+  211 dt=296      KD_SETUP             key=00000000 alg=0800050a op=0  o@2f01b778:4 | st=0
+  212 dt=162      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f00fe90:48  | st=0
+  213 dt=144      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01b77c:13  | st=0
+  214 dt=141      KD_OUTPUT_BYTES      key=00000000 alg=00000000 op=3  o@2f01b968:32 | st=0
+  215 dt=235      KD_ABORT             key=00000000 alg=00000000 op=3  o@2f01b778:4 | st=0
+  216 dt=264      KD_SETUP             key=00000000 alg=0800050a op=0  o@2f01b778:4 | st=0
+  217 dt=183      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f00fe90:48  | st=0
+  218 dt=143      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01b77c:12  | st=0
+  219 dt=142      KD_OUTPUT_BYTES      key=00000000 alg=00000000 op=3  o@2f01b9a8:12 | st=0
+  220 dt=233      KD_ABORT             key=00000000 alg=00000000 op=3  o@2f01b778:4 | st=0
+  221 dt=263      KD_SETUP             key=00000000 alg=0800050a op=0  o@2f01b778:4 | st=0
+  222 dt=184      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f00fec0:48  | st=0
+  223 dt=143      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01b77c:13  | st=0
+  224 dt=142      KD_OUTPUT_BYTES      key=00000000 alg=00000000 op=3  o@2f01b988:32 | st=0
+  225 dt=234      KD_ABORT             key=00000000 alg=00000000 op=3  o@2f01b778:4 | st=0
+  226 dt=264      KD_SETUP             key=00000000 alg=0800050a op=0  o@2f01b778:4 | st=0
+  227 dt=181      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f00fec0:48  | st=0
+  228 dt=144      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01b77c:12  | st=0
+  229 dt=141      KD_OUTPUT_BYTES      key=00000000 alg=00000000 op=3  o@2f01b9b8:12 | st=0
+  230 dt=234      KD_ABORT             key=00000000 alg=00000000 op=3  o@2f01b778:4 | st=0
+  231 dt=302      IMPORT_KEY           key=00000000 alg=00000000 op=0 i@2f01b8dc:28 i@2f01b968:32 o@2f0107ec:4 | st=0
+  232 dt=155      IMPORT_KEY           key=00000000 alg=00000000 op=0 i@2f01b8dc:28 i@2f01b988:32 o@2f0107f0:4 | st=0
+  233 dt=372      HASH_CLONE           key=00000000 alg=00000000 op=2 i@2f01b95c:4 o@2f01b95c:4 | st=0
+  234 dt=169      HASH_FINISH          key=00000000 alg=00000000 op=3  o@2f01b95c:4 o@2f01b988:48 | st=0
+  235 dt=263      KD_SETUP             key=00000000 alg=0800050a op=0  o@2f01b790:4 | st=0
+  236 dt=162      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01017c:48  | st=0
+  237 dt=143      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01b794:18  | st=0
+  238 dt=142      KD_OUTPUT_BYTES      key=00000000 alg=00000000 op=3  o@2f01b928:48 | st=0
+  239 dt=266      KD_ABORT             key=00000000 alg=00000000 op=3  o@2f01b790:4 | st=0
+  240 dt=295      IMPORT_KEY           key=00000000 alg=00000000 op=0 i@2f01b90c:28 i@2f01b928:48 o@2f01b908:4 | st=0
+  241 dt=157      MAC_COMPUTE          key=40000004 alg=0380000a op=0 i@2f01b988:48 o@2f010079:48 | st=0
+  242 dt=274      DESTROY_KEY          key=40000004 alg=00000000 op=0   | st=0
+  243 dt=133      HASH_UPDATE          key=00000000 alg=00000000 op=2 i@2f01b9bc:4  | st=0
+  244 dt=132      HASH_UPDATE          key=00000000 alg=00000000 op=2 i@2f00f485:48  | st=0
+  245 dt=191      AEAD_ENCRYPT         key=40000000 alg=05500200 op=0 i@2f00f481:64 i@2f01b970:5 o@2f00f481:2336 | st=0
+  246 dt=404      HASH_CLONE           key=00000000 alg=00000000 op=2 i@2f01b984:4 o@2f01b984:4 | st=0
+  247 dt=160      HASH_FINISH          key=00000000 alg=00000000 op=3  o@2f01b984:4 o@2f01b9b0:48 | st=0
+  248 dt=265      KD_SETUP             key=00000000 alg=0800050a op=0  o@2f01b7e0:4 | st=0
+  249 dt=162      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01014c:48  | st=0
+  250 dt=143      KD_INPUT_BYTES       key=00000000 alg=00000000 op=3 i@2f01b7e4:68  | st=0
+  251 dt=146      KD_OUTPUT_BYTES      key=00000000 alg=00000000 op=3  o@2f00ff20:48 | st=0
+  252 dt=235      KD_ABORT             key=00000000 alg=00000000 op=3  o@2f01b7e0:4 | st=0
+  253 dt=388      IMPORT_KEY           key=00000000 alg=00000000 op=0 i@2f01b7f4:28 i@2f0108f0:65 o@2f01b7f0:4 | st=0
+  254 dt=175      DESTROY_KEY          key=40000004 alg=00000000 op=0   | st=0
+  255 dt=15530    DESTROY_KEY          key=00000000 alg=00000000 op=0   | st=0
+  256 dt=79699    AEAD_DECRYPT         key=40000003 alg=05500200 op=0 i@2f00eb31:250 i@2f01b9c8:5 o@2f00eb31:250 | st=0
+  257 dt=20370    AEAD_DECRYPT         key=40000003 alg=05500200 op=0 i@2f00eb31:250 i@2f01b9c8:5 o@2f00eb31:250 | st=0
