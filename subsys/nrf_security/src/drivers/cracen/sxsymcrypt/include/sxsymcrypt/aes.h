@@ -314,12 +314,15 @@ int sx_aead_create_aesgcm_dec(struct sxaead *c, const struct sxkeyref *key, cons
  * @param[out] c AEAD operation context
  * @param[in] key key used for the AEAD operation, expected size
  *                16, 24 or 32 bytes
- * @param[in] noncesz size, in bytes, of the nonce, between 7 and 13 bytes
+ * @param[in] noncesz size, in bytes, of the nonce, between 7 and 13 bytes,
+ *            and exactly 13 when \p tagsz is 0
  * @param[in] nonce nonce used for the AEAD operation, with size \p noncesz
  * @param[in] tagsz size, in bytes, of the tag used for the AEAD operation,
  *            must be 0 or a value in {4, 6, 8, 10, 12, 14, 16}. A tag size
- *            of 0 selects CCM* (IEEE P802.15-4/0537r2), in which no
- *            authentication field is produced or verified.
+ *            of 0 selects CCM* (IEEE Std 802.15.4, Annex B), in which no
+ *            authentication field is produced or verified. CCM* is defined
+ *            only for L = 2, so it accepts only a 13-octet nonce; any other
+ *            \p noncesz returns ::SX_ERR_INVALID_NONCE_SIZE.
  * @param[in] aadsz size, in bytes, of the additional authenticated data(AAD)
  * @param[in] datasz size, in bytes, of the data to be processed
  * @return ::SX_OK
@@ -356,12 +359,15 @@ int sx_aead_create_aesccm_enc(struct sxaead *c, const struct sxkeyref *key, cons
  * @param[out] c AEAD operation context
  * @param[in] key key used for the AEAD operation, expected size
  *                16, 24 or 32 bytes
- * @param[in] noncesz size, in bytes, of the nonce, between 7 and 13 bytes
+ * @param[in] noncesz size, in bytes, of the nonce, between 7 and 13 bytes,
+ *            and exactly 13 when \p tagsz is 0
  * @param[in] nonce nonce used for the AEAD operation, with size \p noncesz
  * @param[in] tagsz size, in bytes, of the tag used for the AEAD operation,
  *            must be 0 or a value in {4, 6, 8, 10, 12, 14, 16}. A tag size
- *            of 0 selects CCM* (IEEE P802.15-4/0537r2), in which no
- *            authentication field is produced or verified.
+ *            of 0 selects CCM* (IEEE Std 802.15.4, Annex B), in which no
+ *            authentication field is produced or verified. CCM* is defined
+ *            only for L = 2, so it accepts only a 13-octet nonce; any other
+ *            \p noncesz returns ::SX_ERR_INVALID_NONCE_SIZE.
  * @param[in] aadsz size, in bytes, of the additional authenticated data(AAD)
  * @param[in] datasz size, in bytes, of the data to be processed
  * @return ::SX_OK

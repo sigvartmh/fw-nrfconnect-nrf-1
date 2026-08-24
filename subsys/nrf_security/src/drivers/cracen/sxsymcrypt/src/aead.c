@@ -24,6 +24,12 @@
 
 /** Size of AEAD block size, in bytes */
 #define AEAD_BLOCK_SZ	      (16)
+
+/* A zero-length authentication field selects CCM* (IEEE Std 802.15.4, Annex B),
+ * which is defined only for a length field of L = 2 and therefore only for a
+ * 15 - L octet nonce.
+ */
+#define AEAD_CCM_STAR_L	      (2)
 /** Size of AEAD GCM and CCM context saving state, in bytes */
 #define AES_AEAD_CTX_STATE_SZ (32)
 /** Size of AEAD lenAlenC, in bytes */
@@ -215,9 +221,13 @@ static int sx_aead_create_aesccm(struct sxaead *aead_ctx, const struct sxkeyref 
 		return SX_ERR_INVALID_NONCE_SIZE;
 	}
 
-	/* datasz must ensure  0 <= datasz < 2^(8L) */
 	uint8_t l = 15 - noncesz;
 
+	if ((tagsz == 0) && (l != AEAD_CCM_STAR_L)) {
+		return SX_ERR_INVALID_NONCE_SIZE;
+	}
+
+	/* datasz must ensure  0 <= datasz < 2^(8L) */
 	if ((l < 8U) && (datasz >= (1ULL << (l * 8)))) {
 		/* message too long to encode the size in the CCM header */
 		return SX_ERR_TOO_BIG;
