@@ -61,8 +61,10 @@ extern "C" {
  * @param[in]  input         Big-endian integer to reduce.
  * @param[in]  input_length  Length of @p input in bytes, 1 to
  *                           @ref PSA_EXT_ECC_SECP160R1_MAX_INPUT_SIZE.
- * @param[out] output        Big-endian result, left-padded with zeros to
- *                           @p output_size.
+ * @param[out] output        Big-endian result, written as exactly
+ *                           @ref PSA_EXT_ECC_SECP160R1_SCALAR_SIZE bytes and
+ *                           zero-padded on the left within them. Any remaining
+ *                           bytes of the buffer are left untouched.
  * @param[in]  output_size   Size of @p output, at least
  *                           @ref PSA_EXT_ECC_SECP160R1_SCALAR_SIZE.
  *
@@ -94,6 +96,43 @@ psa_status_t psa_ext_ecc_secp160r1_scalar_reduce(const uint8_t *input, size_t in
  * @retval PSA_ERROR_BUFFER_TOO_SMALL    @p x_size is too small.
  */
 psa_status_t psa_ext_ecc_secp160r1_scalar_mult_base(const uint8_t *scalar, size_t scalar_length,
+						    uint8_t *x, size_t x_size);
+
+/** @brief Reduce a scalar modulo the secp160r1 group order and multiply the
+ *         base point by it.
+ *
+ * Computes @c scalar = @c input mod @c n and @c (x, y) = @c scalar * @c G,
+ * and returns the reduced scalar and the x-coordinate only.
+ *
+ * Equivalent to psa_ext_ecc_secp160r1_scalar_reduce() followed by
+ * psa_ext_ecc_secp160r1_scalar_mult_base(), but both operations run under a
+ * single acquisition of the hardware. Prefer it when both results are needed.
+ *
+ * @note Neither output is written unless the call returns @c PSA_SUCCESS. In
+ *       particular, an @p input that is a multiple of @c n reduces to zero,
+ *       which has no affine x-coordinate: the call then fails and @p scalar is
+ *       left untouched, where the two-call sequence would have reported the
+ *       zero reduction first.
+ *
+ * @param[in]  input         Big-endian integer to reduce.
+ * @param[in]  input_length  Length of @p input in bytes, 1 to
+ *                           @ref PSA_EXT_ECC_SECP160R1_MAX_INPUT_SIZE.
+ * @param[out] scalar        Big-endian reduced scalar, written as exactly
+ *                           @ref PSA_EXT_ECC_SECP160R1_SCALAR_SIZE bytes.
+ * @param[in]  scalar_size   Size of @p scalar, at least
+ *                           @ref PSA_EXT_ECC_SECP160R1_SCALAR_SIZE.
+ * @param[out] x             Big-endian x-coordinate of the resulting point.
+ * @param[in]  x_size        Size of @p x, at least
+ *                           @ref PSA_EXT_ECC_SECP160R1_COORD_SIZE.
+ *
+ * @retval PSA_SUCCESS                   The point was computed.
+ * @retval PSA_ERROR_INVALID_ARGUMENT    @p input_length is out of range, or
+ *                                       @p input reduces to zero.
+ * @retval PSA_ERROR_BUFFER_TOO_SMALL    @p scalar_size or @p x_size is too
+ *                                       small.
+ */
+psa_status_t psa_ext_ecc_secp160r1_reduce_mult_base(const uint8_t *input, size_t input_length,
+						    uint8_t *scalar, size_t scalar_size,
 						    uint8_t *x, size_t x_size);
 
 /** @} */

@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
+#include <string.h>
+
 #include <zephyr/ztest.h>
 
 #include <psa/psa_ext_ecc.h>
@@ -34,6 +36,21 @@ static void check_vector(const char *name, const uint8_t *input, size_t input_le
 							     sizeof(x)),
 		      "%s: scalar multiplication failed", name);
 	zassert_mem_equal(x, expected_x, COORD_SIZE, "%s: wrong x-coordinate", name);
+
+	/* The combined call runs both operations under one acquisition of the
+	 * hardware. It must agree with the sequence above, vector for vector.
+	 */
+	memset(scalar, 0, sizeof(scalar));
+	memset(x, 0, sizeof(x));
+
+	zassert_equal(PSA_SUCCESS,
+		      psa_ext_ecc_secp160r1_reduce_mult_base(input, input_length, scalar,
+							     sizeof(scalar), x, sizeof(x)),
+		      "%s: combined reduce and multiply failed", name);
+	zassert_mem_equal(scalar, expected_scalar, SCALAR_SIZE,
+			  "%s: combined call gave the wrong reduction", name);
+	zassert_mem_equal(x, expected_x, COORD_SIZE,
+			  "%s: combined call gave the wrong x-coordinate", name);
 }
 
 #define CHECK(name) \
@@ -94,6 +111,22 @@ ZTEST(ecc_secp160r1, test_scalar_zero_is_rejected)
 		      psa_ext_ecc_secp160r1_scalar_mult_base(scalar, sizeof(scalar), x,
 							     sizeof(x)),
 		      "a zero scalar was accepted");
+
+	/* The combined call must reject it too, and write neither output. */
+	memset(scalar, 0xaa, sizeof(scalar));
+	memset(x, 0xaa, sizeof(x));
+
+	zassert_equal(PSA_ERROR_INVALID_ARGUMENT,
+		      psa_ext_ecc_secp160r1_reduce_mult_base(order, sizeof(order), scalar,
+							     sizeof(scalar), x, sizeof(x)),
+		      "an input that reduces to zero was accepted");
+
+	for (size_t i = 0; i < SCALAR_SIZE; i++) {
+		zassert_equal(0xaa, scalar[i], "the scalar was written on failure");
+	}
+	for (size_t i = 0; i < COORD_SIZE; i++) {
+		zassert_equal(0xaa, x[i], "the x-coordinate was written on failure");
+	}
 }
 
 ZTEST(ecc_secp160r1, test_argument_validation)
@@ -125,6 +158,24 @@ ZTEST(ecc_secp160r1, test_argument_validation)
 		      psa_ext_ecc_secp160r1_scalar_mult_base(scalar_one, SCALAR_SIZE, x,
 							     COORD_SIZE - 1),
 		      "undersized coordinate output was accepted");
+
+	zassert_equal(PSA_ERROR_INVALID_ARGUMENT,
+		      psa_ext_ecc_secp160r1_reduce_mult_base(input_one, 0, scalar,
+							     sizeof(scalar), x, sizeof(x)),
+		      "combined call accepted an empty input");
+	zassert_equal(PSA_ERROR_INVALID_ARGUMENT,
+		      psa_ext_ecc_secp160r1_reduce_mult_base(
+			      input_one, PSA_EXT_ECC_SECP160R1_MAX_INPUT_SIZE + 1, scalar,
+			      sizeof(scalar), x, sizeof(x)),
+		      "combined call accepted an oversized input");
+	zassert_equal(PSA_ERROR_BUFFER_TOO_SMALL,
+		      psa_ext_ecc_secp160r1_reduce_mult_base(input_one, sizeof(input_one), scalar,
+							     SCALAR_SIZE - 1, x, sizeof(x)),
+		      "combined call accepted an undersized scalar output");
+	zassert_equal(PSA_ERROR_BUFFER_TOO_SMALL,
+		      psa_ext_ecc_secp160r1_reduce_mult_base(input_one, sizeof(input_one), scalar,
+							     sizeof(scalar), x, COORD_SIZE - 1),
+		      "combined call accepted an undersized coordinate output");
 }
 
 /* A shorter scalar must be accepted and right-aligned, not misread. */

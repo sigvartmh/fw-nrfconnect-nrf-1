@@ -9,6 +9,7 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
+#include <stdbool.h>
 #include <string.h>
 
 #include <zephyr/sys/util.h>
@@ -103,13 +104,106 @@ static const struct sx_pk_ecurve curve_secp160r1 = {
  */
 #define SECP160R1_MAX_ATTEMPTS 10
 
-psa_status_t psa_ext_ecc_secp160r1_scalar_reduce(const uint8_t *input, size_t input_length,
-						 uint8_t *output, size_t output_size)
+/* A zero scalar yields the point at infinity, which has no affine
+ * x-coordinate. Callers reject it rather than advertise an all-zero result as
+ * if it were a valid point.
+ */
+static bool scalar_is_nonzero(const uint8_t *scalar, size_t scalar_length)
+{
+	uint8_t acc = 0;
+
+	for (size_t i = 0; i < scalar_length; i++) {
+		acc |= scalar[i];
+	}
+
+	return acc != 0u;
+}
+
+/* Reduce a big-endian integer modulo the group order, on an acquired request.
+ *
+ * Neither this nor mult_base_into() acquires or releases: the caller owns the
+ * request, so a single acquisition can span both commands. Running several
+ * commands on one request is the established pattern here, see
+ * cracen_ecc_keygen.c and cracen_ikg_operations.c.
+ */
+static int reduce_into(sx_pk_req *req, const uint8_t *input, size_t input_length,
+		       uint8_t scalar[SECP160R1_OPSZ])
 {
 	sx_const_op modulo = {.sz = SECP160R1_OPSZ,
 			      .bytes = sx_pk_curve_order(&curve_secp160r1)};
 	sx_const_op operand = {.sz = input_length, .bytes = input};
-	sx_op result = {.sz = PSA_EXT_ECC_SECP160R1_SCALAR_SIZE, .bytes = output};
+	sx_op result = {.sz = SECP160R1_OPSZ, .bytes = scalar};
+
+	/* The secp160r1 group order is odd, so the ODD variant applies. It is
+	 * also the only reduce command whose operands may differ in size
+	 * (sx_pk_gfcmd_opsize() takes the MAX), which is what lets a 32-byte
+	 * input be reduced by a 21-byte modulus.
+	 */
+	return sx_mod_single_op_cmd(req, SX_PK_CMD_ODD_MOD_REDUCE, &modulo, &operand, &result);
+}
+
+/* Multiply the base point by a non-zero scalar, on an acquired request. */
+static int mult_base_into(sx_pk_req *req, const uint8_t scalar[SECP160R1_OPSZ],
+			  uint8_t point_x[SECP160R1_OPSZ])
+{
+	struct sx_pk_inops_ecp_mult inputs;
+	const uint8_t **outputs;
+	int sx_status;
+	int attempts = 0;
+
+	do {
+		sx_pk_set_cmd(req, SX_PK_CMD_ECC_PTMUL);
+
+		sx_status = sx_pk_list_ecc_inslots(req, &curve_secp160r1, 0,
+						   (struct sx_pk_slot *)&inputs);
+		if (sx_status != SX_OK) {
+			return sx_status;
+		}
+
+		/* sx_pk_list_ecc_inslots() does not clear the input slots, so
+		 * every slot the command lists must be written.
+		 */
+		sx_wrpkmem(inputs.k.addr, scalar, SECP160R1_OPSZ);
+		sx_pk_write_curve_gen(req, &curve_secp160r1, inputs.px, inputs.py);
+
+		sx_pk_run(req);
+		sx_status = sx_pk_wait(req);
+
+		/* With the countermeasures enabled the point addition can hit an
+		 * exceptional case and report the point at infinity even though
+		 * the true result is not infinity. The datasheet requires a
+		 * retry with a fresh random value, which re-listing the slots
+		 * fetches.
+		 */
+		if (sx_status == SX_ERR_NOT_INVERTIBLE) {
+			if (++attempts == SECP160R1_MAX_ATTEMPTS) {
+				return SX_ERR_TOO_MANY_ATTEMPTS;
+			}
+		}
+	} while (sx_status == SX_ERR_NOT_INVERTIBLE);
+
+	if (sx_status != SX_OK) {
+		return sx_status;
+	}
+
+	outputs = (const uint8_t **)sx_pk_get_output_ops(req);
+	sx_rdpkmem(point_x, outputs[0], SECP160R1_OPSZ);
+
+	return SX_OK;
+}
+
+/* Drop the operand padding byte. The x-coordinate is reduced mod p, so it
+ * always fits in PSA_EXT_ECC_SECP160R1_COORD_SIZE bytes.
+ */
+static void copy_coord(uint8_t *x, const uint8_t point_x[SECP160R1_OPSZ])
+{
+	memcpy(x, &point_x[SECP160R1_OPSZ - PSA_EXT_ECC_SECP160R1_COORD_SIZE],
+	       PSA_EXT_ECC_SECP160R1_COORD_SIZE);
+}
+
+psa_status_t psa_ext_ecc_secp160r1_scalar_reduce(const uint8_t *input, size_t input_length,
+						 uint8_t *output, size_t output_size)
+{
 	sx_pk_req req;
 	int sx_status;
 
@@ -121,14 +215,7 @@ psa_status_t psa_ext_ecc_secp160r1_scalar_reduce(const uint8_t *input, size_t in
 	}
 
 	sx_pk_acquire_hw(&req);
-
-	/* The secp160r1 group order is odd, so the ODD variant applies. It is
-	 * also the only reduce command whose operands may differ in size
-	 * (sx_pk_gfcmd_opsize() takes the MAX), which is what lets a 32-byte
-	 * input be reduced by a 21-byte modulus.
-	 */
-	sx_status = sx_mod_single_op_cmd(&req, SX_PK_CMD_ODD_MOD_REDUCE, &modulo, &operand,
-					&result);
+	sx_status = reduce_into(&req, input, input_length, output);
 	sx_pk_release_req(&req);
 
 	return silex_statuscodes_to_psa(sx_status);
@@ -139,12 +226,8 @@ psa_status_t psa_ext_ecc_secp160r1_scalar_mult_base(const uint8_t *scalar, size_
 {
 	uint8_t scalar_padded[SECP160R1_OPSZ] = {0};
 	uint8_t point_x[SECP160R1_OPSZ];
-	struct sx_pk_inops_ecp_mult inputs;
-	const uint8_t **outputs;
 	sx_pk_req req;
 	int sx_status;
-	int attempts = 0;
-	uint8_t acc = 0;
 
 	if (scalar_length == 0u || scalar_length > PSA_EXT_ECC_SECP160R1_SCALAR_SIZE) {
 		return PSA_ERROR_INVALID_ARGUMENT;
@@ -152,66 +235,66 @@ psa_status_t psa_ext_ecc_secp160r1_scalar_mult_base(const uint8_t *scalar, size_
 	if (x_size < PSA_EXT_ECC_SECP160R1_COORD_SIZE) {
 		return PSA_ERROR_BUFFER_TOO_SMALL;
 	}
-
-	/* A zero scalar yields the point at infinity, which has no affine
-	 * x-coordinate. Reject it here rather than let a caller advertise an
-	 * all-zero result as if it were a valid point.
-	 */
-	for (size_t i = 0; i < scalar_length; i++) {
-		acc |= scalar[i];
-	}
-	if (acc == 0u) {
+	if (!scalar_is_nonzero(scalar, scalar_length)) {
 		return PSA_ERROR_INVALID_ARGUMENT;
 	}
 
 	memcpy(&scalar_padded[SECP160R1_OPSZ - scalar_length], scalar, scalar_length);
 
 	sx_pk_acquire_hw(&req);
-
-	do {
-		sx_pk_set_cmd(&req, SX_PK_CMD_ECC_PTMUL);
-
-		sx_status = sx_pk_list_ecc_inslots(&req, &curve_secp160r1, 0,
-						   (struct sx_pk_slot *)&inputs);
-		if (sx_status != SX_OK) {
-			sx_pk_release_req(&req);
-			safe_memzero(scalar_padded, sizeof(scalar_padded));
-			return silex_statuscodes_to_psa(sx_status);
-		}
-
-		/* sx_pk_list_ecc_inslots() does not clear the input slots, so
-		 * every slot the command lists must be written.
-		 */
-		sx_wrpkmem(inputs.k.addr, scalar_padded, SECP160R1_OPSZ);
-		sx_pk_write_curve_gen(&req, &curve_secp160r1, inputs.px, inputs.py);
-
-		sx_pk_run(&req);
-		sx_status = sx_pk_wait(&req);
-
-		if (sx_status == SX_ERR_NOT_INVERTIBLE) {
-			if (++attempts == SECP160R1_MAX_ATTEMPTS) {
-				sx_pk_release_req(&req);
-				safe_memzero(scalar_padded, sizeof(scalar_padded));
-				return silex_statuscodes_to_psa(SX_ERR_TOO_MANY_ATTEMPTS);
-			}
-		}
-	} while (sx_status == SX_ERR_NOT_INVERTIBLE);
-
-	if (sx_status == SX_OK) {
-		outputs = (const uint8_t **)sx_pk_get_output_ops(&req);
-		sx_rdpkmem(point_x, outputs[0], SECP160R1_OPSZ);
-	}
+	sx_status = mult_base_into(&req, scalar_padded, point_x);
 	sx_pk_release_req(&req);
+
 	safe_memzero(scalar_padded, sizeof(scalar_padded));
 
 	if (sx_status != SX_OK) {
 		return silex_statuscodes_to_psa(sx_status);
 	}
 
-	/* Drop the operand padding byte. The x-coordinate is reduced mod p, so
-	 * it always fits in PSA_EXT_ECC_SECP160R1_COORD_SIZE bytes.
-	 */
-	memcpy(x, &point_x[SECP160R1_OPSZ - PSA_EXT_ECC_SECP160R1_COORD_SIZE],
-	       PSA_EXT_ECC_SECP160R1_COORD_SIZE);
+	copy_coord(x, point_x);
 	return PSA_SUCCESS;
+}
+
+psa_status_t psa_ext_ecc_secp160r1_reduce_mult_base(const uint8_t *input, size_t input_length,
+						    uint8_t *scalar, size_t scalar_size,
+						    uint8_t *x, size_t x_size)
+{
+	uint8_t reduced[SECP160R1_OPSZ];
+	uint8_t point_x[SECP160R1_OPSZ];
+	psa_status_t status;
+	sx_pk_req req;
+
+	if (input_length == 0u || input_length > PSA_EXT_ECC_SECP160R1_MAX_INPUT_SIZE) {
+		return PSA_ERROR_INVALID_ARGUMENT;
+	}
+	if (scalar_size < PSA_EXT_ECC_SECP160R1_SCALAR_SIZE ||
+	    x_size < PSA_EXT_ECC_SECP160R1_COORD_SIZE) {
+		return PSA_ERROR_BUFFER_TOO_SMALL;
+	}
+
+	/* One acquisition for both commands. Releasing in between would power
+	 * CRACEN down and, on CRACEN Lite, clear the whole PK data memory
+	 * (CONFIG_CRACEN_CLEAR_PKE_MEMORY) twice per computation.
+	 */
+	sx_pk_acquire_hw(&req);
+
+	status = silex_statuscodes_to_psa(reduce_into(&req, input, input_length, reduced));
+	if (status == PSA_SUCCESS) {
+		if (scalar_is_nonzero(reduced, sizeof(reduced))) {
+			status = silex_statuscodes_to_psa(
+				mult_base_into(&req, reduced, point_x));
+		} else {
+			status = PSA_ERROR_INVALID_ARGUMENT;
+		}
+	}
+
+	sx_pk_release_req(&req);
+
+	if (status == PSA_SUCCESS) {
+		memcpy(scalar, reduced, PSA_EXT_ECC_SECP160R1_SCALAR_SIZE);
+		copy_coord(x, point_x);
+	}
+	safe_memzero(reduced, sizeof(reduced));
+
+	return status;
 }

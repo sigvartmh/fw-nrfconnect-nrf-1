@@ -303,16 +303,21 @@ int fp_crypto_ecc_secp160r1_calculate(uint8_t *out,
 	BUILD_ASSERT(FP_CRYPTO_ECC_SECP160R1_KEY_LEN == PSA_EXT_ECC_SECP160R1_COORD_SIZE);
 	BUILD_ASSERT(FP_CRYPTO_ECC_SECP160R1_MOD_LEN < PSA_EXT_ECC_SECP160R1_SCALAR_SIZE);
 
-	status = psa_ext_ecc_secp160r1_scalar_reduce(in, datalen, scalar, sizeof(scalar));
-	if (status == PSA_ERROR_INVALID_ARGUMENT) {
-		/* Preserve the -ENOTSUP that the API documents for a bad input
-		 * length, so callers see the same error as on other backends.
-		 */
+	/* Checked here rather than mapped from the extension API's
+	 * PSA_ERROR_INVALID_ARGUMENT, which the combined call also returns for
+	 * an input that reduces to zero. That keeps the -ENOTSUP this API
+	 * documents for a bad input length, so callers see the same error as on
+	 * other backends.
+	 */
+	if ((datalen == 0) || (datalen > PSA_EXT_ECC_SECP160R1_MAX_INPUT_SIZE)) {
 		LOG_ERR("Unsupported secp160r1 input length: %zu", datalen);
 		return -ENOTSUP;
 	}
+
+	status = psa_ext_ecc_secp160r1_reduce_mult_base(in, datalen, scalar, sizeof(scalar), out,
+							FP_CRYPTO_ECC_SECP160R1_KEY_LEN);
 	if (status != PSA_SUCCESS) {
-		LOG_ERR("psa_ext_ecc_secp160r1_scalar_reduce failed (err: %d)", status);
+		LOG_ERR("psa_ext_ecc_secp160r1_reduce_mult_base failed (err: %d)", status);
 		return -EIO;
 	}
 
@@ -322,13 +327,6 @@ int fp_crypto_ecc_secp160r1_calculate(uint8_t *out,
 	 */
 	memcpy(mod, &scalar[PSA_EXT_ECC_SECP160R1_SCALAR_SIZE - FP_CRYPTO_ECC_SECP160R1_MOD_LEN],
 	       FP_CRYPTO_ECC_SECP160R1_MOD_LEN);
-
-	status = psa_ext_ecc_secp160r1_scalar_mult_base(scalar, sizeof(scalar), out,
-							FP_CRYPTO_ECC_SECP160R1_KEY_LEN);
-	if (status != PSA_SUCCESS) {
-		LOG_ERR("psa_ext_ecc_secp160r1_scalar_mult_base failed (err: %d)", status);
-		return -EIO;
-	}
 
 	return 0;
 }

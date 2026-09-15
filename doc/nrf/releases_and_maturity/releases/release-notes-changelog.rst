@@ -155,6 +155,7 @@ Security
   * Support for signature verification with ML-DSA-44, ML-DSA-65, and ML-DSA-87 when using the CRACEN driver.
   * Experimental support for secp160r1 elliptic curve operations in the CRACEN driver, through the Nordic PSA extension API declared in :file:`subsys/nrf_security/include/psa/psa_ext_ecc.h` and enabled with the :kconfig:option:`CONFIG_PSA_EXT_ECC_SECP_R1_160` Kconfig option.
     The curve has no ``PSA_ECC_FAMILY_SECP_R1`` encoding at 160 bits and the operations have no matching PSA algorithm, so they are provided as an extension rather than through the PSA Crypto API.
+    The API provides reduction modulo the group order and base-point scalar multiplication as separate operations, and a combined :c:func:`psa_ext_ecc_secp160r1_reduce_mult_base` function that performs both under a single acquisition of the hardware.
     See :ref:`nrf_security_driver_config` for more information.
 
 * Updated:
