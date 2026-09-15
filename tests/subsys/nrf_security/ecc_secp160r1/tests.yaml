@@ -16,9 +16,14 @@ common:
     - nrf54lm20dk/nrf54lm20b/cpuapp
     - nrf54lv10dk/nrf54lv10a/cpuapp
     - nrf54lc10dk/nrf54lc10a/cpuapp
+  # One platform per CRACEN PK configuration: base, lite, and lite with the
+  # word-access PKE memory workaround. nRF54LM20 is the only part that has
+  # PSA_NEED_CRACEN_MEMORY_ACCESS_WORKAROUND, and the 21-byte operands land at
+  # unaligned addresses, so it is not interchangeable with the other lite parts.
   integration_platforms:
     - nrf54l15dk/nrf54l15/cpuapp
     - nrf54lc10dk/nrf54lc10a/cpuapp
+    - nrf54lm20dk/nrf54lm20a/cpuapp
   tags:
     - sysbuild
     - crypto
