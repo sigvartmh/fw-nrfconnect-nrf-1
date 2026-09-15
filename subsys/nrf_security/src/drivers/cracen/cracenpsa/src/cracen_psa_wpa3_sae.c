@@ -241,7 +241,7 @@ static psa_status_t cracen_wpa3_sae_calc_pwe_hnp(cracen_wpa3_sae_operation_t *op
 		/* seed = H(addr1 | addr2, pw | cnt) */
 		status = cracen_calc_pwd_seed_hnp(op, &counter, seed, &length);
 		if (status != PSA_SUCCESS) {
-			return status;
+			goto exit;
 		}
 
 		/** pwd-value = KDF-Hash-Length(pwd-seed, “SAE Hunting and Pecking”, p)
@@ -254,7 +254,7 @@ static psa_status_t cracen_wpa3_sae_calc_pwe_hnp(cracen_wpa3_sae_operation_t *op
 					  sx_pk_curve_opsize(op->curve), 1, 256,
 					  x_cand, CRACEN_P256_KEY_SIZE);
 		if (status != PSA_SUCCESS) {
-			return status;
+			goto exit;
 		}
 
 		/**
@@ -305,7 +305,8 @@ static psa_status_t cracen_wpa3_sae_calc_pwe_hnp(cracen_wpa3_sae_operation_t *op
 
 		counter++;
 		if (counter == UINT8_MAX) {
-			return PSA_ERROR_INSUFFICIENT_ENTROPY;
+			status = PSA_ERROR_INSUFFICIENT_ENTROPY;
+			goto exit;
 		}
 	} while (counter <= CRACEN_WPA3_SAE_HNP_LOOP_LIMIT || !found);
 
@@ -333,6 +334,13 @@ static psa_status_t cracen_wpa3_sae_calc_pwe_hnp(cracen_wpa3_sae_operation_t *op
 		op->pwe[i + CRACEN_P256_KEY_SIZE] = (uint8_t)((p_y[i] & ~lsb_eq) | (y[i] & lsb_eq));
 	}
 
+	return status;
+
+exit:
+	/* Error paths only. The success path releases before the constant-time
+	 * selection above, so that the PK engine is not held across it.
+	 */
+	sx_pk_release_req(&req);
 	return status;
 }
 
