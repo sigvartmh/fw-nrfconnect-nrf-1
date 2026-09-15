@@ -30,7 +30,7 @@ psa_status_t cracen_ecdh_wrstr_calc_secret(const struct sx_pk_ecurve *curve,
 					  {.bytes = scratch_char_y, .sz = priv_key_size}};
 	sx_pk_const_affine_point publ_key_pnt = {};
 
-	sx_pk_req req;
+	SX_PK_REQ_AUTO(req);
 
 	if (publ_key_size != cracen_ecc_wstr_expected_pub_key_bytes(priv_key_size)) {
 		return PSA_ERROR_INVALID_ARGUMENT;
@@ -74,6 +74,6 @@ psa_status_t cracen_ecdh_wrstr_calc_secret(const struct sx_pk_ecurve *curve,
 
 	psa_status = silex_statuscodes_to_psa(sx_status);
 
-	sx_pk_release_req(&req);
+	SX_PK_REQ_DONE(req);
 	return psa_status;
 }
