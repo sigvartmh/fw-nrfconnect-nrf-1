@@ -276,7 +276,8 @@ psa_status_t cracen_ecc_check_public_key(const struct sx_pk_ecurve *curve,
 	int sx_status;
 	uint8_t char_x[CRACEN_MAC_ECC_PRIVKEY_BYTES];
 	uint8_t char_y[CRACEN_MAC_ECC_PRIVKEY_BYTES];
-	sx_pk_req req;
+
+	SX_PK_REQ_AUTO(req);
 
 	/* Get the order of the curve from the parameters */
 	struct sx_const_buf n = {.sz = sx_pk_curve_opsize(curve),
@@ -290,11 +291,11 @@ psa_status_t cracen_ecc_check_public_key(const struct sx_pk_ecurve *curve,
 	 */
 	sx_pk_acquire_hw(&req);
 	sx_status = sx_ec_ptoncurve(&req, curve, in_pnt);
+	SX_PK_REQ_DONE(req);
+
 	if (sx_status != SX_OK) {
-		sx_pk_release_req(&req);
 		return silex_statuscodes_to_psa(sx_status);
 	}
-	sx_pk_release_req(&req);
 
 	/* Skip step 4.
 	 * Only do partial key validation as we only support NIST curves and X25519.
@@ -314,14 +315,17 @@ psa_status_t cracen_ecc_reduce_p256(const uint8_t *input, size_t input_size, uin
 	sx_const_op modulo = {.sz = CRACEN_P256_KEY_SIZE, .bytes = order};
 	sx_const_op operand = {.sz = input_size, .bytes = input};
 	sx_op result = {.sz = output_size, .bytes = output};
-	sx_pk_req req;
+
+	SX_PK_REQ_AUTO(req);
 
 	sx_pk_acquire_hw(&req);
 
 	/* The nistp256 curve order (n) is prime so we use the ODD variant of the reduce command. */
 	const struct sx_pk_cmd_def *cmd = SX_PK_CMD_ODD_MOD_REDUCE;
 	int sx_status = sx_mod_single_op_cmd(&req, cmd, &modulo, &operand, &result);
-		sx_pk_release_req(&req);
+
+	SX_PK_REQ_DONE(req);
+
 	return silex_statuscodes_to_psa(sx_status);
 }
 
