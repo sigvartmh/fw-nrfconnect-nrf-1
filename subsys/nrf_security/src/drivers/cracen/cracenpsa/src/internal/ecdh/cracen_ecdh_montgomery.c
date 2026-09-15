@@ -21,7 +21,8 @@ psa_status_t cracen_ecdh_montgmr_calc_secret(const struct sx_pk_ecurve *curve,
 {
 	int sx_status;
 	const size_t curve_op_sz = sx_pk_curve_opsize(curve);
-	sx_pk_req req;
+
+	SX_PK_REQ_AUTO(req);
 
 	if (publ_key_size != curve_op_sz) {
 		return PSA_ERROR_INVALID_ARGUMENT;
@@ -69,6 +70,6 @@ psa_status_t cracen_ecdh_montgmr_calc_secret(const struct sx_pk_ecurve *curve,
 
 	*output_length = curve_op_sz;
 exit:
-	sx_pk_release_req(&req);
+	SX_PK_REQ_DONE(req);
 	return silex_statuscodes_to_psa(sx_status);
 }
