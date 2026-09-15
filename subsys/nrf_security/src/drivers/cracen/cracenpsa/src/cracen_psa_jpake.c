@@ -70,7 +70,8 @@ psa_status_t cracen_jpake_set_password_key(cracen_jpake_operation_t *operation,
 	 * order.
 	 */
 	const uint8_t *order = sx_pk_curve_order(operation->curve);
-	sx_pk_req req;
+
+	SX_PK_REQ_AUTO(req);
 
 	sx_const_op modulo = {.sz = CRACEN_P256_KEY_SIZE, .bytes = order};
 	sx_const_op b = {.sz = password_length, .bytes = password};
@@ -82,13 +83,13 @@ psa_status_t cracen_jpake_set_password_key(cracen_jpake_operation_t *operation,
 	const struct sx_pk_cmd_def *cmd = SX_PK_CMD_ODD_MOD_REDUCE;
 	int sx_status = sx_mod_single_op_cmd(&req, cmd, &modulo, &b, &result);
 
-	if (sx_status == SX_OK) {
-		if (constant_memcmp_is_zero(operation->secret, sizeof(operation->secret))) {
-			sx_pk_release_req(&req);
-			return PSA_ERROR_INVALID_HANDLE;
-		}
+	SX_PK_REQ_DONE(req);
+
+	if (sx_status == SX_OK &&
+	    constant_memcmp_is_zero(operation->secret, sizeof(operation->secret))) {
+		return PSA_ERROR_INVALID_HANDLE;
 	}
-	sx_pk_release_req(&req);
+
 	return silex_statuscodes_to_psa(sx_status);
 }
 
@@ -291,7 +292,8 @@ static psa_status_t cracen_write_key_share(cracen_jpake_operation_t *operation, 
 	uint8_t generator[CRACEN_P256_POINT_SIZE];
 	size_t h_len;
 	int sx_status = 0;
-	sx_pk_req req;
+
+	SX_PK_REQ_AUTO(req);
 
 	if (output_size < sizeof(operation->X[idx]) + 1) {
 		return PSA_ERROR_BUFFER_TOO_SMALL;
@@ -386,7 +388,7 @@ static psa_status_t cracen_write_key_share(cracen_jpake_operation_t *operation, 
 	*output_length = sizeof(operation->X[idx]) + 1;
 
 exit:
-	sx_pk_release_req(&req);
+	SX_PK_REQ_DONE(req);
 	return status;
 }
 
@@ -470,7 +472,8 @@ static psa_status_t cracen_read_zk_proof(cracen_jpake_operation_t *operation, co
 	uint8_t *rp = operation->r;
 	uint8_t h[PSA_HASH_MAX_SIZE];
 	size_t h_len;
-	sx_pk_req req;
+
+	SX_PK_REQ_AUTO(req);
 
 	if (input_length > sizeof(operation->r)) {
 		return PSA_ERROR_INVALID_ARGUMENT;
@@ -550,7 +553,7 @@ static psa_status_t cracen_read_zk_proof(cracen_jpake_operation_t *operation, co
 	operation->rd_idx++;
 
 exit:
-	sx_pk_release_req(&req);
+	SX_PK_REQ_DONE(req);
 	return status;
 }
 
@@ -574,7 +577,8 @@ psa_status_t cracen_jpake_get_shared_key(cracen_jpake_operation_t *operation,
 					 size_t output_size, size_t *output_length)
 {
 	int sx_status;
-	sx_pk_req req;
+
+	SX_PK_REQ_AUTO(req);
 
 	if (output_size <= CRACEN_P256_POINT_SIZE) {
 		return PSA_ERROR_BUFFER_TOO_SMALL;
@@ -593,13 +597,13 @@ psa_status_t cracen_jpake_get_shared_key(cracen_jpake_operation_t *operation,
 
 	sx_status = sx_ecjpake_gen_sess_key(&req, operation->curve, &x4, &b, &x2, &x2s, &t);
 
+	SX_PK_REQ_DONE(req);
+
 	if (sx_status != SX_OK) {
-		sx_pk_release_req(&req);
 		return silex_statuscodes_to_psa(sx_status);
 	}
 
 	*output_length = 65;
-	sx_pk_release_req(&req);
 
 	return PSA_SUCCESS;
 }
