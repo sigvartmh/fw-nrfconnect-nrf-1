@@ -132,7 +132,8 @@ static psa_status_t cracen_update_transcript(cracen_spake2p_operation_t *operati
 static psa_status_t cracen_get_ZV(cracen_spake2p_operation_t *operation, uint8_t *Z, uint8_t *V)
 {
 	int status;
-	sx_pk_req req;
+
+	SX_PK_REQ_AUTO(req);
 
 	uint8_t w0N[CRACEN_P256_POINT_SIZE];
 
@@ -198,7 +199,7 @@ static psa_status_t cracen_get_ZV(cracen_spake2p_operation_t *operation, uint8_t
 								       : &c_pt_n_w0N, &pt_V);
 
 exit:
-	sx_pk_release_req(&req);
+	SX_PK_REQ_DONE(req);
 	return silex_statuscodes_to_psa(status);
 }
 
@@ -331,7 +332,7 @@ static psa_status_t cracen_p256_reduce(cracen_spake2p_operation_t *operation,
 
 	const uint8_t *order = sx_pk_curve_order(operation->curve);
 
-	sx_pk_req req;
+	SX_PK_REQ_AUTO(req);
 
 	sx_const_op modulo = {.sz = CRACEN_P256_KEY_SIZE, .bytes = order};
 	sx_const_op b = {.sz = input_length, .bytes = input};
@@ -343,7 +344,7 @@ static psa_status_t cracen_p256_reduce(cracen_spake2p_operation_t *operation,
 	const struct sx_pk_cmd_def *cmd = SX_PK_CMD_ODD_MOD_REDUCE;
 	sx_pk_acquire_hw(&req);
 	sx_status = sx_mod_single_op_cmd(&req, cmd, &modulo, &b, &result);
-	sx_pk_release_req(&req);
+	SX_PK_REQ_DONE(req);
 
 	return silex_statuscodes_to_psa(sx_status);
 }
@@ -408,7 +409,8 @@ static psa_status_t cracen_read_confirm(cracen_spake2p_operation_t *operation, c
 static psa_status_t cracen_get_key_share(cracen_spake2p_operation_t *operation)
 {
 	int status;
-	sx_pk_req req;
+
+	SX_PK_REQ_AUTO(req);
 
 	uint8_t xP[CRACEN_P256_POINT_SIZE];
 	uint8_t w0M[CRACEN_P256_POINT_SIZE];
@@ -450,7 +452,7 @@ static psa_status_t cracen_get_key_share(cracen_spake2p_operation_t *operation)
 	operation->XY[0] = UNCOMPRESSED_POINT_TYPE;
 
 exit:
-	sx_pk_release_req(&req);
+	SX_PK_REQ_DONE(req);
 	return  silex_statuscodes_to_psa(status);
 }
 
@@ -653,7 +655,8 @@ static psa_status_t cracen_spake2p_get_L_from_w1(cracen_spake2p_operation_t *ope
 						 uint8_t *w1_buf, uint8_t *L_buf)
 {
 	int sx_status;
-	sx_pk_req req;
+
+	SX_PK_REQ_AUTO(req);
 
 	sx_const_ecop w1 = {.sz = operation->curve->sz, .bytes = w1_buf};
 
@@ -663,7 +666,7 @@ static psa_status_t cracen_spake2p_get_L_from_w1(cracen_spake2p_operation_t *ope
 	sx_pk_acquire_hw(&req);
 	sx_status = sx_ecp_ptmult(&req, operation->curve, &w1,
 								SX_PTMULT_CURVE_GENERATOR, &L_pnt);
-	sx_pk_release_req(&req);
+	SX_PK_REQ_DONE(req);
 
 	return silex_statuscodes_to_psa(sx_status);
 }
