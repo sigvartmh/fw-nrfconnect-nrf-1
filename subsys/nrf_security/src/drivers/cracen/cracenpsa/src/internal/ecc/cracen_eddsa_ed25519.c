@@ -89,8 +89,9 @@ static int ed25519_sign_internal(const uint8_t *priv_key, uint8_t *signature,
 	uint8_t *area_1 = workmem;
 	uint8_t *area_2 = workmem + AREA2_MEM_OFFSET;
 	uint8_t *area_4 = workmem + AREA4_MEM_OFFSET;
-	sx_pk_req req;
 	struct sxhash ctx;
+
+	SX_PK_REQ_AUTO(req);
 
 	status = sx_hw_reserve(&ctx.dma, SX_HW_RESERVE_DEFAULT);
 	if (status != SX_OK) {
@@ -121,8 +122,7 @@ static int ed25519_sign_internal(const uint8_t *priv_key, uint8_t *signature,
 	status = sx_ed25519_ptmult(&req, (const struct sx_ed25519_dgst *)area_4,
 				   (struct sx_ed25519_pt *)pnt_r);
 	if (status != SX_OK) {
-		sx_pk_release_req(&req);
-		goto exit;
+		goto release_pk;
 	}
 
 	/* The secret scalar s is computed in place from the first half of the
@@ -141,14 +141,12 @@ static int ed25519_sign_internal(const uint8_t *priv_key, uint8_t *signature,
 	status = sx_ed25519_ptmult(&req, (const struct sx_ed25519_dgst *)area_1,
 				   (struct sx_ed25519_pt *)area_2);
 	if (status != SX_OK) {
-		sx_pk_release_req(&req);
-		goto exit;
+		goto release_pk;
 	}
 
 	status = ed25519_calculate_k(&ctx, area_2, pnt_r, message, message_length, prehash);
 	if (status != SX_OK) {
-		sx_pk_release_req(&req);
-		goto exit;
+		goto release_pk;
 	}
 
 	/* Compute (r + k * s) mod L. This gives the second part of the
@@ -159,6 +157,11 @@ static int ed25519_sign_internal(const uint8_t *priv_key, uint8_t *signature,
 				 (const struct sx_ed25519_v *)area_1,
 				 (struct sx_ed25519_v *)(pnt_r + SX_ED25519_PT_SZ));
 
+release_pk:
+	/* Released explicitly rather than at scope exit: this function also
+	 * holds the symmetric hardware reservation, released at the exit label
+	 * below, and the PK engine must not stay held across it.
+	 */
 	sx_pk_release_req(&req);
 
 	if (status != SX_OK) {
@@ -208,7 +211,8 @@ static int ed25519_verify_internal(const uint8_t *pub_key, const uint8_t *messag
 	size_t ed25519_sz = SX_ED25519_SZ;
 	size_t offset = prehash ? 0 : 1;
 	size_t input_count = 4 - offset;
-	sx_pk_req req;
+
+	SX_PK_REQ_AUTO(req);
 
 	uint8_t const *hash_array[] = {dom2, signature, pub_key, message};
 	size_t hash_array_lengths[] = {sizeof(dom2), ed25519_sz, ed25519_sz, message_length};
@@ -228,7 +232,7 @@ static int ed25519_verify_internal(const uint8_t *pub_key, const uint8_t *messag
 				   (const struct sx_ed25519_v *)(signature + SX_ED25519_SZ),
 				   (const struct sx_ed25519_pt *)signature);
 
-	sx_pk_release_req(&req);
+	SX_PK_REQ_DONE(req);
 
 	return status;
 }
@@ -264,7 +268,8 @@ int cracen_ed25519_create_pubkey(const uint8_t *priv_key, uint8_t *pub_key)
 	int status;
 	uint8_t digest[SX_ED25519_DGST_SZ];
 	uint8_t *pub_key_A = digest + SX_ED25519_SZ;
-	sx_pk_req req;
+
+	SX_PK_REQ_AUTO(req);
 
 	/* cracen_hash_input handles hardware acquire and release. */
 	status = cracen_hash_input(priv_key, SX_ED25519_SZ, &sxhashalg_sha2_512, digest);
@@ -289,7 +294,7 @@ int cracen_ed25519_create_pubkey(const uint8_t *priv_key, uint8_t *pub_key)
 	status = sx_ed25519_ptmult(&req, (const struct sx_ed25519_dgst *)digest,
 				   (struct sx_ed25519_pt *)pub_key_A);
 
-	sx_pk_release_req(&req);
+	SX_PK_REQ_DONE(req);
 
 	if (status != SX_OK) {
 		return status;
