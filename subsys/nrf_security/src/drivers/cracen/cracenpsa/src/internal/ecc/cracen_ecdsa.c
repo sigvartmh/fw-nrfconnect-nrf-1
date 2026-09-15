@@ -214,12 +214,13 @@ int cracen_ecdsa_sign_digest(const struct cracen_ecc_priv_key *privkey,
 {
 	int status;
 	size_t opsz = sx_pk_curve_opsize(curve);
-	sx_pk_req req;
 	struct sx_pk_inops_ecdsa_generate inputs;
 	const uint8_t *curve_n;
 	const size_t workmem_requirement = digest_length + opsz;
 	struct cracen_signature internal_signature = {0};
 	uint8_t workmem[workmem_requirement];
+
+	SX_PK_REQ_AUTO(req);
 
 	/* Checking against the hash algorithm with the largest digest we support */
 	if (digest_length > SX_HASH_DIGESTSZ_SHA2_512) {
@@ -238,8 +239,7 @@ int cracen_ecdsa_sign_digest(const struct cracen_ecc_priv_key *privkey,
 	for (int i = 0; i <= MAX_ECDSA_ATTEMPTS; i++) {
 		status = cracen_get_rnd_in_range(curve_n, opsz, workmem + digest_length);
 		if (status != SX_OK) {
-			sx_pk_release_req(&req);
-			return status;
+			goto exit;
 		}
 
 		if (i > 0) {
@@ -249,8 +249,7 @@ int cracen_ecdsa_sign_digest(const struct cracen_ecc_priv_key *privkey,
 		status = ecdsa_run_generate_sign(&req, privkey, curve, workmem,
 						 digest_length, opsz, &inputs);
 		if (status != SX_OK) {
-			sx_pk_release_req(&req);
-			return status;
+			goto exit;
 		}
 
 		status = sx_pk_wait(&req);
@@ -258,8 +257,8 @@ int cracen_ecdsa_sign_digest(const struct cracen_ecc_priv_key *privkey,
 		/* SX_ERR_NOT_INVERTIBLE may be due to silexpk countermeasures. */
 		if ((status == SX_ERR_INVALID_SIGNATURE) || (status == SX_ERR_NOT_INVERTIBLE)) {
 			if (i == MAX_ECDSA_ATTEMPTS) {
-				sx_pk_release_req(&req);
-				return SX_ERR_TOO_MANY_ATTEMPTS;
+				status = SX_ERR_TOO_MANY_ATTEMPTS;
+				goto exit;
 			}
 			/* Continue loop to retry */
 		} else {
@@ -267,18 +266,17 @@ int cracen_ecdsa_sign_digest(const struct cracen_ecc_priv_key *privkey,
 		}
 	}
 
-	if (status != SX_OK) {
-		sx_pk_release_req(&req);
-		return status;
+	if (status == SX_OK) {
+		const uint8_t **outputs = (const uint8_t **)sx_pk_get_output_ops(&req);
+
+		ecdsa_read_sig(&internal_signature, outputs[0], outputs[1], opsz);
 	}
 
-	const uint8_t **outputs = (const uint8_t **)sx_pk_get_output_ops(&req);
-
-	ecdsa_read_sig(&internal_signature, outputs[0], outputs[1], opsz);
-	sx_pk_release_req(&req);
+exit:
+	SX_PK_REQ_DONE(req);
 	safe_memzero(workmem, workmem_requirement);
 
-	return SX_OK;
+	return status;
 }
 
 static int deterministic_ecdsa_hmac(struct sxhash *hashctx, const struct sxhashalg *hashalg,
@@ -437,10 +435,11 @@ static inline int ecdsa_sign_digest_deterministic_internal(
 	const uint8_t *curve_n = sx_pk_curve_order(curve);
 	uint8_t workmem[workmem_requirement];
 
-	sx_pk_req req;
 	struct sx_pk_inops_ecdsa_generate inputs;
 	struct cracen_signature internal_signature = {0};
 	struct ecdsa_hmac_operation hmac_op;
+
+	SX_PK_REQ_AUTO(req);
 
 	hmac_op.attempts = MAX_ECDSA_ATTEMPTS;
 
@@ -463,16 +462,14 @@ static inline int ecdsa_sign_digest_deterministic_internal(
 								   digestsz, blocksz, workmem,
 								   &hmac_op, privkey);
 			if (status != SX_OK && status != SX_ERR_HW_PROCESSING) {
-				sx_pk_release_req(&req);
-				return status;
+				goto exit;
 			}
 		}
 
 		status = ecdsa_run_generate_sign(&req, privkey, curve, workmem, digestsz,
 						 opsz, &inputs);
 		if (status != SX_OK) {
-			sx_pk_release_req(&req);
-			return status;
+			goto exit;
 		}
 
 		status = sx_pk_wait(&req);
@@ -486,7 +483,8 @@ static inline int ecdsa_sign_digest_deterministic_internal(
 		ecdsa_read_sig(&internal_signature, outputs[0], outputs[1], opsz);
 	}
 
-	sx_pk_release_req(&req);
+exit:
+	SX_PK_REQ_DONE(req);
 	safe_memzero(workmem, workmem_requirement);
 
 	return status;
@@ -572,16 +570,16 @@ int cracen_ecdsa_verify_digest(const uint8_t *pubkey, const uint8_t *digest, con
 	int status;
 	size_t opsz = sx_pk_curve_opsize(curve);
 
-	sx_pk_req req;
 	struct sx_pk_inops_ecdsa_verify inputs;
 	struct cracen_const_signature internal_signature = {.r = signature, .s = signature + opsz};
+
+	SX_PK_REQ_AUTO(req);
 
 	sx_pk_acquire_hw(&req);
 	sx_pk_set_cmd(&req, SX_PK_CMD_ECDSA_VER);
 	status = sx_pk_list_ecc_inslots(&req, curve, 0, (struct sx_pk_slot *)&inputs);
 	if (status != SX_OK) {
-		sx_pk_release_req(&req);
-		return status;
+		goto exit;
 	}
 
 	opsz = sx_pk_curve_opsize(curve);
@@ -591,7 +589,9 @@ int cracen_ecdsa_verify_digest(const uint8_t *pubkey, const uint8_t *digest, con
 	digest2op(digest, digestsz, inputs.h.addr, opsz);
 	sx_pk_run(&req);
 	status = sx_pk_wait(&req);
-	sx_pk_release_req(&req);
+
+exit:
+	SX_PK_REQ_DONE(req);
 
 	return status;
 }
