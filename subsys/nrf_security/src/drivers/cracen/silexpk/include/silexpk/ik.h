@@ -31,6 +31,9 @@ extern "C" {
  * ::SX_PK_CMD_IK_PUBKEY_GEN, ::SX_PK_CMD_IK_ECDSA_SIGN,
  * ::SX_PK_CMD_IK_PTMULT, ::SX_PK_CMD_IK_EXIT
  *
+ * @note On failure the acceleration request is still held, as for
+ * sx_pk_list_ecc_inslots(). The caller always releases it.
+ *
  * @param[in,out] req The acceleration request obtained
  * through sx_pk_acquire_hw()
  * @param[in] key Index of key to be used for IK operation

@@ -176,6 +176,12 @@ struct sx_pk_dblslot {
  *
  * That applies to all ECC operations.
  *
+ * @note On failure the acceleration request is still held. The caller owns it
+ * from sx_pk_acquire_hw() until it calls sx_pk_release_req(), whatever this
+ * function returns. sx_pk_release_req() is not idempotent, so releasing here
+ * and again in the caller underflows the CRACEN user count and unlocks a mutex
+ * the caller no longer holds.
+ *
  * @param[in,out] req The acceleration request obtained
  * through sx_pk_acquire_hw()
  * @param[in] curve The curve used for that ECC operation
@@ -198,6 +204,9 @@ int sx_pk_list_ecc_inslots(sx_pk_req *req, const struct sx_pk_ecurve *curve, int
  * found in the corresponding slot.
  *
  * That applies to all operations except ECC.
+ *
+ * @note On failure the acceleration request is still held, as for
+ * sx_pk_list_ecc_inslots(). The caller always releases it.
  *
  * @param[in,out] req The acceleration request obtained
  * through sx_pk_acquire_hw()
