@@ -245,6 +245,7 @@ psa_status_t cracen_derive_wpa3_sae_pt_key(const psa_key_attributes_t *attribute
 		status = cracen_hkdf_sha256_expand(input, (const uint8_t *)label_u2,
 							strlen(label_u2), pwd_value);
 		if (status != PSA_SUCCESS) {
+			sx_pk_release_req(&req);
 			return status;
 		}
 
@@ -274,6 +275,7 @@ psa_status_t cracen_derive_wpa3_sae_pt_key(const psa_key_attributes_t *attribute
 							key_bits_attr,
 							&sx_curve);
 		if (status != PSA_SUCCESS) {
+			sx_pk_release_req(&req);
 			return status;
 		}
 
