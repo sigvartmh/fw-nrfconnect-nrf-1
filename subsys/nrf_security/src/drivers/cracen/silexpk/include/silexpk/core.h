@@ -14,6 +14,20 @@
 #include <stdint.h>
 #include <stddef.h>
 
+/* __cleanup() comes from <zephyr/toolchain.h> when building against Zephyr.
+ * Define it here for builds that do not have that header, so that this
+ * interface does not depend on it.
+ */
+#if defined(__has_include)
+#if __has_include(<zephyr/toolchain.h>)
+#include <zephyr/toolchain.h>
+#endif
+#endif
+
+#if !defined(__cleanup) && (defined(__GNUC__) || defined(__clang__))
+#define __cleanup(_fn) __attribute__((cleanup(_fn)))
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -177,10 +191,8 @@ struct sx_pk_dblslot {
  * That applies to all ECC operations.
  *
  * @note On failure the acceleration request is still held. The caller owns it
- * from sx_pk_acquire_hw() until it calls sx_pk_release_req(), whatever this
- * function returns. sx_pk_release_req() is not idempotent, so releasing here
- * and again in the caller underflows the CRACEN user count and unlocks a mutex
- * the caller no longer holds.
+ * from sx_pk_acquire_hw() until it is released, whatever this function
+ * returns, so this function never releases it on the caller's behalf.
  *
  * @param[in,out] req The acceleration request obtained
  * through sx_pk_acquire_hw()
@@ -274,15 +286,56 @@ const uint8_t **sx_pk_get_output_ops(sx_pk_req *req);
  *
  * Release the reserved resources
  *
- * @pre sx_pk_acquire_hw() should have been called
- * before this function is called and not
- * being in use by the hardware
+ * @pre The request must not be in use by the hardware.
+ *
+ * @note Calling this on a request that was never acquired, or that has
+ * already been released, does nothing. A request must therefore be
+ * zero-initialized, which SX_PK_REQ_AUTO() takes care of.
  *
  * @param[in,out] req The acceleration request obtained
  * through sx_pk_acquire_hw()
  * operation has finished
  */
 void sx_pk_release_req(sx_pk_req *req);
+
+/** Declare a public key acceleration request.
+ *
+ * @code
+ * SX_PK_REQ_AUTO(req);
+ * sx_pk_acquire_hw(&req);
+ *
+ * status = sx_pk_list_ecc_inslots(&req, curve, 0, slots);
+ * if (status != SX_OK) {
+ *         goto exit;
+ * }
+ * ...
+ * exit:
+ *         SX_PK_REQ_DONE(req);
+ *         return status;
+ * @endcode
+ *
+ * With CONFIG_CRACEN_PK_SCOPE_BOUND_RELEASE the request is released on every
+ * exit from the enclosing scope, so a path that misses SX_PK_REQ_DONE() cannot
+ * leak it. Without that option -- on a toolchain lacking the cleanup
+ * attribute, such as IAR -- SX_PK_REQ_DONE() performs the release, so every
+ * exit path must reach it. Writing both, as above, is correct either way.
+ *
+ * Falling back is safe rather than silent: the fallback still releases, at
+ * SX_PK_REQ_DONE(). A no-op cleanup that dropped the release would instead
+ * turn a build difference into a leak, so it is deliberately not offered.
+ */
+#if defined(CONFIG_CRACEN_PK_SCOPE_BOUND_RELEASE) && defined(__cleanup)
+#define SX_PK_REQ_AUTO(_name) sx_pk_req _name __cleanup(sx_pk_release_req) = {0}
+/** Release a request declared with SX_PK_REQ_AUTO().
+ *
+ * Expands to nothing when the cleanup attribute is doing the release, and to
+ * sx_pk_release_req() otherwise. See SX_PK_REQ_AUTO().
+ */
+#define SX_PK_REQ_DONE(_name) ((void)0)
+#else
+#define SX_PK_REQ_AUTO(_name) sx_pk_req _name = {0}
+#define SX_PK_REQ_DONE(_name) sx_pk_release_req(&(_name))
+#endif
 
 /** Set the command for an already-acquired request.
  *

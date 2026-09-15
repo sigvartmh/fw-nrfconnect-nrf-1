@@ -191,6 +191,25 @@ config CRACEN_CLEAR_PKE_MEMORY
 	  This has an impact on runtime, but it is minimal on
 	  CRACEN_HW_VERSION_LITE devices.
 
+config CRACEN_PK_SCOPE_BOUND_RELEASE
+	bool "Release the CRACEN PK request when it leaves scope"
+	depends on TOOLCHAIN_SUPPORTS_VARIABLE_CLEANUP_ATTRIBUTE
+	default y
+	help
+	  Attach the variable cleanup attribute to public-key acceleration
+	  requests declared with SX_PK_REQ_AUTO(), so that the request is
+	  released on every exit path, including early returns and gotos out of
+	  the enclosing scope. This makes a leaked request, which would leave
+	  CRACEN powered and its mutex held for the lifetime of the image,
+	  impossible to express.
+
+	  The attribute is a compiler extension that IAR does not implement, so
+	  this option is unavailable there and the driver falls back to
+	  releasing at each function's single exit point instead. That fallback
+	  is what SX_PK_REQ_DONE() expands to, and it is always correct, so this
+	  option can also be turned off on a toolchain that does support the
+	  attribute in order to build and test the fallback path.
+
 config CRACEN_ECC_COUNTERMEASURES
 	bool "CRACEN ECC countermeasures"
 	default y

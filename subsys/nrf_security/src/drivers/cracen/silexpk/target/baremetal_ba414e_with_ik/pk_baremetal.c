@@ -288,6 +288,16 @@ void *sx_pk_get_user_context(sx_pk_req *req)
 
 void sx_pk_release_req(sx_pk_req *req)
 {
+	if (req->cnx == NULL) {
+		/* Never acquired, or already released. Only sx_pk_acquire_hw()
+		 * sets cnx, so a zero-initialized request reads as not held.
+		 * This is what lets SX_PK_REQ_AUTO() fire on a scope exit that
+		 * happens before the acquisition, and lets a function release
+		 * early and still be covered by the cleanup attribute.
+		 */
+		return;
+	}
+
 	if (IS_ENABLED(CONFIG_CRACEN_CLEAR_PKE_MEMORY)) {
 		/* Clear PK data memory */
 		(void)sx_pk_clear_memory(req);
@@ -297,6 +307,7 @@ void sx_pk_release_req(sx_pk_req *req)
 
 	cracen_release();
 	req->cnx->cmd = SX_PK_CMD_NONE;
+	req->cnx = NULL;
 	req->userctxt = NULL;
 	nrf_security_mutex_unlock(cracen_mutex_asymmetric);
 }
