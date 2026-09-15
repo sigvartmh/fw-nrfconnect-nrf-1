@@ -58,7 +58,8 @@ static const uint8_t cracen_G3072[] = {5};
 static psa_status_t calculate_v_from_k(const uint8_t *k, size_t k_size, uint8_t *v, size_t v_size)
 {
 	int sx_status = SX_ERR_CORRUPTION_DETECTED;
-	sx_pk_req req;
+
+	SX_PK_REQ_AUTO(req);
 
 	sx_pk_acquire_hw(&req);
 
@@ -69,7 +70,7 @@ static psa_status_t calculate_v_from_k(const uint8_t *k, size_t k_size, uint8_t 
 
 	sx_status = sx_mod_primitive_cmd(&req, SX_PK_CMD_MOD_EXP,
 					      &modulo, &g, &a, &result);
-	sx_pk_release_req(&req);
+	SX_PK_REQ_DONE(req);
 	return silex_statuscodes_to_psa(sx_status);
 }
 
@@ -198,7 +199,8 @@ static psa_status_t cracen_srp_calculate_client_key_share(cracen_srp_operation_t
 {
 	psa_status_t status = PSA_ERROR_CORRUPTION_DETECTED;
 	int sx_status = SX_ERR_CORRUPTION_DETECTED;
-	sx_pk_req req;
+
+	SX_PK_REQ_AUTO(req);
 
 	/* a <- random() */
 	status = cracen_get_random(NULL, operation->ab, sizeof(operation->ab));
@@ -225,7 +227,7 @@ static psa_status_t cracen_srp_calculate_client_key_share(cracen_srp_operation_t
 	*output_length = CRACEN_SRP_FIELD_SIZE;
 
 exit:
-	sx_pk_release_req(&req);
+	SX_PK_REQ_DONE(req);
 	return status;
 }
 
@@ -236,7 +238,8 @@ static psa_status_t cracen_srp_calculate_server_key_share(cracen_srp_operation_t
 {
 	psa_status_t status = PSA_ERROR_CORRUPTION_DETECTED;
 	int sx_status = SX_ERR_CORRUPTION_DETECTED;
-	sx_pk_req req;
+
+	SX_PK_REQ_AUTO(req);
 	uint8_t temp_value[CRACEN_SRP_FIELD_SIZE] = {0};
 	uint8_t temp_value_2[CRACEN_SRP_FIELD_SIZE] = {0};
 	/* k is only a hash but the buffer is used for padding in cracen_srp_get_multiplier */
@@ -260,7 +263,7 @@ static psa_status_t cracen_srp_calculate_server_key_share(cracen_srp_operation_t
 					      &modulo, &g, &b, &temp_b);
 	status = silex_statuscodes_to_psa(sx_status);
 	if (status != PSA_SUCCESS) {
-		goto error;
+		goto exit;
 	}
 
 	/* SRP-6a alternation
@@ -273,7 +276,7 @@ static psa_status_t cracen_srp_calculate_server_key_share(cracen_srp_operation_t
 	/* k = H(p | pad(g)) */
 	status = cracen_srp_get_multiplier(k_value, sizeof(k_value));
 	if (status != PSA_SUCCESS) {
-		goto error;
+		goto exit;
 	}
 	/* kv mod N, using output as temp storage */
 	sx_const_op k = {.sz = CRACEN_SRP_HASH_LENGTH, .bytes = k_value};
@@ -284,7 +287,7 @@ static psa_status_t cracen_srp_calculate_server_key_share(cracen_srp_operation_t
 	sx_status = sx_mod_primitive_cmd(&req, cmd_mul, &modulo, &k, &v, &kv);
 	status = silex_statuscodes_to_psa(sx_status);
 	if (status != PSA_SUCCESS) {
-		goto error;
+		goto exit;
 	}
 
 	/* B = (kv + b') mod N */
@@ -300,17 +303,18 @@ static psa_status_t cracen_srp_calculate_server_key_share(cracen_srp_operation_t
 					      &result);
 	status = silex_statuscodes_to_psa(sx_status);
 	if (status != PSA_SUCCESS) {
-		goto error;
+		goto exit;
 	}
 	memcpy(output, operation->B, CRACEN_SRP_FIELD_SIZE);
 	*output_length = CRACEN_SRP_FIELD_SIZE;
 
-	sx_pk_release_req(&req);
-	return status;
+exit:
+	SX_PK_REQ_DONE(req);
 
-error:
-	sx_pk_release_req(&req);
-	safe_memzero(output, output_size);
+	if (status != PSA_SUCCESS) {
+		safe_memzero(output, output_size);
+	}
+
 	return status;
 }
 
@@ -354,7 +358,8 @@ static psa_status_t cracen_srp_calculate_client_S(cracen_srp_operation_t *operat
 {
 	psa_status_t status = PSA_ERROR_CORRUPTION_DETECTED;
 	int sx_status = SX_ERR_CORRUPTION_DETECTED;
-	sx_pk_req req;
+
+	SX_PK_REQ_AUTO(req);
 	uint8_t temp_value_0[CRACEN_SRP_FIELD_SIZE] = {0};
 	uint8_t temp_value_1[CRACEN_SRP_FIELD_SIZE] = {0};
 
@@ -461,7 +466,7 @@ static psa_status_t cracen_srp_calculate_client_S(cracen_srp_operation_t *operat
 					      &result);
 	status = silex_statuscodes_to_psa(sx_status);
 exit:
-	sx_pk_release_req(&req);
+	SX_PK_REQ_DONE(req);
 	return status;
 }
 
@@ -471,7 +476,8 @@ static psa_status_t cracen_srp_calculate_server_S(cracen_srp_operation_t *operat
 {
 	psa_status_t status = PSA_ERROR_CORRUPTION_DETECTED;
 	int sx_status = SX_ERR_CORRUPTION_DETECTED;
-	sx_pk_req req;
+
+	SX_PK_REQ_AUTO(req);
 	uint8_t u_buffer[CRACEN_SRP_HASH_LENGTH] = {0};
 	uint8_t temp_value[CRACEN_SRP_FIELD_SIZE] = {0};
 
@@ -527,7 +533,7 @@ static psa_status_t cracen_srp_calculate_server_S(cracen_srp_operation_t *operat
 	}
 
 exit:
-	sx_pk_release_req(&req);
+	SX_PK_REQ_DONE(req);
 	return status;
 }
 
