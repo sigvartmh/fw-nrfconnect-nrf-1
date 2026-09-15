@@ -745,6 +745,10 @@ static psa_status_t cracen_wpa3_sae_calc_keys(cracen_wpa3_sae_operation_t *op)
 	return PSA_SUCCESS;
 
 exit:
+	/* Only reached from the MAC failures above, which all still hold the
+	 * request. The paths after the release below return directly.
+	 */
+	sx_pk_release_req(&req);
 	cracen_mac_abort(&op->mac_op);
 	return status;
 }
