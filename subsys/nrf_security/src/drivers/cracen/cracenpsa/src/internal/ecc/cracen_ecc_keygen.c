@@ -23,11 +23,12 @@ int cracen_ecc_genpubkey(const uint8_t *priv_key, uint8_t *pub_key,
 			 const struct sx_pk_ecurve *curve)
 {
 	const uint8_t **outputs;
-	sx_pk_req req;
 	struct sx_pk_inops_ecp_mult inputs;
 	size_t opsz;
 	int status = SX_ERR_CORRUPTION_DETECTED;
 	int attempts = 0;
+
+	SX_PK_REQ_AUTO(req);
 
 	opsz = sx_pk_curve_opsize(curve);
 
@@ -42,8 +43,7 @@ int cracen_ecc_genpubkey(const uint8_t *priv_key, uint8_t *pub_key,
 
 		status = sx_pk_list_ecc_inslots(&req, curve, 0, (struct sx_pk_slot *)&inputs);
 		if (status != SX_OK) {
-			sx_pk_release_req(&req);
-			return status;
+			goto exit;
 		}
 
 		/* Write the private key (random) into ba414ep device memory */
@@ -59,8 +59,8 @@ int cracen_ecc_genpubkey(const uint8_t *priv_key, uint8_t *pub_key,
 		 */
 		if (status == SX_ERR_NOT_INVERTIBLE) {
 			if (++attempts == MAX_ECC_ATTEMPTS) {
-				sx_pk_release_req(&req);
-				return SX_ERR_TOO_MANY_ATTEMPTS;
+				status = SX_ERR_TOO_MANY_ATTEMPTS;
+				goto exit;
 			}
 		}
 	} while (status == SX_ERR_NOT_INVERTIBLE);
@@ -70,7 +70,9 @@ int cracen_ecc_genpubkey(const uint8_t *priv_key, uint8_t *pub_key,
 		sx_rdpkmem(pub_key, outputs[0], opsz);
 		sx_rdpkmem(pub_key + opsz, outputs[1], opsz);
 	}
-	sx_pk_release_req(&req);
+
+exit:
+	SX_PK_REQ_DONE(req);
 	return status;
 }
 
