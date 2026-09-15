@@ -204,8 +204,9 @@ static void copy_coord(uint8_t *x, const uint8_t point_x[SECP160R1_OPSZ])
 psa_status_t psa_ext_ecc_secp160r1_scalar_reduce(const uint8_t *input, size_t input_length,
 						 uint8_t *output, size_t output_size)
 {
-	sx_pk_req req;
 	int sx_status;
+
+	SX_PK_REQ_AUTO(req);
 
 	if (input_length == 0u || input_length > PSA_EXT_ECC_SECP160R1_MAX_INPUT_SIZE) {
 		return PSA_ERROR_INVALID_ARGUMENT;
@@ -216,7 +217,7 @@ psa_status_t psa_ext_ecc_secp160r1_scalar_reduce(const uint8_t *input, size_t in
 
 	sx_pk_acquire_hw(&req);
 	sx_status = reduce_into(&req, input, input_length, output);
-	sx_pk_release_req(&req);
+	SX_PK_REQ_DONE(req);
 
 	return silex_statuscodes_to_psa(sx_status);
 }
@@ -226,8 +227,9 @@ psa_status_t psa_ext_ecc_secp160r1_scalar_mult_base(const uint8_t *scalar, size_
 {
 	uint8_t scalar_padded[SECP160R1_OPSZ] = {0};
 	uint8_t point_x[SECP160R1_OPSZ];
-	sx_pk_req req;
 	int sx_status;
+
+	SX_PK_REQ_AUTO(req);
 
 	if (scalar_length == 0u || scalar_length > PSA_EXT_ECC_SECP160R1_SCALAR_SIZE) {
 		return PSA_ERROR_INVALID_ARGUMENT;
@@ -243,7 +245,7 @@ psa_status_t psa_ext_ecc_secp160r1_scalar_mult_base(const uint8_t *scalar, size_
 
 	sx_pk_acquire_hw(&req);
 	sx_status = mult_base_into(&req, scalar_padded, point_x);
-	sx_pk_release_req(&req);
+	SX_PK_REQ_DONE(req);
 
 	safe_memzero(scalar_padded, sizeof(scalar_padded));
 
@@ -262,7 +264,8 @@ psa_status_t psa_ext_ecc_secp160r1_reduce_mult_base(const uint8_t *input, size_t
 	uint8_t reduced[SECP160R1_OPSZ];
 	uint8_t point_x[SECP160R1_OPSZ];
 	psa_status_t status;
-	sx_pk_req req;
+
+	SX_PK_REQ_AUTO(req);
 
 	if (input_length == 0u || input_length > PSA_EXT_ECC_SECP160R1_MAX_INPUT_SIZE) {
 		return PSA_ERROR_INVALID_ARGUMENT;
@@ -288,7 +291,7 @@ psa_status_t psa_ext_ecc_secp160r1_reduce_mult_base(const uint8_t *input, size_t
 		}
 	}
 
-	sx_pk_release_req(&req);
+	SX_PK_REQ_DONE(req);
 
 	if (status == PSA_SUCCESS) {
 		memcpy(scalar, reduced, PSA_EXT_ECC_SECP160R1_SCALAR_SIZE);
