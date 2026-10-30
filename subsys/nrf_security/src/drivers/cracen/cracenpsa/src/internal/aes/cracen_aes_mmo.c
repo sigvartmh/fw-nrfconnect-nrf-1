@@ -92,8 +92,6 @@ psa_status_t cracen_aes_mmo_update(cracen_aes_mmo_operation_t *operation, const 
 		return PSA_ERROR_INVALID_ARGUMENT;
 	}
 
-	operation->message_length += input_length;
-
 	/* Only reserve the hardware if this fragment completes at least one block.
 	 * The remaining bytes are buffered until a later update, or until finish()
 	 * pads them.
@@ -101,6 +99,7 @@ psa_status_t cracen_aes_mmo_update(cracen_aes_mmo_operation_t *operation, const 
 	if (operation->block_length + input_length < SX_BLKCIPHER_AES_BLK_SZ) {
 		memcpy(operation->block + operation->block_length, input, input_length);
 		operation->block_length += input_length;
+		operation->message_length += input_length;
 		return PSA_SUCCESS;
 	}
 
@@ -108,6 +107,11 @@ psa_status_t cracen_aes_mmo_update(cracen_aes_mmo_operation_t *operation, const 
 	if (sx_status != SX_OK) {
 		return silex_statuscodes_to_psa(sx_status);
 	}
+
+	/* Counted only once the fragment is certain to be consumed, so that a failed
+	 * reservation leaves the context describing exactly what it holds.
+	 */
+	operation->message_length += input_length;
 
 	while (input_length > 0) {
 		size_t chunk_length =
