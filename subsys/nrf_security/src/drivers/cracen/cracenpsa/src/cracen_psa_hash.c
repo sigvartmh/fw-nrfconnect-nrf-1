@@ -81,11 +81,13 @@ psa_status_t cracen_hash_setup(cracen_hash_operation_t *operation, psa_algorithm
 	psa_status_t psa_status;
 
 #if defined(PSA_NEED_CRACEN_AES_MMO_ZIGBEE)
-	if (is_aes_mmo(alg)) {
-		/* The PSA core has already zeroed the operation, which is all the
-		 * state AES-MMO needs to start.
-		 */
-		operation->is_aes_mmo = true;
+	/* The PSA core zeroes the operation before setup, but the driver API is also
+	 * called directly by other CRACEN code, so do not rely on that: a zeroed
+	 * context is all the state AES-MMO needs to start.
+	 */
+	operation->is_aes_mmo = is_aes_mmo(alg);
+	if (operation->is_aes_mmo) {
+		safe_memzero(&operation->aes_mmo, sizeof(operation->aes_mmo));
 
 		return PSA_SUCCESS;
 	}
